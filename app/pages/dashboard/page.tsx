@@ -1,0 +1,370 @@
+"use client";
+
+import { Suspense, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import type { Key } from "react-aria-components";
+import { Tabs } from "react-aria-components";
+import { TabList, Tab } from "@/components/application/tabs/tabs";
+import { ChevronDown, ArrowNarrowRight, Folder, User01, PieChart03 } from "@untitledui/icons";
+import { Button } from "@/components/base/buttons/button";
+import { HomeTabPanels } from "@/app/pages/_shared/home-tab-panels";
+import { DataOverviewContent } from "@/app/pages/_shared/data-overview";
+import { ProjectListContent } from "@/app/pages/_shared/project-list-content";
+import { PrimaryRail } from "@/app/pages/_shared/primary-rail";
+import { sectionIcons } from "@/app/pages/_shared/nav-icons";
+import { AppHeader } from "@/app/pages/_shared/app-header";
+import { ProjectsSidebar, type ProjectScope } from "@/app/pages/_shared/projects-sidebar";
+import { GuestAboutAside, GuestGradientCard } from "@/app/pages/_shared/guest-home";
+import { MobileNavItem, MobileNavTrigger } from "@/app/pages/_shared/mobile-nav";
+import { PrototypeTools } from "@/app/_prototype-tools/prototype-tools";
+import { useUserRole } from "@/lib/use-user-role";
+import { useRoleHref } from "@/lib/use-role-href";
+import { navForRole, keyHref, type NavNode } from "@/lib/registered-user-nav";
+import { cx } from "@/utils/cx";
+
+// One icon per top-level section, for the primary icon rail below - presentation-only, so it
+// lives here rather than in lib/registered-user-nav.ts (which stays shell-agnostic; option-2's
+// top-nav has no use for icons).
+// The canonical Registered User dashboard, on the sidebar (icon-rail + contextual-sidebar) shell -
+// per the Sept 16 layout decision, this shell direction is the one going forward, so this page lost
+// its `/option-1` suffix and folded into the plain `/pages/dashboard` route. The top-nav
+// alternative it was compared against (`dashboard/option-2`) has since been deleted.
+//
+// A task-first dashboard for a registered user. Personal activity stats (KPI row) stay at the top,
+// directly under the greeting - that positioning is a fixed convention, not something to relitigate
+// per redesign. "Your requests" (a DLA request, a nomination under review) and the draft to continue follow below it - that's the "task first" part: it's the dashboard's actual primary
+// content, the reason personal contribution stats and org-wide accountability numbers (total
+// records, flora/fauna species counts, the map) that used to live here have been trimmed to just
+// the KPI row. Decided directly by the user: a registered user has limited scope on this platform,
+// so the dashboard's job is to surface what's actually theirs to act on, not to be a smaller version
+// of an org-wide reporting surface - see .claude/rules/ref-shell.md, "Registered User dashboard scope".
+//
+// Figma source: https://www.figma.com/design/SQ58QgwP9Xz0uo3tBpuf6e/DEW-Toolkit--version-1.0-?node-id=103-105
+// "SCREEN" (BioData SA dashboard shell, 1440px) - an exploratory layout per CONTEXT.md's
+// "Exploratory page layouts (/pages/<page-name>, /pages/<page-name>/<variant>)" section.
+// Unlike a /test-* screen (a fixed, already-decided Figma frame), this explores what the
+// dashboard could look like while the surrounding IA - primary icon rail, contextual sidebar,
+// breadcrumb - is still undecided, so that chrome is built as simplified structural placeholder
+// from real tokens rather than pixel-matched or ?-blocked. Every contained widget (search,
+// buttons, avatar, alert) still goes through the same "real DEW or honest ? gap" rule as a
+// /test-* screen. Figma's yellow "GENERAL NOTES" sticky note (a designer's comment
+// layer, not product UI) is excluded entirely.
+
+// ─────────────────────────────────────────────────────────────────────────
+// Local screen chrome - NOT real DEW components. Nav rail/sidebar/footer links
+// are exempt from fidelity per CONTEXT.md (IA isn't decided yet); KPI row,
+// metric cards, filter panel, and map panel are structural shells composed
+// from real tokens because nothing under components/base|application/** models
+// these patterns yet.
+//
+// Three-column shell (Mobbin/Supabase-style): the primary icon rail is the real top-level IA
+// (lib/registered-user-nav.ts) - one icon per section, click to select - the contextual sidebar
+// shows only the selected section's children as a plain expand/collapse tree built from tokens,
+// same exemption as the rest of this nav chrome (no Accordion component exists or is warranted
+// for content this undecided), and the third column is the page's own main content. Only the two
+// items with a real page (`key` set) are actual links; everything else is inert text until it has
+// somewhere to go.
+// ─────────────────────────────────────────────────────────────────────────
+
+// This screen's own page key, so its own entry in the tree (Home > BioData Dashboard) can show a
+// selected state - it's the page the user is already on by default, so the nav should say so
+// rather than looking identical to every unvisited item. Flagged directly by the user off a
+// screenshot of this exact link with no active styling.
+const CURRENT_KEY = "dashboard";
+
+function NavTree({ node, depth = 0, defaultOpen = false }: { node: NavNode; depth?: number; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
+  const hasChildren = !!node.items?.length;
+  const href = node.key ? keyHref(node.key) : undefined;
+  const isCurrent = !!node.key && node.key === CURRENT_KEY;
+  const indent = { paddingLeft: 8 + depth * 12, paddingRight: 8 };
+
+  if (!hasChildren) {
+    return href ? (
+      <Link
+        href={href}
+        style={indent}
+        aria-current={isCurrent ? "page" : undefined}
+        // Active fill matches the Home views TabList's `button-brand` selected state
+        // (components/application/tabs/tabs.tsx) - the "flow this through every column-2
+        // candidate" ask, applied here since NavTree's real links are the other column-2
+        // selectable-item list, not just the Home switcher. Hover is the same neutral
+        // `bg-tertiary`/`text-primary` that type's own hover state now uses (previously this
+        // matched the active/selected fill, previewing "selected" on a plain hover - the exact
+        // mismatch against the primary icon rail flagged directly by the user, fixed at the
+        // design-system level in tabs.tsx and mirrored here since NavTree isn't itself a `Tab`).
+        // NavTree stays real `Link`s (this is navigation between pages, not panels within one), so
+        // it borrows the tokens rather than becoming a Tabs instance itself.
+        className={cx(
+          "rounded-md py-2 text-sm font-medium transition-colors duration-100 ease-linear",
+          isCurrent ? "bg-brand-secondary text-brand-secondary" : "text-primary hover:bg-tertiary",
+        )}
+      >
+        {node.label}
+      </Link>
+    ) : (
+      // No real page yet - text-tertiary (not text-primary/font-medium like the links above) so
+      // the sidebar itself shows which of its items are actual destinations, not just labels
+      // holding a place in the IA.
+      <p style={indent} className="py-2 text-sm text-tertiary">
+        {node.label}
+      </p>
+    );
+  }
+
+  return (
+    <div className="flex flex-col">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        style={indent}
+        className={cx(
+          "flex w-full items-center justify-between gap-2 py-2 text-left",
+          depth === 0 ? "text-xs font-semibold tracking-wide text-quaternary uppercase" : "text-sm font-medium text-primary",
+        )}
+      >
+        {node.label}
+        <ChevronDown className={cx("size-3.5 shrink-0 text-quaternary transition-transform", !open && "-rotate-90")} />
+      </button>
+      {open && (
+        <div className="mt-1 flex flex-col gap-0.5">
+          {node.items!.map((child) => (
+            <NavTree key={child.label} node={child} depth={depth + 1} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// What column 3 shows for every section besides this screen's own (Home, here). Two honest
+// states, not one: a section either has a real page elsewhere (Home -> this very dashboard,
+// Projects -> project-list) - in which case say so and link to it, don't claim it's unscoped when
+// it demonstrably isn't - or it genuinely has no page yet, which does get the "not scoped" copy.
+// Conflating the two read as a bug: clicking Home from another screen showed "hasn't been scoped
+// yet" directly above a working "Go to Home" link, flagged directly by the user off a screenshot.
+function SectionPlaceholder({ node }: { node: NavNode }) {
+  // A section can itself be the link (a leaf like Home) or have one keyed child (like Projects).
+  const relatedLink = node.key ? node : node.items?.find((item) => item.key);
+  // A bare path drops the active role - see lib/use-role-href.ts. Another instance of the same
+  // dead end fixed everywhere else, missed here the first time round.
+  const roleHref = useRoleHref();
+
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center gap-3 p-12 text-center">
+      <h1 className="text-lg font-semibold text-primary">{node.label}</h1>
+      <p className="max-w-sm text-sm text-tertiary">
+        {relatedLink
+          ? "This section has its own page - it isn't embedded here."
+          : "This section's content hasn't been scoped yet - only its place in the navigation is decided so far."}
+      </p>
+      {relatedLink && (
+        <Button color="link-color" size="sm" href={roleHref(keyHref(relatedLink.key!))} iconTrailing={ArrowNarrowRight}>
+          Go to {relatedLink.label}
+        </Button>
+      )}
+    </div>
+  );
+}
+
+
+// User roles - see .claude/rules/ref-roles.md, "User roles" section. Full 6-role hierarchy is defined in
+// lib/user-role.ts, but build focus right now is just public-user (the default) and registered-user -
+// don't build features for the other four ahead of being told to. Gated features (like the org
+// switcher below) read config/role-access.config.ts's role-access matrix via useFeatureAccess
+// rather than checking the role inline - that matrix is the single place feature visibility is
+// decided, owned separately from this screen. Switch roles via the `userRole` URL search param,
+// e.g. `?userRole=public-user`. No real auth/session in this exploratory build, so the URL is the
+// only source of truth for "who's looking at this".
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={null}>
+      <Dashboard />
+    </Suspense>
+  );
+}
+
+function Dashboard() {
+  const router = useRouter();
+  // public-user ("Guest User") reads a different, smaller nav tree entirely - not a filtered view
+  // of registeredUserNav, since whole sections (DLA, Sensitive Nominations, Reports, Template
+  // Finder) don't exist for a signed-out visitor, not just individual leaves inside them. See
+  // lib/registered-user-nav.ts's publicUserNav and .claude/rules/ref-roles.md, "User roles" section for the real
+  // IA this is built from.
+  const role = useUserRole();
+  const isPublicUser = role === "public-user";
+  const nav = navForRole(role);
+  const roleHref = useRoleHref();
+  const [activeSection, setActiveSection] = useState("Home");
+  const [homeTab, setHomeTab] = useState<Key>("dashboard");
+  const [projectScope, setProjectScope] = useState<ProjectScope>("all");
+  // public-user's own Flora and Fauna Dashboard tab (Overview/Flora/Fauna/Projects) - separate from
+  // `homeTab` above, which is registered-user's My BioData/Flora-Dashboard switcher and doesn't
+  // apply to a guest (see the isPublicUser branch below). Lifted here, not left uncontrolled inside
+  // DataOverviewContent, so the gradient card's copy can change with it.
+  const [guestDashboardTab, setGuestDashboardTab] = useState<Key>("overview");
+  const activeSectionNode = nav.find((section) => section.label === activeSection) ?? nav[0];
+
+  // Home and Projects both have a real page of their own - clicking either from a *different*
+  // page's shell now actually navigates there instead of faking the content in place, so the URL,
+  // back/forward, and refresh all behave honestly. Sections with no real page yet (Observations,
+  // DLA, ...) stay a local, in-place section switch, same as before. Flagged directly by the user
+  // off a screenshot: leaving project-list's URL in the bar while showing Home's content
+  // was "a bit odd". `roleHref` (not a bare path) - a plain `/pages/...` path drops the active
+  // role, silently falling back to `registered-user` on the destination page. Flagged directly by
+  // the user as a dead end: switching Home -> Projects as `public-user` landed on
+  // `registered-user`'s view instead.
+  const goToSection = (section: NavNode) => {
+    const relatedLink = section.key ? section : section.items?.find((item) => item.key);
+    if (relatedLink?.key && relatedLink.key !== CURRENT_KEY) {
+      router.push(roleHref(keyHref(relatedLink.key)));
+    } else {
+      setActiveSection(section.label);
+    }
+  };
+
+  return (
+    <div className="font-barlow flex h-screen flex-col overflow-hidden">
+      <PrototypeTools />
+      {/* ── Header ── */}
+      <AppHeader
+        mobileNav={
+          <MobileNavTrigger
+            sections={nav}
+            sectionIcons={sectionIcons}
+            activeSection={activeSection}
+            onSelectSection={(label) => {
+              const section = nav.find((s) => s.label === label);
+              if (section) goToSection(section);
+            }}
+          >
+            {/* public-user's Home/Projects are each a single view (see publicUserNav) - no peer
+                tab to switch between, so no extra mobile-menu content for either. */}
+            {!isPublicUser && activeSection === "Home"
+              ? ((close: () => void) => (
+                  <>
+                    <MobileNavItem icon={User01} active={homeTab === "dashboard"} onPress={() => { setHomeTab("dashboard"); close(); }}>My BioData</MobileNavItem>
+                    <MobileNavItem icon={PieChart03} active={homeTab === "overview"} onPress={() => { setHomeTab("overview"); close(); }}>Flora and Fauna Dashboard</MobileNavItem>
+                  </>
+                ))
+              : !isPublicUser && activeSection === "Projects"
+                ? ((close: () => void) => (
+                    <>
+                      <MobileNavItem icon={Folder} active={projectScope === "all"} onPress={() => { setProjectScope("all"); close(); }}>All projects</MobileNavItem>
+                      <MobileNavItem icon={User01} active={projectScope === "mine"} onPress={() => { setProjectScope("mine"); close(); }}>My projects</MobileNavItem>
+                    </>
+                  ))
+                : undefined}
+          </MobileNavTrigger>
+        }
+        section={activeSection === "Home" ? undefined : activeSectionNode.label}
+      />
+
+      {/* ── Primary icon rail: top-level IA (nav chrome - not pixel-matched) ── */}
+      {(() => {
+        const iconRail = (
+          <PrimaryRail sections={nav} activeSection={activeSection}  onSelectSection={goToSection} />
+        );
+
+        // public-user's Home and Projects are each a single view (see publicUserNav) - no peer tab
+        // to switch between, so no Tabs boundary at all, just the section's one real content
+        // directly. Checked before the two-peer-tab branches below so those never run for this
+        // role. A two-tab switcher with only one real tab would be dishonest UI - a control
+        // implying a choice that doesn't exist - not just a visual downgrade.
+        //
+        // Column 2 is `GuestAboutAside` ("What is BioData SA?" + Guides, the "Reference" variant
+        // picked from `/proto/public-user` after comparing it against a boxed-accordion
+        // "Disclosure" and a stepped "How it works") - not the empty box the pre-Sept-21 version of
+        // this branch dropped entirely for lack of anything to put in it. Same content for Home and
+        // Projects (only the eyebrow label differs), matching the lab exactly.
+        if (isPublicUser && activeSection === "Home") {
+          return (
+            <div className="flex flex-1 overflow-hidden">
+              {iconRail}
+              <GuestAboutAside sectionLabel={activeSection} />
+
+              <main className="flex flex-1 flex-col overflow-y-auto [scrollbar-gutter:stable]">
+                <div className="p-6">
+                  <GuestGradientCard tab={guestDashboardTab} />
+                </div>
+                <DataOverviewContent activeTab={guestDashboardTab} onActiveTabChange={setGuestDashboardTab} />
+              </main>
+            </div>
+          );
+        }
+
+        // Home's two views (My BioData / Flora and Fauna Dashboard) get their own Tabs boundary, mounted
+        // only while Home is active - not one Tabs wrapping the whole page permanently. React-aria's
+        // Tabs keeps a single internal collection for its whole lifetime; a Tabs that always exists
+        // while its TabList only mounts once you switch to Home crashes the first time TabList
+        // mounts ("Cannot destructure property 'onAction' ... as it is undefined") - caught on
+        // project-detail, fixed the same way here since this file has the identical shape.
+        if (activeSection === "Home") {
+          return (
+            <Tabs orientation="vertical" selectedKey={homeTab} onSelectionChange={setHomeTab} className="flex flex-1 overflow-hidden">
+              {iconRail}
+
+              {/* ── Contextual sidebar: Home's My BioData/Flora and Fauna Dashboard tab list (nav chrome - not pixel-matched) ── */}
+              <aside aria-label="Section" className="hidden w-[286px] shrink-0 flex-col justify-between overflow-y-auto border-r border-secondary bg-secondary p-4 lg:flex">
+                <div className="flex flex-col gap-1">
+                  <p className="mb-3 text-xs font-semibold tracking-wide text-quaternary uppercase">{activeSectionNode.label}</p>
+                  <TabList aria-label="Home views" orientation="vertical" type="button-brand" fullWidth className="w-full">
+                    <Tab id="dashboard" label="My BioData" icon={User01} />
+                    <Tab id="overview" label="Flora and Fauna Dashboard" icon={PieChart03} />
+                  </TabList>
+                </div>
+              </aside>
+
+              {/* ── Main content: Home's tab panels render the real dashboard content (shared
+                  with project-list and project-detail, see app/pages/_shared/home-dashboard.tsx
+                  and data-overview.tsx) ── */}
+              <main className="flex flex-1 flex-col overflow-y-auto [scrollbar-gutter:stable]">
+                <HomeTabPanels />
+              </main>
+            </Tabs>
+          );
+        }
+
+        // Projects' two views (Projects / Datasets) get the same "own Tabs boundary, own two peer
+        // tabs" treatment as Home's My BioData/Flora and Fauna Dashboard - a single "Manage Project
+        // and Datasets" link used to blend these into one destination, flagged directly by the
+        // user off project-list's sidebar. Datasets has no reference/content yet, so it's
+        // the honest "hasn't been scoped yet" placeholder rather than an invented list.
+        // Projects: the same column as the Projects list (All projects / My projects, Actions, guides),
+        // for every persona; a guest sees All projects only (projects-sidebar.tsx).
+        if (activeSection === "Projects") {
+          return (
+            <div className="flex flex-1 overflow-hidden">
+              {iconRail}
+              <ProjectsSidebar sectionLabel={activeSectionNode.label} scope={projectScope} onScopeChange={setProjectScope} />
+              <main className="flex flex-1 flex-col overflow-y-auto [scrollbar-gutter:stable]">
+                <ProjectListContent scope={isPublicUser ? "all" : projectScope} />
+              </main>
+            </div>
+          );
+        }
+
+        return (
+          <div className="flex flex-1 overflow-hidden">
+            {iconRail}
+
+            {/* ── Contextual sidebar: selected section's children (nav chrome - not pixel-matched) ── */}
+            <aside aria-label="Section" className="hidden w-[286px] shrink-0 flex-col justify-between overflow-y-auto border-r border-secondary bg-secondary p-4 lg:flex">
+              <div className="flex flex-col gap-1">
+                <p className="mb-3 text-xs font-semibold tracking-wide text-quaternary uppercase">{activeSectionNode.label}</p>
+                {activeSectionNode.items?.map((item) => <NavTree key={item.label} node={item} depth={1} />)}
+              </div>
+            </aside>
+
+            {/* ── Main content: Home and Projects are intercepted above (their own Tabs
+                boundary) - every other section is an honest placeholder until it's scoped ── */}
+            <main className="flex flex-1 flex-col overflow-y-auto [scrollbar-gutter:stable]">
+              <SectionPlaceholder node={activeSectionNode} />
+            </main>
+          </div>
+        );
+      })()}
+    </div>
+  );
+}

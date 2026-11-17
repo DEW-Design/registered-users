@@ -1,0 +1,511 @@
+"use client";
+
+import type { MouseEventHandler, ReactNode } from "react";
+import { X as CloseX } from "@untitledui/icons";
+import { Classic } from "loading-dev";
+import { Dot } from "@/components/foundations/dot-icon";
+import { cx } from "@/utils/cx";
+import type { BadgeColors, BadgeTypeToColorMap, BadgeTypes, FlagTypes, IconComponentType, Sizes } from "./badge-types";
+import { badgeTypes } from "./badge-types";
+
+export const filledColors: Record<BadgeColors, { root: string; text: string; addon: string; addonButton: string }> = {
+    gray: {
+        root: "bg-utility-neutral-50 text-utility-neutral-700 ring-utility-neutral-200",
+        text: "text-utility-neutral-700",
+        addon: "text-utility-neutral-500",
+        addonButton: "hover:bg-utility-neutral-100 text-utility-neutral-400 hover:text-utility-neutral-500",
+    },
+    brand: {
+        root: "bg-utility-brand-50 text-utility-brand-700 ring-utility-brand-200",
+        text: "text-utility-brand-700",
+        addon: "text-utility-brand-500",
+        addonButton: "hover:bg-utility-brand-100 text-utility-brand-400 hover:text-utility-brand-500",
+    },
+    error: {
+        root: "bg-utility-red-50 text-utility-red-700 ring-utility-red-200",
+        text: "text-utility-red-700",
+        addon: "text-utility-red-500",
+        addonButton: "hover:bg-utility-red-100 text-utility-red-400 hover:text-utility-red-500",
+    },
+    warning: {
+        root: "bg-utility-yellow-50 text-utility-yellow-700 ring-utility-yellow-200",
+        text: "text-utility-yellow-700",
+        addon: "text-utility-yellow-500",
+        addonButton: "hover:bg-utility-yellow-100 text-utility-yellow-400 hover:text-utility-yellow-500",
+    },
+    success: {
+        root: "bg-utility-green-50 text-utility-green-700 ring-utility-green-200",
+        text: "text-utility-green-700",
+        addon: "text-utility-green-500",
+        addonButton: "hover:bg-utility-green-100 text-utility-green-400 hover:text-utility-green-500",
+    },
+    slate: {
+        root: "bg-utility-slate-50 text-utility-slate-700 ring-utility-slate-200",
+        text: "text-utility-slate-700",
+        addon: "text-utility-slate-500",
+        addonButton: "hover:bg-utility-slate-100 text-utility-slate-400 hover:text-utility-slate-500",
+    },
+    sky: {
+        root: "bg-utility-sky-50 text-utility-sky-700 ring-utility-sky-200",
+        text: "text-utility-sky-700",
+        addon: "text-utility-sky-500",
+        addonButton: "hover:bg-utility-sky-100 text-utility-sky-400 hover:text-utility-sky-500",
+    },
+    blue: {
+        root: "bg-utility-blue-50 text-utility-blue-700 ring-utility-blue-200",
+        text: "text-utility-blue-700",
+        addon: "text-utility-blue-500",
+        addonButton: "hover:bg-utility-blue-100 text-utility-blue-400 hover:text-utility-blue-500",
+    },
+    indigo: {
+        root: "bg-utility-indigo-50 text-utility-indigo-700 ring-utility-indigo-200",
+        text: "text-utility-indigo-700",
+        addon: "text-utility-indigo-500",
+        addonButton: "hover:bg-utility-indigo-100 text-utility-indigo-400 hover:text-utility-indigo-500",
+    },
+    purple: {
+        root: "bg-utility-purple-50 text-utility-purple-700 ring-utility-purple-200",
+        text: "text-utility-purple-700",
+        addon: "text-utility-purple-500",
+        addonButton: "hover:bg-utility-purple-100 text-utility-purple-400 hover:text-utility-purple-500",
+    },
+    pink: {
+        root: "bg-utility-pink-50 text-utility-pink-700 ring-utility-pink-200",
+        text: "text-utility-pink-700",
+        addon: "text-utility-pink-500",
+        addonButton: "hover:bg-utility-pink-100 text-utility-pink-400 hover:text-utility-pink-500",
+    },
+    orange: {
+        root: "bg-utility-orange-50 text-utility-orange-700 ring-utility-orange-200",
+        text: "text-utility-orange-700",
+        addon: "text-utility-orange-500",
+        addonButton: "hover:bg-utility-orange-100 text-utility-orange-400 hover:text-utility-orange-500",
+    },
+};
+
+const backgroundlessDotColors = Object.fromEntries(Object.entries(filledColors).map(([key, value]) => [key, { root: value.text, addon: value.addon }])) as Record<
+    BadgeColors,
+    { root: string; addon: string }
+>;
+
+const addonOnlyColors = Object.fromEntries(Object.entries(filledColors).map(([key, value]) => [key, { root: "", addon: value.addon }])) as Record<
+    BadgeColors,
+    { root: string; addon: string }
+>;
+
+const withPillTypes = {
+    [badgeTypes.pillColor]: {
+        common: "font-barlow size-max flex items-center whitespace-nowrap rounded-full ring-1 ring-inset",
+        styles: filledColors,
+    },
+    [badgeTypes.badgeColor]: {
+        common: "font-barlow size-max flex items-center whitespace-nowrap rounded-md ring-1 ring-inset",
+        styles: filledColors,
+    },
+    [badgeTypes.badgeModern]: {
+        common: "font-barlow size-max flex items-center whitespace-nowrap rounded-md ring-1 ring-inset shadow-xs",
+        styles: Object.fromEntries(
+            Object.keys(filledColors).map((key) => [
+                key,
+                {
+                    root: "bg-primary text-secondary ring-primary",
+                    addon: "text-neutral-500",
+                    addonButton: "hover:bg-utility-neutral-100 text-utility-neutral-400 hover:text-utility-neutral-500",
+                },
+            ]),
+        ) as Record<BadgeColors, { root: string; addon: string; addonButton: string }>,
+    },
+};
+
+const withBadgeTypes = {
+    [badgeTypes.pillColor]: {
+        common: "font-barlow size-max flex items-center whitespace-nowrap rounded-full ring-1 ring-inset",
+        styles: filledColors,
+    },
+    [badgeTypes.badgeColor]: {
+        common: "font-barlow size-max flex items-center whitespace-nowrap rounded-md ring-1 ring-inset",
+        styles: filledColors,
+    },
+    [badgeTypes.badgeModern]: {
+        common: "font-barlow size-max flex items-center whitespace-nowrap rounded-md ring-1 ring-inset bg-primary text-secondary ring-primary shadow-xs",
+        styles: addonOnlyColors,
+    },
+};
+
+export type BadgeColor<T extends BadgeTypes> = BadgeTypeToColorMap<typeof withPillTypes>[T];
+
+interface BadgeProps<T extends BadgeTypes> {
+    type?: T;
+    size?: Sizes;
+    color?: BadgeColor<T>;
+    /** Something is being processed (a dataset checking, a run going on): a tiny loader leads the label, in the badge's own colour. It is for a status that is still changing, never for one
+     *  that is over, and it stands still with reduced motion. @default false */
+    isLoading?: boolean;
+    children: ReactNode;
+    className?: string;
+}
+
+/** The loader a badge shows while what it names is being processed: the Classic indicator from loading-dev at 12px, the size of every icon in a small badge (`size-3`), 1.58s a turn.
+ *  It takes the colour of the badge's icon slot (`currentColor`) and respects the reduced-motion setting by itself. */
+const LoadingIcon: IconComponentType = ({ className }) => <Classic size={12} duration={1580} className={className} />;
+
+export const Badge = <T extends BadgeTypes>(props: BadgeProps<T>) => {
+    const { type = "pill-color", size = "md", color = "gray", isLoading = false, children } = props;
+    const colors = withPillTypes[type];
+
+    // The same badge with its icon slot taken by the loader, so its spacing is the one every icon badge has.
+    if (isLoading)
+        return (
+            <BadgeWithIcon type={type} size={size} color={color as BadgeTypeToColorMap<typeof withBadgeTypes>[T]} iconLeading={LoadingIcon} className={props.className}>
+                {children}
+            </BadgeWithIcon>
+        );
+
+    const pillSizes = {
+        sm: "py-1.5 px-2 text-xs font-semibold uppercase tracking-wide leading-none",
+        md: "py-2 px-2.5 text-sm font-semibold uppercase tracking-wide leading-none",
+        lg: "py-2 px-3 text-base font-semibold uppercase tracking-wide leading-none",
+    };
+    const badgeSizes = {
+        sm: "py-1.5 px-1.5 text-xs font-semibold uppercase tracking-wide leading-none",
+        md: "py-2 px-2 text-sm font-semibold uppercase tracking-wide leading-none",
+        lg: "py-2 px-2.5 text-base font-semibold uppercase tracking-wide leading-none rounded-lg",
+    };
+
+    const sizes = {
+        [badgeTypes.pillColor]: pillSizes,
+        [badgeTypes.badgeColor]: badgeSizes,
+        [badgeTypes.badgeModern]: badgeSizes,
+    };
+
+    return (
+        <span className={cx(colors.common, sizes[type][size], colors.styles[color].root, props.className)}>
+            <span className="pill-text">{children}</span>
+        </span>
+    );
+};
+
+interface CountBadgeProps {
+    count: number;
+    color?: "gray" | "brand" | "brand-solid" | "error";
+    className?: string;
+}
+
+/**
+ * A true circle for a short numeric count sitting next to a heading (e.g. "Needs your attention 3") -
+ * fixed equal width/height, not Badge's own horizontal-heavy pill padding, which renders a lone
+ * digit as an oval rather than a circle no matter how the vertical padding is tuned. Modelled on the
+ * one place in this codebase that already gets a numeric count right: the icon rail's notification
+ * dot (e.g. app/pages/project-list/page.tsx's Home badge) - a fixed-size box instead of a
+ * per-usage padding hack. Flagged directly by the user: the "Needs your attention" heading count on
+ * both dashboard (app/pages/_shared/home-dashboard.tsx) and dashboard/option-2 looked
+ * "awkward" as a Badge with tuned padding - this replaces both.
+ *
+ * `color="error"` reuses the icon rail's exact `bg-error-solid text-white` treatment (same
+ * component, same source data - dashboardTasks.length) - flagged directly by the user as too
+ * low-contrast in gray for a count that's meant to draw attention, not just report a total.
+ *
+ * `color="brand-solid"` is the primary fill (the primary button's `bg-brand-solid`), for a number that
+ * marks a step in a list rather than counts anything (designer, 2 Nov 2026).
+ */
+export const CountBadge = ({ count, color = "gray", className }: CountBadgeProps) => (
+    <span
+        className={cx(
+            "flex size-5 shrink-0 items-center justify-center rounded-full text-xs font-semibold tabular-nums",
+            color === "brand" && "bg-utility-brand-50 text-utility-brand-700",
+            color === "brand-solid" && "bg-brand-solid text-fg-white",
+            color === "error" && "bg-error-solid text-white",
+            color === "gray" && "bg-utility-neutral-50 text-utility-neutral-700",
+            className,
+        )}
+    >
+        <span className="pill-text">{count}</span>
+    </span>
+);
+
+interface BadgeWithDotProps<T extends BadgeTypes> {
+    type?: T;
+    size?: Sizes;
+    color?: BadgeTypeToColorMap<typeof withBadgeTypes>[T];
+    background?: boolean;
+    className?: string;
+    children: ReactNode;
+}
+
+export const BadgeWithDot = <T extends BadgeTypes>(props: BadgeWithDotProps<T>) => {
+    const { size = "md", color = "gray", type = "pill-color", background = true, className, children } = props;
+
+    const colors = withBadgeTypes[type];
+    const isBackgroundless = type === badgeTypes.pillColor && !background;
+    const backgroundlessColors = backgroundlessDotColors[color as BadgeColors];
+
+    const pillSizes = {
+        sm: "gap-1 py-0.5 pl-1.5 pr-2 text-xs font-semibold uppercase tracking-wide leading-none",
+        md: "gap-1.5 py-0.5 pl-2 pr-2.5 text-sm font-semibold uppercase tracking-wide leading-none",
+        lg: "gap-1.5 py-1 pl-2.5 pr-3 text-sm font-semibold uppercase tracking-wide leading-none",
+    };
+
+    const badgeSizes = {
+        sm: "gap-1 py-0.5 px-1.5 text-xs font-semibold uppercase tracking-wide leading-none",
+        md: "gap-1.5 py-0.5 px-2 text-sm font-semibold uppercase tracking-wide leading-none",
+        lg: "gap-1.5 py-1 px-2.5 text-sm font-semibold uppercase tracking-wide leading-none rounded-lg",
+    };
+
+    const sizes = {
+        [badgeTypes.pillColor]: pillSizes,
+        [badgeTypes.badgeColor]: badgeSizes,
+        [badgeTypes.badgeModern]: badgeSizes,
+    };
+
+    return (
+        <span
+            className={cx(
+                isBackgroundless ? "font-barlow size-max flex items-center whitespace-nowrap" : colors.common,
+                sizes[type][size],
+                isBackgroundless ? backgroundlessColors.root : colors.styles[color].root,
+                className,
+            )}
+        >
+            <Dot className={isBackgroundless ? backgroundlessColors.addon : colors.styles[color].addon} size="sm" />
+            <span className="pill-text">{children}</span>
+        </span>
+    );
+};
+
+interface BadgeWithIconProps<T extends BadgeTypes> {
+    type?: T;
+    size?: Sizes;
+    color?: BadgeTypeToColorMap<typeof withBadgeTypes>[T];
+    iconLeading?: IconComponentType;
+    iconTrailing?: IconComponentType;
+    children: ReactNode;
+    className?: string;
+}
+
+export const BadgeWithIcon = <T extends BadgeTypes>(props: BadgeWithIconProps<T>) => {
+    const { size = "md", color = "gray", type = "pill-color", iconLeading: IconLeading, iconTrailing: IconTrailing, children, className } = props;
+
+    const colors = withBadgeTypes[type];
+
+    const icon = IconLeading ? "leading" : "trailing";
+
+    const pillSizes = {
+        sm: {
+            trailing: "gap-0.5 py-1.5 pl-2 pr-1.5 text-xs font-semibold uppercase tracking-wide leading-none",
+            leading: "gap-0.5 py-1.5 pr-2 pl-1.5 text-xs font-semibold uppercase tracking-wide leading-none",
+        },
+        md: {
+            trailing: "gap-1 py-2 pl-2.5 pr-2 text-sm font-semibold uppercase tracking-wide leading-none",
+            leading: "gap-1 py-2 pr-2.5 pl-2 text-sm font-semibold uppercase tracking-wide leading-none",
+        },
+        lg: {
+            trailing: "gap-1 py-2 pl-3 pr-2.5 text-base font-semibold uppercase tracking-wide leading-none",
+            leading: "gap-1 py-2 pr-3 pl-2.5 text-base font-semibold uppercase tracking-wide leading-none",
+        },
+    };
+    const badgeSizes = {
+        sm: {
+            trailing: "gap-0.5 py-1.5 pl-2 pr-1.5 text-xs font-semibold uppercase tracking-wide leading-none",
+            leading: "gap-0.5 py-1.5 pr-2 pl-1.5 text-xs font-semibold uppercase tracking-wide leading-none",
+        },
+        md: {
+            trailing: "gap-1 py-2 pl-2 pr-1.5 text-sm font-semibold uppercase tracking-wide leading-none",
+            leading: "gap-1 py-2 pr-2 pl-1.5 text-sm font-semibold uppercase tracking-wide leading-none",
+        },
+        lg: {
+            trailing: "gap-1 py-2 pl-2.5 pr-2 text-base font-semibold uppercase tracking-wide leading-none rounded-lg",
+            leading: "gap-1 py-2 pr-2.5 pl-2 text-base font-semibold uppercase tracking-wide leading-none rounded-lg",
+        },
+    };
+
+    const sizes = {
+        [badgeTypes.pillColor]: pillSizes,
+        [badgeTypes.badgeColor]: badgeSizes,
+        [badgeTypes.badgeModern]: badgeSizes,
+    };
+
+    return (
+        <span className={cx(colors.common, sizes[type][size][icon], colors.styles[color].root, className)}>
+            {IconLeading && <IconLeading className={cx(colors.styles[color].addon, "size-3 stroke-3")} />}
+            <span className="pill-text">{children}</span>
+            {IconTrailing && <IconTrailing className={cx(colors.styles[color].addon, "size-3 stroke-3")} />}
+        </span>
+    );
+};
+
+interface BadgeWithFlagProps<T extends BadgeTypes> {
+    type?: T;
+    size?: Sizes;
+    flag?: FlagTypes;
+    color?: BadgeTypeToColorMap<typeof withPillTypes>[T];
+    children: ReactNode;
+}
+
+export const BadgeWithFlag = <T extends BadgeTypes>(props: BadgeWithFlagProps<T>) => {
+    const { size = "md", color = "gray", flag = "AU", type = "pill-color", children } = props;
+
+    const colors = withPillTypes[type];
+
+    const pillSizes = {
+        sm: "gap-1 py-1.5 pl-0.75 pr-2 text-xs font-semibold uppercase tracking-wide leading-none",
+        md: "gap-1.5 py-2 pl-1 pr-2.5 text-sm font-semibold uppercase tracking-wide leading-none",
+        lg: "gap-1.5 py-2 pl-1.5 pr-3 text-base font-semibold uppercase tracking-wide leading-none",
+    };
+    const badgeSizes = {
+        sm: "gap-1 py-1.5 pl-1 pr-1.5 text-xs font-semibold uppercase tracking-wide leading-none",
+        md: "gap-1.5 py-2 pl-1.5 pr-2 text-sm font-semibold uppercase tracking-wide leading-none",
+        lg: "gap-1.5 py-2 pl-2 pr-2.5 text-base font-semibold uppercase tracking-wide leading-none rounded-lg",
+    };
+
+    const sizes = {
+        [badgeTypes.pillColor]: pillSizes,
+        [badgeTypes.badgeColor]: badgeSizes,
+        [badgeTypes.badgeModern]: badgeSizes,
+    };
+
+    return (
+        <span className={cx(colors.common, sizes[type][size], colors.styles[color].root)}>
+            <img src={`https://www.untitledui.com/images/flags/${flag}.svg`} className="size-4 max-w-none rounded-full" alt={`${flag} flag`} />
+            <span className="pill-text">{children}</span>
+        </span>
+    );
+};
+
+interface BadgeWithImageProps<T extends BadgeTypes> {
+    type?: T;
+    size?: Sizes;
+    imgSrc: string;
+    color?: BadgeTypeToColorMap<typeof withPillTypes>[T];
+    children: ReactNode;
+}
+
+export const BadgeWithImage = <T extends BadgeTypes>(props: BadgeWithImageProps<T>) => {
+    const { size = "md", color = "gray", type = "pill-color", imgSrc, children } = props;
+
+    const colors = withPillTypes[type];
+
+    const pillSizes = {
+        sm: "gap-1 py-1.5 pl-0.75 pr-2 text-xs font-semibold uppercase tracking-wide leading-none",
+        md: "gap-1.5 py-2 pl-1 pr-2.5 text-sm font-semibold uppercase tracking-wide leading-none",
+        lg: "gap-1.5 py-2 pl-1.5 pr-3 text-base font-semibold uppercase tracking-wide leading-none",
+    };
+    const badgeSizes = {
+        sm: "gap-1 py-1.5 pl-1 pr-1.5 text-xs font-semibold uppercase tracking-wide leading-none",
+        md: "gap-1.5 py-2 pl-1.5 pr-2 text-sm font-semibold uppercase tracking-wide leading-none",
+        lg: "gap-1.5 py-2 pl-2 pr-2.5 text-base font-semibold uppercase tracking-wide leading-none rounded-lg",
+    };
+
+    const sizes = {
+        [badgeTypes.pillColor]: pillSizes,
+        [badgeTypes.badgeColor]: badgeSizes,
+        [badgeTypes.badgeModern]: badgeSizes,
+    };
+
+    return (
+        <span className={cx(colors.common, sizes[type][size], colors.styles[color].root)}>
+            <img src={imgSrc} className="size-4 max-w-none rounded-full" alt="Badge image" />
+            <span className="pill-text">{children}</span>
+        </span>
+    );
+};
+
+interface BadgeWithButtonProps<T extends BadgeTypes> {
+    type?: T;
+    size?: Sizes;
+    icon?: IconComponentType;
+    color?: BadgeTypeToColorMap<typeof withPillTypes>[T];
+    children: ReactNode;
+    /**
+     * The label for the button.
+     */
+    buttonLabel?: string;
+    /**
+     * The click event handler for the button.
+     */
+    onButtonClick?: MouseEventHandler<HTMLButtonElement>;
+    /**
+     * Shows the label as written instead of in capitals: a chip that names a chosen value (a person, a species), as
+     * `MultiSelect` lists its selections.
+     * @default true
+     */
+    uppercase?: boolean;
+}
+
+export const BadgeWithButton = <T extends BadgeTypes>(props: BadgeWithButtonProps<T>) => {
+    const { size = "md", color = "gray", type = "pill-color", icon: Icon = CloseX, buttonLabel, uppercase = true, children } = props;
+
+    const colors = withPillTypes[type];
+
+    const pillSizes = {
+        sm: "gap-0.5 py-1.5 pl-2 pr-0.75 text-xs font-semibold uppercase tracking-wide leading-none",
+        md: "gap-0.5 py-2 pl-2.5 pr-1 text-sm font-semibold uppercase tracking-wide leading-none",
+        lg: "gap-0.5 py-2 pl-3 pr-1.5 text-base font-semibold uppercase tracking-wide leading-none",
+    };
+    const badgeSizes = {
+        sm: "gap-0.5 py-1.5 pl-1.5 pr-0.75 text-xs font-semibold uppercase tracking-wide leading-none",
+        md: "gap-0.5 py-2 pl-2 pr-1 text-sm font-semibold uppercase tracking-wide leading-none",
+        lg: "gap-0.5 py-2 pl-2.5 pr-1.5 text-base font-semibold uppercase tracking-wide leading-none rounded-lg",
+    };
+
+    const sizes = {
+        [badgeTypes.pillColor]: pillSizes,
+        [badgeTypes.badgeColor]: badgeSizes,
+        [badgeTypes.badgeModern]: badgeSizes,
+    };
+
+    return (
+        <span className={cx(colors.common, sizes[type][size], !uppercase && "normal-case tracking-normal", colors.styles[color].root)}>
+            <span className="pill-text">{children}</span>
+            <button
+                type="button"
+                aria-label={buttonLabel}
+                onClick={props.onButtonClick}
+                className={cx(
+                    "flex cursor-pointer items-center justify-center p-0.5 outline-focus-ring transition duration-100 ease-linear focus-visible:outline-2",
+                    colors.styles[color].addonButton,
+                    type === "pill-color" ? "rounded-full" : "rounded-[3px]",
+                )}
+            >
+                <Icon className="size-3 stroke-[3px] transition-inherit-all" />
+            </button>
+        </span>
+    );
+};
+
+interface BadgeIconProps<T extends BadgeTypes> {
+    type?: T;
+    size?: Sizes;
+    icon: IconComponentType;
+    color?: BadgeTypeToColorMap<typeof withPillTypes>[T];
+    children?: ReactNode;
+}
+
+export const BadgeIcon = <T extends BadgeTypes>(props: BadgeIconProps<T>) => {
+    const { size = "md", color = "gray", type = "pill-color", icon: Icon } = props;
+
+    const colors = withPillTypes[type];
+
+    const pillSizes = {
+        sm: "p-1.25",
+        md: "p-1.5",
+        lg: "p-2",
+    };
+
+    const badgeSizes = {
+        sm: "p-1.25",
+        md: "p-1.5",
+        lg: "p-2 rounded-lg",
+    };
+
+    const sizes = {
+        [badgeTypes.pillColor]: pillSizes,
+        [badgeTypes.badgeColor]: badgeSizes,
+        [badgeTypes.badgeModern]: badgeSizes,
+    };
+
+    return (
+        <span className={cx(colors.common, sizes[type][size], colors.styles[color].root)}>
+            <Icon className={cx("size-3 stroke-[3px]", colors.styles[color].addon)} />
+        </span>
+    );
+};

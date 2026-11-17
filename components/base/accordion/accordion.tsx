@@ -1,0 +1,254 @@
+"use client";
+
+import type { Key, ReactNode } from "react";
+import { useState } from "react";
+import { motion } from "motion/react";
+import { ChevronDown } from "@untitledui/icons";
+import { cx } from "@/utils/cx";
+
+export interface AccordionItemType {
+    id: Key;
+    title: ReactNode;
+    content: ReactNode;
+    /**
+     * An action shown on the item's header row, beside (not inside) the toggle button, e.g. an
+     * "Edit" button. Optional and additive: items without it render exactly as before. Supported by
+     * the `compact` and `boxed` variants.
+     */
+    action?: ReactNode;
+}
+
+export interface AccordionProps {
+    items: AccordionItemType[];
+    /** Keys open on first render (uncontrolled). Ignored once `openKeys` is passed. @default [] */
+    defaultOpenKeys?: Key[];
+    /**
+     * Which keys are open, controlled by the caller - lets an outside action (a "jump to this
+     * flagged field" link, elsewhere on the page) force a specific section open after this
+     * component has already mounted, which `defaultOpenKeys` (first-render only) can't do. Pass
+     * together with `onOpenKeysChange`; omit both to keep the accordion's original fully
+     * uncontrolled behavior.
+     */
+    openKeys?: Set<Key>;
+    /** Required when `openKeys` is passed - receives the next set on every toggle. */
+    onOpenKeysChange?: (keys: Set<Key>) => void;
+    /** When true, opening an item closes any other open item. @default false */
+    singleOpen?: boolean;
+    /**
+     * `"divided"` (default) is the original FAQ-page treatment - a borderless stacked list, items
+     * separated by a thin top rule, large semibold titles. `"boxed"` is a second, real visual
+     * treatment - each item its own bordered, rounded card (`border-brand-100`), a smaller
+     * brand-coloured title, and a divider between its own header and body - matching Figma's
+     * "Details Container" accordion pattern (node 220:45522 and siblings, the record-detail
+     * sidebar's own per-section cards). `"compact"` is a third, denser treatment for a narrow
+     * utility panel (a filter side panel, not a marketing page or a wide sidebar) - small
+     * `text-sm` titles, tight `py-2.5` header padding and no reserved FAQ-width `pr-8 md:pr-12`
+     * gutter on the content, and a real `ChevronDown` (not the circle-glyph `AccordionChevron`
+     * below) coloured `text-brand-600` - built per direct feedback that the default "divided"
+     * variant's FAQ-sized spacing and circle chevron read as excessive white space and an unclear
+     * expand affordance once reused inside a filter panel. Same interaction/state logic in all
+     * three; only the item chrome changes - extending the one real component rather than forking
+     * a second one, per this codebase's "extend, don't fork" convention.
+     * @default "divided"
+     */
+    variant?: "divided" | "boxed" | "compact";
+    /**
+     * Where an item's `action` sits on the `compact` header: `"end"` (default) after the chevron, or
+     * `"beforeChevron"` between the title and the chevron. Each header is a `group/accordion-item`, so
+     * a caller can reveal its action on hover with `group-hover/accordion-item:opacity-100`.
+     * @default "end"
+     */
+    actionPlacement?: "end" | "beforeChevron";
+    /**
+     * `compact` only. The panel clips its content while it opens and closes (the height spring needs it) and, with this on,
+     * stops clipping once it is fully open, so something inside it can stick to the window (a card's Cancel and Save changes
+     * pinned to the bottom) or draw past its edge (a focus ring, a menu). Closed and while moving it clips as before.
+     * @default false
+     */
+    visibleWhenOpen?: boolean;
+    className?: string;
+}
+
+/** Expand/collapse chevron - a circle with a horizontal line that rotates in a vertical one when closed. */
+const AccordionChevron = ({ isOpen }: { isOpen: boolean }) => (
+    <span aria-hidden="true" className="flex size-6 shrink-0 items-center text-fg-quaternary">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <line className={cx("origin-center rotate-0 transition duration-150 ease-out", isOpen && "-rotate-90")} x1="12" y1="8" x2="12" y2="16" />
+            <line x1="8" y1="12" x2="16" y2="12" />
+        </svg>
+    </span>
+);
+
+/** The compact variant's panel: clips while it moves and while it is closed, and with `visibleWhenOpen` not once it is open and still. */
+const CompactPanel = ({ isOpen, visibleWhenOpen, children }: { isOpen: boolean; visibleWhenOpen: boolean; children: ReactNode }) => {
+    const [moving, setMoving] = useState(false);
+    return (
+        <motion.div
+            className={cx(!(visibleWhenOpen && isOpen && !moving) && "overflow-hidden")}
+            initial={false}
+            animate={{ height: isOpen ? "auto" : 0, opacity: isOpen ? 1 : 0 }}
+            transition={{ type: "spring", damping: 24, stiffness: 240, bounce: 0.4 }}
+            onAnimationStart={() => setMoving(true)}
+            onAnimationComplete={() => setMoving(false)}
+        >
+            <div className="pb-3">{children}</div>
+        </motion.div>
+    );
+};
+
+/**
+ * A vertical list of expand/collapse question/answer (or any title/content) pairs, animated with
+ * a real spring (motion/react), not a CSS transition. Extracted from
+ * components/marketing/faq/faq-accordion-01.tsx, which now composes this instead of hand-rolling
+ * its own expand/collapse state - the reusable interaction pattern, not tied to FAQ copy.
+ */
+export const Accordion = ({ items, defaultOpenKeys = [], openKeys: controlledOpenKeys, onOpenKeysChange, singleOpen = false, variant = "divided", actionPlacement = "end", visibleWhenOpen = false, className }: AccordionProps) => {
+    const isControlled = controlledOpenKeys !== undefined;
+    const [internalOpenKeys, setInternalOpenKeys] = useState(new Set(defaultOpenKeys));
+    const openKeys = isControlled ? controlledOpenKeys : internalOpenKeys;
+
+    const toggle = (id: Key) => {
+        let next: Set<Key>;
+        if (singleOpen) {
+            next = openKeys.has(id) ? new Set() : new Set([id]);
+        } else {
+            next = new Set(openKeys);
+            if (next.has(id)) {
+                next.delete(id);
+            } else {
+                next.add(id);
+            }
+        }
+        if (isControlled) {
+            onOpenKeysChange?.(next);
+        } else {
+            setInternalOpenKeys(next);
+        }
+    };
+
+    if (variant === "compact") {
+        return (
+            <div className={cx("font-barlow flex flex-col", className)}>
+                {items.map((item, index) => {
+                    const isOpen = openKeys.has(item.id);
+                    return (
+                        <div key={item.id} className={cx(index !== 0 && "border-t border-secondary")}>
+                            {actionPlacement === "beforeChevron" ? (
+                                // The action sits between the title and the chevron. The chevron is a
+                                // second, pointer-only way to toggle; keyboard users toggle with the title.
+                                // An item with no action keeps this layout, so every chevron in a list sits in the same column.
+                                <div className="group/accordion-item flex items-center gap-1">
+                                    <button
+                                        type="button"
+                                        onClick={() => toggle(item.id)}
+                                        aria-expanded={isOpen}
+                                        className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 py-2.5 text-left outline-focus-ring select-none focus-visible:outline-2 focus-visible:-outline-offset-2"
+                                    >
+                                        <span className="text-sm font-semibold text-primary">{item.title}</span>
+                                    </button>
+                                    {item.action && <div className="shrink-0">{item.action}</div>}
+                                    <button type="button" tabIndex={-1} aria-hidden="true" onClick={() => toggle(item.id)} className="flex size-7 shrink-0 cursor-pointer items-center justify-center">
+                                        <ChevronDown className={cx("size-4 text-brand-600 transition-transform duration-150", isOpen && "rotate-180")} />
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="group/accordion-item flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => toggle(item.id)}
+                                        aria-expanded={isOpen}
+                                        className="flex min-w-0 flex-1 cursor-pointer items-center justify-between gap-2 py-2.5 text-left outline-focus-ring select-none focus-visible:outline-2 focus-visible:-outline-offset-2"
+                                    >
+                                        <span className="text-sm font-semibold text-primary">{item.title}</span>
+                                        <ChevronDown className={cx("size-4 shrink-0 text-brand-600 transition-transform duration-150", isOpen && "rotate-180")} />
+                                    </button>
+                                    {item.action && <div className="shrink-0">{item.action}</div>}
+                                </div>
+                            )}
+                            <CompactPanel isOpen={isOpen} visibleWhenOpen={visibleWhenOpen}>
+                                {item.content}
+                            </CompactPanel>
+                        </div>
+                    );
+                })}
+            </div>
+        );
+    }
+
+    if (variant === "boxed") {
+        return (
+            <div className={cx("font-barlow flex flex-col gap-4", className)}>
+                {items.map((item) => {
+                    const isOpen = openKeys.has(item.id);
+                    return (
+                        <div key={item.id} className="overflow-hidden rounded-md border border-[var(--color-brand-100)] bg-primary">
+                            <div className="flex items-center gap-2 pr-3">
+                                <button
+                                    type="button"
+                                    onClick={() => toggle(item.id)}
+                                    aria-expanded={isOpen}
+                                    className={cx(
+                                        "flex min-w-0 flex-1 cursor-pointer items-center gap-3 py-3 pl-4 text-left outline-focus-ring select-none focus-visible:outline-2 focus-visible:-outline-offset-2",
+                                        !item.action && "pr-1",
+                                    )}
+                                >
+                                    <span className="flex-1 text-base font-medium text-balance text-brand-tertiary">{item.title}</span>
+                                    <ChevronDown className={cx("size-5 shrink-0 text-quaternary transition-transform duration-150", isOpen && "rotate-180")} />
+                                </button>
+                                {item.action && <div className="shrink-0">{item.action}</div>}
+                            </div>
+                            <motion.div
+                                className="overflow-hidden border-t border-[var(--color-brand-100)]"
+                                initial={false}
+                                animate={{ height: isOpen ? "auto" : 0, opacity: isOpen ? 1 : 0 }}
+                                transition={{ type: "spring", damping: 24, stiffness: 240, bounce: 0.4 }}
+                            >
+                                <div className="p-4">{item.content}</div>
+                            </motion.div>
+                        </div>
+                    );
+                })}
+            </div>
+        );
+    }
+
+    return (
+        <div className={cx("font-barlow flex flex-col gap-8", className)}>
+            {items.map((item, index) => {
+                const isOpen = openKeys.has(item.id);
+
+                return (
+                    <div key={item.id} className={cx(index !== 0 && "-mt-px border-t border-secondary pt-6")}>
+                        {/*
+                         * `m-0!` on the h3 and `tracking-normal!` on the title span override the docs
+                         * site's unlayered `.prose-doc h3` rule (32px/8px top/bottom margin, uppercase,
+                         * 0.08em letter-spacing) that would otherwise bleed into this heading whenever
+                         * the accordion renders inside a doc page - same fix as TableCardHeader's `h2`.
+                         */}
+                        <h3 className="m-0!">
+                            <button
+                                type="button"
+                                onClick={() => toggle(item.id)}
+                                aria-expanded={isOpen}
+                                className="flex w-full cursor-pointer items-start justify-between gap-2 rounded-md text-left outline-focus-ring select-none focus-visible:outline-2 focus-visible:outline-offset-2 md:gap-6"
+                            >
+                                <span className="text-lg! font-semibold! text-balance! tracking-normal! text-primary! normal-case!">{item.title}</span>
+                                <AccordionChevron isOpen={isOpen} />
+                            </button>
+                        </h3>
+
+                        <motion.div
+                            className="overflow-hidden"
+                            initial={false}
+                            animate={{ height: isOpen ? "auto" : 0, opacity: isOpen ? 1 : 0 }}
+                            transition={{ type: "spring", damping: 24, stiffness: 240, bounce: 0.4 }}
+                        >
+                            <div className="pt-1 pr-8 md:pr-12">{item.content}</div>
+                        </motion.div>
+                    </div>
+                );
+            })}
+        </div>
+    );
+};

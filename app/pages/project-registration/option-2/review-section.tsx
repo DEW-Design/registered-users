@@ -1,0 +1,156 @@
+"use client";
+
+import { Fragment } from "react";
+import { Edit05 } from "@untitledui/icons";
+import { getLocalTimeZone } from "@internationalized/date";
+import type { DateValue } from "react-aria-components";
+import { ButtonUtility } from "@/components/base/buttons/button-utility";
+import { RecordRow } from "@/app/pages/_shared/record-hero";
+import { FORM_FIELD_WIDTH } from "@/app/pages/_shared/form-row";
+import { cx } from "@/utils/cx";
+import { COLLECTION_METHOD_OPTIONS, FOCUS_AREA_OPTIONS, ROLE_OF_WORK_OPTIONS, SURVEY_TYPE_OPTIONS } from "../data";
+import { geoExtentSummary } from "../geo-extent-picker";
+import { isGeoExtentComplete, ownerName, ownersOf, type ProjectContact } from "../types";
+import { restrictionsSummaryRows } from "../step-3-privacy-restrictions";
+import { methodologySummary, STEP_TITLES, type FormState, type FormVersion, type SectionId } from "./sections";
+
+// The last section: every answer grouped by step, each row with an Edit link back to its section,
+// and - if anything is still missing - the sections that need attention listed at the top with a
+// link to each. "Create project" itself lives in the page footer, like every other section's
+// Continue.
+
+const formatDate = (d: DateValue | null) => (d ? d.toDate(getLocalTimeZone()).toLocaleDateString("en-AU") : "");
+
+// One answer: the record pages' own label and value row (`RecordRow`, as the file facts card in the Datasets step uses), with the way back to
+// its section at the end of the value. It was a hand-built row with an uppercase label until 11 Nov 2026.
+function SummaryRow({ label, value, onEdit }: { label: string; value?: string; onEdit: () => void }) {
+  return (
+    <RecordRow label={label}>
+      <div className="flex items-start justify-between gap-4">
+        {value ? <p className="m-0 line-clamp-2 min-w-0 text-balance">{value}</p> : <p className="m-0 text-quaternary">Not provided</p>}
+        <ButtonUtility color="tertiary" size="xs" icon={Edit05} tooltip={`Edit ${label.toLowerCase()}`} aria-label={`Edit ${label}`} onClick={onEdit} className="-my-1 shrink-0" />
+      </div>
+    </RecordRow>
+  );
+}
+
+// A step's answers: a bordered card of rows under the step's name, as a record page's tab panel is.
+function StepCard({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="flex flex-col gap-2">
+      <p className="m-0 text-sm font-semibold text-primary">{title}</p>
+      <div className="overflow-hidden rounded-xl border border-secondary bg-primary">{children}</div>
+    </section>
+  );
+}
+
+/** Option 2's Dataset step as rows of the review (its own card, after Project Identification). */
+export interface DatasetReview {
+  title: string;
+  rows: { label: string; value: string }[];
+}
+
+export function ReviewSection({ state, onEdit, version = 1, dataset }: { state: FormState; onEdit: (id: SectionId) => void; version?: FormVersion; dataset?: DatasetReview }) {
+  if (version === 2) return <ReviewSectionV2 state={state} onEdit={onEdit} dataset={dataset} />;
+  const { details: d, collection: c, restrictions: r } = state;
+  const contact = d.dataOwnerContacts[0];
+  const person = (p: { firstName: string; lastName: string }) => `${p.firstName} ${p.lastName}`.trim();
+  const roleLabel = d.roleOfWork === "other" ? d.roleOfWorkOther : ROLE_OF_WORK_OPTIONS.find((o) => o.id === d.roleOfWork)?.label;
+  const managers = d.projectManagers.map(person).filter(Boolean).join(", ");
+  const focus = c.focusAreas.map((id) => (id === "other" && c.focusAreaOther ? c.focusAreaOther : (FOCUS_AREA_OPTIONS.find((o) => o.id === id)?.label ?? id))).join(", ");
+  const method = COLLECTION_METHOD_OPTIONS.find((o) => o.id === c.collectionMethod)?.label;
+  const surveyType = SURVEY_TYPE_OPTIONS.find((o) => o.id === c.surveyType)?.label;
+  const dates = d.startDate ? `${formatDate(d.startDate)} to ${d.endDate ? formatDate(d.endDate) : "ongoing"}` : "";
+  const restrictionRows = restrictionsSummaryRows(r);
+
+  return (
+    <div className={cx(FORM_FIELD_WIDTH, "flex flex-col gap-6")}>
+      <StepCard title={STEP_TITLES[1]}>
+        <SummaryRow label="Project name" value={d.shortTitle} onEdit={() => onEdit("basics")} />
+        <SummaryRow label="Abstract" value={d.abstract} onEdit={() => onEdit("basics")} />
+        <SummaryRow label="Dates" value={dates} onEdit={() => onEdit("basics")} />
+        <SummaryRow label="Data owner" value={d.dataOwnerType === "organisation" ? d.dataOwnerOrgName : person(contact)} onEdit={() => onEdit("owner")} />
+        <SummaryRow label="Primary contact" value={person(contact) ? `${person(contact)}${contact.email ? ` - ${contact.email}` : ""}` : ""} onEdit={() => onEdit("owner")} />
+        {d.dataOwnerType === "individual" ? <SummaryRow label="Your role" value={roleLabel} onEdit={() => onEdit("owner")} /> : <SummaryRow label="Project managers" value={managers} onEdit={() => onEdit("owner")} />}
+      </StepCard>
+
+      <StepCard title={STEP_TITLES[2]}>
+        <SummaryRow label="Geographic extent" value={isGeoExtentComplete(c.geographicExtent) ? geoExtentSummary(c.geographicExtent) : ""} onEdit={() => onEdit("extent")} />
+        <SummaryRow label="Focus areas" value={focus} onEdit={() => onEdit("extent")} />
+        <SummaryRow label="Survey type" value={surveyType} onEdit={() => onEdit("method")} />
+        <SummaryRow label="Method of data collection" value={method} onEdit={() => onEdit("method")} />
+        <SummaryRow label="Methodology" value={c.methodDetails} onEdit={() => onEdit("method")} />
+        {d.dataOwnerType === "organisation" && <SummaryRow label="Your role" value={roleLabel} onEdit={() => onEdit("method")} />}
+      </StepCard>
+
+      <StepCard title={STEP_TITLES[3]}>
+        <SummaryRow label="Restrictions" value={r.hasRestrictions ? "Yes, apply restrictions" : "No restrictions - openly available to every BioData SA user"} onEdit={() => onEdit("restrictions")} />
+        {restrictionRows.map((row) => (
+          <SummaryRow key={row.key} label={row.title} value={row.summary} onEdit={() => onEdit(row.key)} />
+        ))}
+      </StepCard>
+    </div>
+  );
+}
+
+// Version 2: each data owner, then its Project officers row (each person with their role, and which is the primary contact),
+// focus areas under Method and details, no survey type or your role, and one Methodology row (the method, then the
+// methodologies added) with their notes.
+function ReviewSectionV2({ state, onEdit, dataset }: { state: FormState; onEdit: (id: SectionId) => void; dataset?: DatasetReview }) {
+  const { details: d, collection: c, restrictions: r } = state;
+  const person = (p: { firstName: string; lastName: string }) => `${p.firstName} ${p.lastName}`.trim();
+  const roleOf = (p: { role: string | null; roleOther: string }) => (p.role === "other" ? p.roleOther : ROLE_OF_WORK_OPTIONS.find((o) => o.id === p.role)?.label);
+  const owners = ownersOf(d);
+  // A project manager says so in their role (Project Manager), so only the primary contact is marked.
+  const officers = (people: ProjectContact[]) =>
+    people
+      .filter((p) => person(p))
+      .map((p) => [person(p), roleOf(p)].filter(Boolean).join(", ") + (p.isPrimary ? " (primary contact)" : ""))
+      .join("; ");
+  const focus = c.focusAreas.map((id) => (id === "other" && c.focusAreaOther ? c.focusAreaOther : (FOCUS_AREA_OPTIONS.find((o) => o.id === id)?.label ?? id))).join(", ");
+  const method = COLLECTION_METHOD_OPTIONS.find((o) => o.id === c.collectionMethod)?.label;
+  const { names, notes } = methodologySummary(c);
+  const dates = d.startDate ? `${formatDate(d.startDate)} to ${d.endDate ? formatDate(d.endDate) : "ongoing"}` : "";
+  const restrictionRows = restrictionsSummaryRows(r);
+  // Where the data was collected is part of the project's identification at option 2, and part of data collection at option 1.
+  const extentRow = <SummaryRow label="Geographic extent" value={isGeoExtentComplete(c.geographicExtent) ? geoExtentSummary(c.geographicExtent) : ""} onEdit={() => onEdit("extent")} />;
+
+  return (
+    <div className={cx(FORM_FIELD_WIDTH, "flex flex-col gap-6")}>
+      <StepCard title={STEP_TITLES[1]}>
+        <SummaryRow label="Project name" value={d.shortTitle} onEdit={() => onEdit("basics")} />
+        <SummaryRow label="Abstract" value={d.abstract} onEdit={() => onEdit("basics")} />
+        <SummaryRow label="Dates" value={dates} onEdit={() => onEdit("basics")} />
+        {owners.map((o, i) => (
+          <Fragment key={o.id}>
+            <SummaryRow label={owners.length > 1 ? `Data owner ${i + 1}` : "Data owner"} value={ownerName(o)} onEdit={() => onEdit("owner")} />
+            <SummaryRow label="Project officers" value={officers(o.officers)} onEdit={() => onEdit("owner")} />
+          </Fragment>
+        ))}
+        {dataset && extentRow}
+      </StepCard>
+
+      <StepCard title={STEP_TITLES[2]}>
+        {!dataset && extentRow}
+        <SummaryRow label="Focus areas" value={focus} onEdit={() => onEdit("method")} />
+        <SummaryRow label="Methodology" value={[method, names].filter(Boolean).join(": ")} onEdit={() => onEdit("method")} />
+        {(c.collectionMethod === "systematic" || c.collectionMethod === "analysis") && notes && <SummaryRow label="Variations, limitations and biases" value={notes} onEdit={() => onEdit("method")} />}
+      </StepCard>
+
+      {dataset && (
+        <StepCard title={dataset.title}>
+          {dataset.rows.map((row) => (
+            <SummaryRow key={row.label} label={row.label} value={row.value} onEdit={() => onEdit("dataset")} />
+          ))}
+        </StepCard>
+      )}
+
+      <StepCard title={STEP_TITLES[3]}>
+        <SummaryRow label="Restrictions" value={r.hasRestrictions ? "Yes, apply restrictions" : "No restrictions - openly available to every BioData SA user"} onEdit={() => onEdit("restrictions")} />
+        {restrictionRows.map((row) => (
+          <SummaryRow key={row.key} label={row.title} value={row.summary} onEdit={() => onEdit(row.key)} />
+        ))}
+      </StepCard>
+    </div>
+  );
+}

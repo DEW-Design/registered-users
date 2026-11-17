@@ -1,0 +1,550 @@
+"use client";
+
+import type { ReactNode, RefAttributes } from "react";
+import { useCallback, useRef, useState } from "react";
+import { Check, CheckDone01, ChevronDown, Plus, RefreshCcw01, SearchLg, XClose } from "@untitledui/icons";
+import { useFilter } from "react-aria";
+import type { Selection } from "react-aria-components";
+import {
+    Autocomplete as AriaAutocomplete,
+    Button as AriaButton,
+    Dialog as AriaDialog,
+    DialogTrigger as AriaDialogTrigger,
+    Input as AriaInput,
+    ListBox as AriaListBox,
+    Popover as AriaPopover,
+    SearchField as AriaSearchField,
+    TextContext as AriaTextContext,
+} from "react-aria-components";
+import { BadgeWithButton } from "@/components/base/badges/badges";
+import { Button } from "@/components/base/buttons/button";
+import { HintText } from "@/components/base/input/hint-text";
+import { Label } from "@/components/base/input/label";
+import { FeaturedIcon } from "@/components/foundations/featured-icon/featured-icon";
+import { cx } from "@/utils/cx";
+import { SelectItem } from "./select-item";
+import { type CommonProps, SelectContext, type SelectItemType, sizes } from "./select-shared";
+
+const searchSizes = {
+    sm: { wrapper: "py-1", root: "px-3 py-2 gap-2 *:data-icon:size-4 *:data-icon:stroke-[2.25px]", text: "text-sm" },
+    md: { wrapper: "py-0.5", root: "px-3 py-2 gap-2 *:data-icon:size-5", text: "text-md" },
+    lg: { wrapper: "py-0.5", root: "px-3.5 py-2.5 gap-2 *:data-icon:size-5", text: "text-md" },
+};
+
+const footerButtonSize = {
+    sm: "xs" as const,
+    md: "sm" as const,
+    lg: "sm" as const,
+};
+
+const popoverMaxHeights = {
+    sm: "max-h-68",
+    md: "max-h-76",
+    lg: "max-h-92",
+};
+
+// The field's height with nothing chosen, so the first pill does not move the rows below it.
+// `pills`: the pills sit the same distance from the field's left, top and bottom edges, and from each other (4px; 6px at lg). Until 11 Nov 2026
+// they kept the text's 12px on the left with 4px above and below, so a wrapped field looked lopsided. `pillsPadding` is that left inset, used in
+// place of `padding` while pills are shown; the placeholder and a single value keep the text's own inset.
+const triggerSizes = {
+    sm: { height: "min-h-9", padding: "pl-3", chevron: "h-9 pr-2.5", pills: "gap-1 py-1", pillsPadding: "pl-1" },
+    md: { height: "min-h-10", padding: "pl-3", chevron: "h-10 pr-3", pills: "gap-1 py-1", pillsPadding: "pl-1" },
+    lg: { height: "min-h-11", padding: "pl-3.5", chevron: "h-11 pr-3.5", pills: "gap-1.5 py-1.5", pillsPadding: "pl-1.5" },
+};
+
+interface MultiSelectHeaderProps {
+    /** The size of the popover's text and button. */
+    size?: "sm" | "md" | "lg";
+    /** How many items are selected. */
+    count: number;
+    /** Custom formatter for the count text. */
+    countFormatter?: (count: number) => ReactNode;
+    /** Handler that is called when the select all button is clicked. */
+    onSelectAll?: () => void;
+}
+
+const MultiSelectHeader = ({ size = "sm", count, countFormatter, onSelectAll }: MultiSelectHeaderProps) => (
+    <div className="flex items-center justify-between gap-2 border-b border-secondary px-3 py-1">
+        <p aria-live="polite" className={cx("text-tertiary tabular-nums", sizes[size].text)}>
+            {countFormatter ? countFormatter(count) : `${count} selected`}
+        </p>
+        <Button size={footerButtonSize[size]} color="tertiary" iconLeading={CheckDone01} onClick={onSelectAll}>
+            Select all
+        </Button>
+    </div>
+);
+
+interface MultiSelectFooterProps {
+    /**
+     * The size of the footer buttons.
+     * @default "sm"
+     */
+    size?: "sm" | "md" | "lg";
+    /** Handler that is called when the reset button is clicked. */
+    onReset?: () => void;
+    /** Handler that is called when the done button is clicked. */
+    onDone?: () => void;
+    /** Additional class name. */
+    className?: string;
+}
+
+const MultiSelectFooter = ({ size = "sm", onReset, onDone, className }: MultiSelectFooterProps) => {
+    const btnSize = footerButtonSize[size];
+
+    return (
+        <div className={cx("flex items-center justify-between border-t border-secondary p-3", className)}>
+            <Button size={btnSize} color="secondary" iconLeading={RefreshCcw01} onClick={onReset}>
+                Reset
+            </Button>
+            <Button size={btnSize} color="primary" iconLeading={Check} onClick={onDone}>
+                Done
+            </Button>
+        </div>
+    );
+};
+
+interface MultiSelectEmptyStateProps {
+    /**
+     * The title to display.
+     * @default "No results found"
+     */
+    title?: string;
+    /**
+     * The description to display.
+     * @default "Please try a different search term."
+     */
+    description?: string;
+    /** Handler that is called when the clear search button is clicked. */
+    onClearSearch?: () => void;
+    /** Additional class name. */
+    className?: string;
+}
+
+const MultiSelectEmptyState = ({
+    title = "No results found",
+    description = "Please try a different search term.",
+    onClearSearch,
+    className,
+}: MultiSelectEmptyStateProps) => (
+    <div className={cx("flex flex-col items-center gap-3 px-4 py-4", className)}>
+        <div className="flex flex-col items-center gap-3">
+            <FeaturedIcon icon={SearchLg} size="sm" color="gray" theme="modern" />
+            <div className="flex flex-col items-center gap-0.5 text-center text-sm">
+                <p className="font-semibold text-primary">{title}</p>
+                <p className="text-tertiary">{description}</p>
+            </div>
+        </div>
+        {onClearSearch && (
+            <Button size="sm" color="link-color" onClick={onClearSearch}>
+                Clear search
+            </Button>
+        )}
+    </div>
+);
+
+interface MultiSelectProps extends RefAttributes<HTMLDivElement>, CommonProps {
+    /** The items to display in the listbox. */
+    items?: SelectItemType[];
+    /** The children to render for each item. */
+    children: ReactNode | ((item: SelectItemType) => ReactNode);
+    /** The currently selected keys (controlled). */
+    selectedKeys?: Selection;
+    /** The initial selected keys (uncontrolled). */
+    defaultSelectedKeys?: Selection;
+    /** Handler that is called when the selection changes. */
+    onSelectionChange?: (keys: Selection) => void;
+    /** Whether the select is disabled. */
+    isDisabled?: boolean;
+    /** Whether the select is required. */
+    isRequired?: boolean;
+    /** Whether the select is in an invalid state. */
+    isInvalid?: boolean;
+    /** Additional class name for the popover. */
+    popoverClassName?: string;
+    /** Additional class name for the root element. */
+    className?: string;
+    /** Handler that is called when the reset button is clicked. */
+    onReset?: () => void;
+    /** Handler that is called when the select all button is clicked. */
+    onSelectAll?: () => void;
+    /**
+     * Whether to show the count and Select all row under the search field, and the footer with Reset and Done.
+     * @default true
+     */
+    showFooter?: boolean;
+    /**
+     * Whether to show the search input in the popover.
+     * @default true
+     */
+    showSearch?: boolean;
+    /** The title to display when no items match the search. */
+    emptyStateTitle?: string;
+    /** The description to display when no items match the search. */
+    emptyStateDescription?: string;
+    /** Custom formatter for the selected count: the line at the top of the popover, and the trigger's text when `showSelectedBadges` is false. */
+    selectedCountFormatter?: (count: number) => ReactNode;
+    /** Supporting text displayed next to the selected count in the trigger, which shows the count only when `showSelectedBadges` is false. */
+    supportingText?: ReactNode;
+    /**
+     * "single" makes it a searchable single select: the trigger shows the chosen item (its label and
+     * supporting text), picking an item closes the popover, and there is no footer.
+     * @default "multiple"
+     */
+    selectionMode?: "multiple" | "single";
+    /** Called as the search text changes, to look the items up elsewhere (a list too long to hand over whole). */
+    onSearchChange?: (value: string) => void;
+    /**
+     * Whether the component narrows `items` to the search itself. False when the caller already hands over only the
+     * matches (with `onSearchChange`).
+     * @default true
+     */
+    filterItems?: boolean;
+    /** The matches are still being looked up: a "Searching" row shows under the search box. */
+    isLoading?: boolean;
+    /** The text of that row. @default "Searching" */
+    loadingLabel?: string;
+    /**
+     * Lets a person add what they typed when it is not in the list: a row pinned under the list,
+     * `Add "<typed>"`, shown while the search has text that matches no item's label exactly.
+     */
+    onCreate?: (value: string) => void;
+    /** The label of that row, from the typed text. @default `Add "<typed>"` */
+    createLabel?: (value: string) => string;
+    /**
+     * Shows each selection as a removable pill inside the field (multiple mode only), so what is chosen can be read
+     * and taken off while the list is open (designer, 2 Nov 2026; 25 Oct 2026: on every MultiSelect). The field then
+     * does not say how many are chosen: the popover does. False for a field whose selection is listed elsewhere, which
+     * keeps the count as the trigger's text.
+     * @default true
+     */
+    showSelectedBadges?: boolean;
+    /** Names the field when it has no visible `label` (the trigger, its list and the selected badges). */
+    "aria-label"?: string;
+}
+
+const MultiSelectRoot = ({
+    items,
+    children,
+    size = "md",
+    selectedKeys,
+    defaultSelectedKeys,
+    onSelectionChange,
+    isDisabled,
+    isRequired,
+    isInvalid,
+    placeholder = "Select",
+    label,
+    hint,
+    tooltip,
+    hideRequiredIndicator,
+    popoverClassName,
+    className,
+    onReset,
+    onSelectAll,
+    showFooter = true,
+    showSearch = true,
+    emptyStateTitle,
+    emptyStateDescription,
+    selectedCountFormatter,
+    supportingText,
+    selectionMode = "multiple",
+    onSearchChange,
+    filterItems = true,
+    isLoading = false,
+    loadingLabel = "Searching",
+    onCreate,
+    createLabel = (value) => `Add "${value}"`,
+    showSelectedBadges = true,
+    "aria-label": ariaLabel,
+}: MultiSelectProps) => {
+    const name = label || ariaLabel;
+    const single = selectionMode === "single";
+    // Uncontrolled, the selection is kept here, so the trigger's count and the badges can read it too.
+    const [innerKeys, setInnerKeys] = useState<Selection>(defaultSelectedKeys ?? new Set());
+    const currentKeys = selectedKeys ?? innerKeys;
+    const changeSelection = (keys: Selection) => {
+        if (selectedKeys === undefined) setInnerKeys(keys);
+        onSelectionChange?.(keys);
+    };
+    // Labels of every item seen, so a badge keeps its name while a search hands over only the matches.
+    const [labels, setLabels] = useState<Record<string, string>>({});
+    const unseen = (items ?? []).filter((item) => labels[String(item.id)] !== (item.label ?? String(item.id)));
+    if (unseen.length > 0)
+        setLabels((was) => ({ ...was, ...Object.fromEntries(unseen.map((item) => [String(item.id), item.label ?? String(item.id)])) }));
+    const [isOpen, setOpen] = useState(false);
+    const { contains } = useFilter({ sensitivity: "base" });
+    const [searchValue, setSearchValueState] = useState("");
+    const setSearchValue = useCallback(
+        (value: string) => {
+            setSearchValueState(value);
+            onSearchChange?.(value);
+        },
+        [onSearchChange],
+    );
+    const typed = searchValue.trim();
+    const canCreate = !!onCreate && !!typed && !isLoading && !items?.some((item) => item.label?.trim().toLowerCase() === typed.toLowerCase());
+
+    const triggerRef = useRef<HTMLButtonElement>(null);
+    const badgesRef = useRef<HTMLUListElement>(null);
+    // Taking a badge off keeps the keyboard in place: focus moves to the badge now in its spot (or the one before it),
+    // and to the field once none are left.
+    const removeSelected = (id: string, index: number) => {
+        changeSelection(new Set(selectedIds.filter((x) => x !== id)));
+        requestAnimationFrame(() => {
+            const buttons = badgesRef.current?.querySelectorAll("button");
+            const next = buttons?.[Math.min(index, buttons.length - 1)];
+            (next ?? triggerRef.current)?.focus();
+        });
+    };
+    const [popoverWidth, setPopoverWidth] = useState("");
+
+    const onResize = useCallback(() => {
+        if (!triggerRef.current) return;
+        const rect = triggerRef.current.getBoundingClientRect();
+        setPopoverWidth(rect.width + "px");
+    }, []);
+
+    const selectedIds = currentKeys === "all" ? (items ?? []).map((item) => String(item.id)) : [...currentKeys].map(String);
+    const selectedCount = selectedIds.length;
+    const hasSelection = selectedCount > 0;
+    const selectedItem = single ? items?.find((item) => selectedIds.includes(String(item.id))) : undefined;
+
+    const handleClearSearch = useCallback(() => {
+        setSearchValue("");
+    }, [setSearchValue]);
+
+    return (
+        <SelectContext.Provider value={{ size }}>
+            <div className={cx("font-barlow flex flex-col gap-1.5", className)}>
+                {label && (
+                    <Label isRequired={hideRequiredIndicator ? false : isRequired} isInvalid={isInvalid} tooltip={tooltip}>
+                        {label}
+                    </Label>
+                )}
+
+                <AriaDialogTrigger isOpen={isOpen} onOpenChange={setOpen}>
+                    {/* The field is a box, not the button: a pill's remove button cannot sit inside another button. The trigger
+                        covers the box, and the pills sit over it with only their remove buttons catching a press. */}
+                    <div
+                        className={cx(
+                            "relative flex w-full items-start rounded-lg bg-primary shadow-xs ring-1 ring-primary outline-hidden transition duration-100 ease-linear ring-inset",
+                            "has-[[data-focus-visible]]:ring-2 has-[[data-focus-visible]]:ring-brand has-[[data-pressed]]:ring-2 has-[[data-pressed]]:ring-brand",
+                            isDisabled && "cursor-not-allowed opacity-50",
+                        )}
+                    >
+                        <AriaButton
+                            ref={triggerRef}
+                            // The pills are outside the button, so its name says what is chosen ("Observers, 2 selected").
+                            aria-label={`${name ?? "Select"}, ${single ? (selectedItem?.label ?? placeholder) : hasSelection ? `${selectedCount} selected` : placeholder}`}
+                            isDisabled={isDisabled}
+                            onClick={onResize}
+                            className="absolute inset-0 cursor-pointer rounded-lg outline-hidden data-disabled:cursor-not-allowed"
+                        />
+                        <div
+                            className={cx(
+                                "pointer-events-none relative flex min-w-0 flex-1 items-center truncate text-left",
+                                triggerSizes[size].height,
+                                !single && hasSelection && showSelectedBadges ? triggerSizes[size].pillsPadding : triggerSizes[size].padding,
+                            )}
+                        >
+                            {single && selectedItem ? (
+                                <span className={cx("flex min-w-0 items-center", sizes[size].textContainer)}>
+                                    <span className={cx("truncate font-medium text-primary", sizes[size].text)}>{selectedItem.label}</span>
+                                    {selectedItem.supportingText && (
+                                        <span className={cx("truncate text-tertiary", sizes[size].text)}>{selectedItem.supportingText}</span>
+                                    )}
+                                </span>
+                            ) : !single && hasSelection && showSelectedBadges ? (
+                                <ul
+                                    ref={badgesRef}
+                                    inert={isDisabled}
+                                    aria-label={name ? `${name}, selected` : "Selected"}
+                                    className={cx(
+                                        "m-0 flex min-w-0 list-none flex-wrap p-0 [&_button]:pointer-events-auto",
+                                        triggerSizes[size].pills,
+                                    )}
+                                >
+                                    {selectedIds.map((id, index) => {
+                                        const itemLabel = labels[id] ?? id;
+                                        return (
+                                            <li key={id} className="flex max-w-full min-w-0 *:min-w-0 *:max-w-full">
+                                                <BadgeWithButton
+                                                    size={size === "sm" ? "sm" : "md"}
+                                                    color="gray"
+                                                    uppercase={false}
+                                                    buttonLabel={`Remove ${itemLabel}`}
+                                                    onButtonClick={() => removeSelected(id, index)}
+                                                >
+                                                    <span className="truncate">{itemLabel}</span>
+                                                </BadgeWithButton>
+                                            </li>
+                                        );
+                                    })}
+                                </ul>
+                            ) : !single && hasSelection ? (
+                                <span className={cx("flex min-w-0 items-center", sizes[size].textContainer)}>
+                                    <span className={cx("truncate font-medium text-primary", sizes[size].text)}>
+                                        {selectedCountFormatter ? selectedCountFormatter(selectedCount) : `${selectedCount} selected`}
+                                    </span>
+                                    {supportingText && <span className={cx("text-tertiary", sizes[size].text)}>{supportingText}</span>}
+                                </span>
+                            ) : (
+                                <span className={cx("text-placeholder", sizes[size].text)}>{placeholder}</span>
+                            )}
+                        </div>
+                        <div className={cx("pointer-events-none flex shrink-0 items-center pl-2", triggerSizes[size].chevron)}>
+                            <ChevronDown aria-hidden="true" className={cx("text-fg-quaternary", size === "lg" ? "size-5" : "size-4 stroke-[2.25px]")} />
+                        </div>
+                    </div>
+
+                    <AriaPopover
+                        placement="bottom"
+                        offset={4}
+                        containerPadding={0}
+                        style={{ width: popoverWidth || undefined }}
+                        className={(state) =>
+                            cx(
+                                // font-barlow: this Popover portals to <body>, outside any font-scoping
+                                // wrapper around the trigger - see components/base/select/popover.tsx.
+                                "font-barlow w-(--trigger-width) origin-(--trigger-anchor-point) overflow-hidden rounded-lg bg-primary shadow-lg ring-1 ring-secondary_alt outline-hidden will-change-transform",
+                                state.isEntering &&
+                                    "duration-150 ease-out animate-in fade-in placement-top:slide-in-from-bottom-0.5 placement-bottom:slide-in-from-top-0.5",
+                                state.isExiting &&
+                                    "duration-100 ease-in animate-out fade-out placement-top:slide-out-to-bottom-0.5 placement-bottom:slide-out-to-top-0.5",
+                                popoverClassName,
+                            )
+                        }
+                    >
+                        <AriaDialog className="outline-hidden">
+                            <AriaAutocomplete filter={filterItems ? contains : undefined} inputValue={searchValue} onInputChange={setSearchValue}>
+                                {showSearch && (
+                                    <div className={cx("border-b border-secondary", searchSizes[size].wrapper)}>
+                                        <AriaSearchField aria-label="Search" value={searchValue} onChange={setSearchValue} autoFocus className="group/search">
+                                            <div className={cx("flex items-center", searchSizes[size].root)}>
+                                                <SearchLg data-icon aria-hidden="true" className="shrink-0 text-fg-quaternary" />
+                                                <AriaInput
+                                                    placeholder="Search"
+                                                    className={cx(
+                                                        "w-full appearance-none bg-transparent text-primary caret-[var(--ui-text-primary)] outline-hidden placeholder:text-placeholder",
+                                                        searchSizes[size].text,
+                                                    )}
+                                                />
+                                                <AriaButton
+                                                    aria-label="Clear search"
+                                                    className="flex shrink-0 cursor-pointer items-center justify-center rounded-sm text-fg-quaternary outline-focus-ring transition duration-100 ease-linear hover:text-fg-quaternary_hover focus-visible:outline-2 focus-visible:outline-offset-2 group-data-empty/search:hidden"
+                                                >
+                                                    <XClose aria-hidden="true" className="size-4 stroke-[2.25px]" />
+                                                </AriaButton>
+                                            </div>
+                                        </AriaSearchField>
+                                    </div>
+                                )}
+
+                                {showFooter && !single && (
+                                    <MultiSelectHeader size={size} count={selectedCount} countFormatter={selectedCountFormatter} onSelectAll={onSelectAll} />
+                                )}
+
+                                {isLoading && (
+                                    <div role="status" className={cx("flex items-center border-b border-secondary text-tertiary", sizes[size].root, sizes[size].text)}>
+                                        <svg fill="none" viewBox="0 0 20 20" aria-hidden="true" className="size-4 shrink-0 text-fg-quaternary">
+                                            <circle className="stroke-current opacity-30" cx="10" cy="10" r="8" fill="none" strokeWidth="2" />
+                                            <circle
+                                                className="origin-center animate-spin stroke-current"
+                                                cx="10"
+                                                cy="10"
+                                                r="8"
+                                                fill="none"
+                                                strokeWidth="2"
+                                                strokeDasharray="12.5 50"
+                                                strokeLinecap="round"
+                                            />
+                                        </svg>
+                                        {loadingLabel}
+                                    </div>
+                                )}
+
+                                <AriaListBox
+                                    aria-label={name || "Options"}
+                                    items={items}
+                                    selectionMode={single ? "single" : "multiple"}
+                                    // Escape closes the popover and never touches the value: react-aria's
+                                    // default ("clearSelection") wiped the whole selection on Escape.
+                                    escapeKeyBehavior="none"
+                                    selectedKeys={currentKeys}
+                                    onSelectionChange={(keys) => {
+                                        changeSelection(keys);
+                                        // A single choice is made in one pick: close, and focus returns to the trigger.
+                                        if (single) setOpen(false);
+                                    }}
+                                    // While a lookup runs, or what was typed can be added, the rows above and below say so.
+                                    renderEmptyState={() =>
+                                        isLoading || canCreate ? null : (
+                                            <MultiSelectEmptyState
+                                                title={emptyStateTitle}
+                                                description={emptyStateDescription}
+                                                onClearSearch={searchValue ? handleClearSearch : undefined}
+                                            />
+                                        )
+                                    }
+                                    className={cx("overflow-y-auto py-1 outline-hidden", popoverMaxHeights[size])}
+                                >
+                                    {children}
+                                </AriaListBox>
+                            </AriaAutocomplete>
+
+                            {canCreate && (
+                                <div className="border-t border-secondary p-1">
+                                    <AriaButton
+                                        onPress={() => {
+                                            onCreate?.(typed);
+                                            setSearchValue("");
+                                            setOpen(false);
+                                        }}
+                                        className={(state) =>
+                                            cx(
+                                                "flex w-full cursor-pointer items-center rounded-md text-left font-medium text-brand-secondary outline-hidden",
+                                                sizes[size].root,
+                                                sizes[size].text,
+                                                (state.isHovered || state.isFocusVisible) && "bg-primary_hover",
+                                                state.isFocusVisible && "ring-2 ring-brand ring-inset",
+                                            )
+                                        }
+                                    >
+                                        <Plus data-icon aria-hidden="true" />
+                                        <span className="truncate">{createLabel(typed)}</span>
+                                    </AriaButton>
+                                </div>
+                            )}
+
+                            {showFooter && !single && <MultiSelectFooter size={size} onReset={onReset} onDone={() => setOpen(false)} />}
+                        </AriaDialog>
+                    </AriaPopover>
+                </AriaDialogTrigger>
+
+                {/* MultiSelect is not a react-aria field, so its hint would otherwise pick up the text slots
+                    of whatever surrounds it: inside a Dialog (a FormModal) that offers only "description",
+                    and an invalid hint's "errorMessage" slot threw. The hint takes no outside slots. */}
+                {hint && (
+                    <AriaTextContext.Provider value={null}>
+                        <HintText isInvalid={isInvalid} className={cx(size === "sm" && "text-xs")}>
+                            {hint}
+                        </HintText>
+                    </AriaTextContext.Provider>
+                )}
+            </div>
+        </SelectContext.Provider>
+    );
+};
+
+const MultiSelect = MultiSelectRoot as typeof MultiSelectRoot & {
+    Item: typeof SelectItem;
+    Footer: typeof MultiSelectFooter;
+    EmptyState: typeof MultiSelectEmptyState;
+};
+
+MultiSelect.Item = SelectItem;
+MultiSelect.Footer = MultiSelectFooter;
+MultiSelect.EmptyState = MultiSelectEmptyState;
+
+export { MultiSelect };

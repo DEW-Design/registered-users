@@ -1,0 +1,341 @@
+// Static option lists + real species/persona data this wizard reuses from the rest of the build,
+// rather than inventing a second, disconnected dataset. See page.tsx's header comment for why.
+
+import { searchOccurrences, rootProjectForParentEventId, type SpeciesGroup } from "@/app/pages/_shared/map-search/search-data";
+import type { ProjectAccessLevel, ProjectContact, ProjectDetailsState } from "./types";
+
+export const ROLE_OF_WORK_OPTIONS = [
+    { id: "field-survey", label: "Field Survey" },
+    { id: "research", label: "Research" },
+    { id: "student", label: "Student" },
+    { id: "management", label: "Management" },
+    { id: "support", label: "Support" },
+    { id: "project-manager", label: "Project Manager" },
+    { id: "other", label: "Other" },
+];
+
+// Role in project, asked of each Project contact in Add Project (the designer, 16 Oct 2026): Project Manager became a role
+// here instead of its own tick, and Management and Student are not offered for now. They stay in ROLE_OF_WORK_OPTIONS, the
+// one vocabulary every label is read from, so a contact that already holds one still shows it.
+const ROLE_IN_PROJECT_IDS = ["project-manager", "field-survey", "research", "support", "other"];
+export const ROLE_IN_PROJECT_OPTIONS = ROLE_IN_PROJECT_IDS.map((id) => ROLE_OF_WORK_OPTIONS.find((o) => o.id === id)!);
+
+/** The role that makes a Project contact one of the project's managers. */
+export const PROJECT_MANAGER_ROLE = "project-manager";
+
+// What a project contact can do on the project (the designer, 25 Oct 2026, approving access set on each contact when the
+// project is created, and a Project access tab on the project page afterwards). The three levels and their lines were
+// drafted in the lab (`/proto/project-access`) and approved the same day; View only sees restricted records in full. A
+// Project Manager always has full control; anyone else starts as View only until someone gives them more.
+export const PROJECT_ACCESS_OPTIONS: { id: ProjectAccessLevel; label: string; supportingText: string }[] = [
+    { id: "full", label: "Full control", supportingText: "Edit details, restrictions, records and access" },
+    { id: "records", label: "Can upload and edit records", supportingText: "Upload datasets and edit records" },
+    { id: "view", label: "View only", supportingText: "See the project and all its records, restricted ones too" },
+];
+
+export const accessOf = (person: Pick<ProjectContact, "role" | "access">): ProjectAccessLevel => (person.role === PROJECT_MANAGER_ROLE ? "full" : (person.access ?? "view"));
+export const accessLabel = (level: ProjectAccessLevel) => PROJECT_ACCESS_OPTIONS.find((o) => o.id === level)!.label;
+
+/** The key a person's access is stored under (`ProjectDetailsState.projectAccess`). */
+export const accessKey = (p: { email: string }) => p.email.trim().toLowerCase();
+
+/** The people on a saved project, as the project page holds them: its project managers (always Project Manager, so Full control)
+ *  then the data owner's contacts who are not also managers, each with the access stored for them. A person with no email is left
+ *  out, as their access could not be kept. */
+export function projectPeople(d: Pick<ProjectDetailsState, "projectManagers" | "dataOwnerContacts" | "projectAccess" | "roleOfWork" | "roleOfWorkOther">): ProjectContact[] {
+    const seen = new Set<string>();
+    const out: ProjectContact[] = [];
+    const add = (p: Omit<ProjectContact, "isManager" | "access" | "organisation" | "isPrimary"> & { organisation?: string }, manager: boolean) => {
+        const key = accessKey(p);
+        if (!key || seen.has(key)) return;
+        seen.add(key);
+        out.push({
+            ...p,
+            organisation: p.organisation ?? "",
+            isPrimary: false,
+            isManager: manager,
+            role: manager ? PROJECT_MANAGER_ROLE : p.role,
+            roleOther: manager ? "" : p.roleOther,
+            access: d.projectAccess?.[key],
+        });
+    };
+    d.projectManagers.forEach((m) => add(m, true));
+    // The first contact's role may be kept on the project instead (`roleOfWork`), as the project page reads it.
+    d.dataOwnerContacts.forEach((c, i) => add({ ...c, role: c.role ?? (i === 0 ? d.roleOfWork : null), roleOther: c.roleOther ?? (i === 0 ? d.roleOfWorkOther : "") }, false));
+    return out;
+}
+
+// The same placeholder persona set this build already uses everywhere a "who's involved" list
+// needs real, recognisable-as-fake names - never invented fresh ones (see context/decisions/2026-09-00-avatar-build-known-gaps.md,
+// "Placeholder person convention").
+export const PERSONA_OPTIONS = [
+    { id: "olivia-wyatt", label: "Olivia Wyatt" },
+    { id: "phoenix-baker", label: "Phoenix Baker" },
+    { id: "lana-steiner", label: "Lana Steiner" },
+    { id: "maya-dewitt", label: "Maya Dewitt" },
+];
+
+// A project can focus on more than one domain at once - Biological is the default (BDBSA is
+// fundamentally a biodiversity repository, so almost every project touches it), pre-selected
+// rather than left for the user to notice and pick themselves, per direct instruction. The rest
+// are real environmental-data domains a project might also collect against alongside it.
+export const FOCUS_AREA_OPTIONS = [
+    { id: "biological", label: "Biological" },
+    { id: "soil", label: "Soil" },
+    { id: "water", label: "Water" },
+    { id: "land", label: "Land" },
+    { id: "marine", label: "Marine" },
+    { id: "habitat-vegetation", label: "Habitat / Vegetation Mapping" },
+    { id: "other", label: "Other" },
+];
+
+export const PERMIT_TYPE_OPTIONS = [
+    { id: "scientific-research", label: "Scientific Research Permit" },
+    { id: "wildlife-ethics", label: "Animal Ethics Approval" },
+    { id: "native-vegetation", label: "Native Vegetation Clearance" },
+    { id: "cultural-heritage", label: "Aboriginal Heritage Clearance" },
+    { id: "none", label: "None required" },
+];
+
+// The two kinds of survey a project runs (the designer, 2 Oct 2026). Narrowing the templates by survey
+// type waits on the templates saying which type they belong to; nothing here invents that mapping.
+export const SURVEY_TYPE_OPTIONS: { id: "biological" | "native-vegetation"; label: string }[] = [
+    { id: "biological", label: "Biological Survey" },
+    { id: "native-vegetation", label: "Native Vegetation Survey" },
+];
+
+export const COLLECTION_METHOD_OPTIONS: { id: "incidental" | "systematic" | "analysis" | "unknown" | "other"; label: string; description: string }[] = [
+    { id: "incidental", label: "Incidental observations", description: "Data collected informally or opportunistically without a predefined sampling method." },
+    { id: "systematic", label: "Systematic", description: "Data collected using a structured and repeatable method, often across set time intervals or locations." },
+    { id: "analysis", label: "Analysis/Reporting", description: "Data produced by analysing or reporting on data already collected." },
+    { id: "unknown", label: "Unknown", description: "The method of data collection is not known or not recorded." },
+    { id: "other", label: "Other", description: "Data will be collected using a method not listed here (e.g. media/images)." },
+];
+
+// Version 2 of option 2 offers every method but Unknown (the designer, 9 Oct 2026: "Remove this option"). Unknown stays in the
+// list above so a project that holds it still reads.
+export const COLLECTION_METHOD_OPTIONS_V2 = COLLECTION_METHOD_OPTIONS.filter((o) => o.id !== "unknown");
+
+// What an Analysis/Reporting project adds, one or more, as a Systematic project adds its methodologies, Other included (the
+// designer, 25 Oct 2026).
+export const ANALYSIS_REPORTING_OPTIONS = ["Species Distribution Mapping", "Native Vegetation Mapping", "State of the Environment Reporting"];
+
+// `maxMonths` is this build's own system-provided ceiling per embargo type, not a fabricated real
+// BDBSA policy figure - a project completion or cultural/Indigenous embargo genuinely warrants a
+// longer maximum than a plain publication embargo, so the numbers differ by type rather than
+// sharing one flat cap, but the exact values are this exploratory build's own reasonable default,
+// logged here rather than presented as sourced policy.
+// "Expectations data restrictions" (the designer, 25 Oct 2026): what the person expects for restricted records. An expectation
+// only: a BioData Admin decides the level after an internal review.
+export const EXPECTED_RESTRICTION_OPTIONS: { id: "1km" | "10km" | "government"; label: string }[] = [
+    { id: "1km", label: "Obfuscate location to 1 km" },
+    { id: "10km", label: "Obfuscate location to 10 km" },
+    { id: "government", label: "Government access only" },
+];
+
+export const EMBARGO_TYPE_OPTIONS: { id: "publication" | "completion" | "cultural" | "other"; label: string; description: string; maxMonths: number }[] = [
+    { id: "publication", label: "Publication embargo", description: "Data is withheld until related research or reports are officially published.", maxMonths: 24 },
+    { id: "completion", label: "Project completion embargo", description: "Data remains private until all fieldwork, analysis, and QA are completed.", maxMonths: 36 },
+    { id: "cultural", label: "Cultural / Indigenous knowledge embargo", description: "Data involving Indigenous or cultural knowledge remains hidden until custodians approve release.", maxMonths: 120 },
+    { id: "other", label: "Other", description: "A reason not listed here.", maxMonths: 12 },
+];
+
+/** The system-provided maximum embargo period for a (multi-select) set of embargo types - the
+ *  longest of every selected type's own maximum, so combining a stricter reason with a laxer one
+ *  never quietly shortens the stricter one's real ceiling. 0 when nothing is selected yet. */
+export function maxEmbargoMonths(types: string[]): number {
+    return types.reduce((max, id) => Math.max(max, EMBARGO_TYPE_OPTIONS.find((o) => o.id === id)?.maxMonths ?? 0), 0);
+}
+
+/** A short, human "X years"/"X months" rendering of a month count, for the "maximum embargo
+ *  period" note next to the End Date field. */
+export function formatEmbargoDuration(months: number): string {
+    if (months <= 0) return "0 months";
+    if (months % 12 === 0) {
+        const years = months / 12;
+        return `${years} year${years === 1 ? "" : "s"}`;
+    }
+    return `${months} month${months === 1 ? "" : "s"}`;
+}
+
+// ── Restrictable concepts. Each concept declares the value control it needs, matched to the
+// field type Figma uses for that same field on the Occurrence/Observation "Edit" frames
+// (YMproGZfrFB5jUqPHPxMhk nodes 1970:145957 / 1970:148058):
+//   multi     - Figma's "3 Selected" multi-select (Observers, Determiners, Animal/Plant Life Stage)
+//   select    - Figma's "Please Select" single dropdown (Sex, Activity, Habitat, Voucher Type, ...)
+//   boolean   - Figma's Yes/No radio pair (Gravid?, Planted/Released)
+//   dateRange - Figma's "Select dates" pickers (Start/End Date), as a From/To pair
+//   text      - a free-text field (Permit number, storage location, Other)
+//   none      - the whole field is withheld, no value to pick (comments, attached images)
+//   areas     - a set of areas (drawn, uploaded, picked or entered) whose records are obscured; the
+//               caller renders the area editor under the row (`renderBelow`) and keeps the areas'
+//               ids in the row's `values`, so validity and labels still work here
+// Option lists are illustrative where Figma leaves the dropdown unpopulated ("Please Select"),
+// except where this build already has a real list (people, collection methods, institutions). ──
+
+export type ConceptValueType = "text" | "select" | "multi" | "boolean" | "dateRange" | "none" | "areas";
+
+export interface ConceptOption {
+    id: string;
+    label: string;
+    valueType: ConceptValueType;
+    /** Options for `select` / `multi` concepts. */
+    options?: { id: string; label: string }[];
+    /** Placeholder for the value control. */
+    placeholder?: string;
+}
+
+// The people a project's records are attributed to - this build's established placeholder persona
+// set (the same observers `search-data.ts` already attributes real records to), not new names.
+export const OBSERVER_OPTIONS = [
+    { id: "olivia-wyatt", label: "Olivia Wyatt" },
+    { id: "phoenix-baker", label: "Phoenix Baker" },
+    { id: "lana-steiner", label: "Lana Steiner" },
+    { id: "maya-dewitt", label: "Maya Dewitt" },
+];
+
+const LOCATION_PRECISION_OPTIONS = [
+    { id: "hide", label: "Hide location completely" },
+    { id: "1km", label: "Generalise to 1 km" },
+    { id: "10km", label: "Generalise to 10 km" },
+    { id: "25km", label: "Generalise to 25 km" },
+];
+
+const OBSERVER_CONCEPT: ConceptOption = { id: "observer", label: "Observer / Contributor", valueType: "multi", options: OBSERVER_OPTIONS, placeholder: "Select observers" };
+const OTHER_CONCEPT: ConceptOption = { id: "other", label: "Other", valueType: "text", placeholder: "Describe what to restrict" };
+
+// Concepts a project's own metadata could restrict - real, fill-once fields this build already
+// models elsewhere on a project (permits, collection method, contributor identity).
+export const PROJECT_METADATA_CONCEPTS: ConceptOption[] = [
+    { id: "collection-method", label: "Data Collection Method", valueType: "select", options: COLLECTION_METHOD_OPTIONS.map((o) => ({ id: o.id, label: o.label })), placeholder: "Select method" },
+    OBSERVER_CONCEPT,
+    { id: "site-coordinates", label: "Site Coordinates Precision", valueType: "select", options: LOCATION_PRECISION_OPTIONS, placeholder: "Select precision" },
+    { id: "permit-number", label: "Permit Number", valueType: "text", placeholder: "Enter the permit number" },
+    { id: "raw-data-storage", label: "Raw Data Storage Location", valueType: "none" },
+    OTHER_CONCEPT,
+];
+
+// Concepts recorded against a species - the fields on the Occurrence/Observation Details
+// Containers in Figma, grouped the same way (Location, Observers, Temporal, Species traits,
+// Voucher, comments/resources).
+export const SPECIES_CONCEPTS: ConceptOption[] = [
+    { id: "location", label: "Location (coordinates)", valueType: "select", options: LOCATION_PRECISION_OPTIONS, placeholder: "Select precision" },
+    OBSERVER_CONCEPT,
+    { id: "date-observed", label: "Date observed", valueType: "dateRange" },
+    {
+        id: "animal-life-stage",
+        label: "Animal life stage",
+        valueType: "multi",
+        options: ["Egg", "Juvenile", "Sub-adult", "Adult"].map((l) => ({ id: l.toLowerCase(), label: l })),
+        placeholder: "Select life stages",
+    },
+    {
+        id: "plant-life-stage",
+        label: "Plant life stage",
+        valueType: "multi",
+        options: ["Seedling", "Juvenile", "Mature", "Flowering", "Fruiting"].map((l) => ({ id: l.toLowerCase(), label: l })),
+        placeholder: "Select life stages",
+    },
+    { id: "sex", label: "Sex", valueType: "select", options: ["Male", "Female", "Unknown"].map((l) => ({ id: l.toLowerCase(), label: l })), placeholder: "Select sex" },
+    {
+        id: "activity",
+        label: "Activity",
+        valueType: "select",
+        options: ["Breeding", "Nesting", "Roosting", "Feeding", "Moving"].map((l) => ({ id: l.toLowerCase(), label: l })),
+        placeholder: "Select activity",
+    },
+    {
+        id: "micro-habitat",
+        label: "Micro habitat",
+        valueType: "select",
+        options: ["Tree hollow", "Burrow", "Log", "Rock crevice", "Leaf litter", "Nest mound"].map((l) => ({ id: l.toLowerCase().replace(/ /g, "-"), label: l })),
+        placeholder: "Select habitat",
+    },
+    { id: "gravid", label: "Gravid", valueType: "boolean" },
+    { id: "planted-released", label: "Planted / released", valueType: "boolean" },
+    { id: "determiners", label: "Determiners", valueType: "multi", options: OBSERVER_OPTIONS, placeholder: "Select determiners" },
+    {
+        id: "voucher-institution",
+        label: "Voucher institution",
+        valueType: "select",
+        options: [
+            { id: "sa-museum", label: "South Australian Museum" },
+            { id: "sa-herbarium", label: "State Herbarium of South Australia" },
+        ],
+        placeholder: "Select institution",
+    },
+    { id: "comments", label: "Occurrence / observation comments", valueType: "none" },
+    { id: "resources", label: "Attached images and files", valueType: "none" },
+    OTHER_CONCEPT,
+];
+
+// ── Species picker: reuses the real, shared species dataset (app/pages/_shared/map-search/
+// search-data.ts) instead of a second, disconnected list, deduped to one row per scientific name.
+// The two Non-Biotic/Community placeholder rows (`species === "—"`) aren't real species, so they're
+// excluded - a project can't nominate "Soil Profile" as a sensitive species. ──
+
+export interface RegistrationSpecies {
+    id: string;
+    commonName: string;
+    species: string;
+    family: string;
+    group: SpeciesGroup;
+    /** True when this species is already flagged "Level 2" (sensitive) somewhere in the real
+     *  dataset - the "already nominated as sensitive" alert this wizard's species step surfaces. */
+    alreadySensitive: boolean;
+}
+
+function buildSpeciesList(): RegistrationSpecies[] {
+    const seen = new Map<string, RegistrationSpecies>();
+    for (const occ of searchOccurrences) {
+        if (occ.species === "—" || !occ.family || !occ.group) continue;
+        const existing = seen.get(occ.species);
+        if (existing) {
+            if (occ.licenceLevel === "Level 2") existing.alreadySensitive = true;
+            continue;
+        }
+        seen.set(occ.species, {
+            id: occ.species,
+            commonName: occ.commonName,
+            species: occ.species,
+            family: occ.family,
+            group: occ.group,
+            alreadySensitive: occ.licenceLevel === "Level 2",
+        });
+    }
+    return Array.from(seen.values());
+}
+
+// Real South Australian species that have no record in the shared dataset, so they can be picked
+// (nominated as sensitive, restricted in a project) without adding points to Explore's map (the
+// designer, 25 Oct 2026: "add painted dragon species to the list along with some more species").
+const SPECIES_WITHOUT_RECORDS: RegistrationSpecies[] = [
+    { id: "Ctenophorus pictus", commonName: "Painted Dragon", species: "Ctenophorus pictus", family: "Agamidae", group: "Reptile", alreadySensitive: false },
+    { id: "Aprasia pseudopulchella", commonName: "Flinders Ranges Worm-lizard", species: "Aprasia pseudopulchella", family: "Pygopodidae", group: "Reptile", alreadySensitive: false },
+    { id: "Burhinus grallarius", commonName: "Bush Stone-curlew", species: "Burhinus grallarius", family: "Burhinidae", group: "Bird", alreadySensitive: false },
+    { id: "Stipiturus mallee", commonName: "Mallee Emu-wren", species: "Stipiturus mallee", family: "Maluridae", group: "Bird", alreadySensitive: false },
+    { id: "Sminthopsis psammophila", commonName: "Sandhill Dunnart", species: "Sminthopsis psammophila", family: "Dasyuridae", group: "Mammal", alreadySensitive: false },
+    { id: "Macrotis lagotis", commonName: "Greater Bilby", species: "Macrotis lagotis", family: "Thylacomyidae", group: "Mammal", alreadySensitive: false },
+    { id: "Pseudophryne bibronii", commonName: "Brown Toadlet", species: "Pseudophryne bibronii", family: "Myobatrachidae", group: "Amphibian", alreadySensitive: false },
+    { id: "Caladenia behrii", commonName: "Pink-lipped Spider-orchid", species: "Caladenia behrii", family: "Orchidaceae", group: "Plant", alreadySensitive: false },
+    { id: "Thelymitra epipactoides", commonName: "Metallic Sun-orchid", species: "Thelymitra epipactoides", family: "Orchidaceae", group: "Plant", alreadySensitive: false },
+];
+
+export const REGISTRATION_SPECIES: RegistrationSpecies[] = [...buildSpeciesList(), ...SPECIES_WITHOUT_RECORDS.filter((s) => !searchOccurrences.some((o) => o.species === s.id))].sort((a, b) =>
+    a.commonName.localeCompare(b.commonName),
+);
+
+export const SPECIES_GROUP_OPTIONS: SpeciesGroup[] = ["Mammal", "Bird", "Reptile", "Amphibian", "Plant"];
+
+/** Real project codes/names already carrying a Level 2 (sensitive) record for this species -
+ *  backs the "View data restriction summary" alert, grounded in the same data every other real
+ *  restriction check in this build reads from, not a fabricated list. */
+export function existingRestrictionsForSpecies(speciesId: string): { code: string; name: string }[] {
+    const seen = new Map<string, { code: string; name: string }>();
+    for (const occ of searchOccurrences) {
+        if (occ.species !== speciesId || occ.licenceLevel !== "Level 2") continue;
+        const project = rootProjectForParentEventId(occ.parentEventId);
+        if (project) seen.set(project.code, { code: project.code, name: project.name });
+    }
+    return Array.from(seen.values());
+}

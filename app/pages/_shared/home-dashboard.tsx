@@ -1,0 +1,703 @@
+"use client";
+
+import type { FC, ReactNode } from "react";
+import { Focusable } from "react-aria-components";
+import Link from "next/link";
+import {
+  TrendUp02,
+  ArrowNarrowRight,
+  Folder,
+  FileLock01,
+  Feather,
+  FileSearch01,
+  BookOpen01,
+  FileCheck02,
+  DownloadCloud02,
+  LifeBuoy01,
+  Check,
+  UserCheck01,
+  BarChartSquare01,
+  Database01,
+  AlertCircle,
+} from "@untitledui/icons";
+import { Button } from "@/components/base/buttons/button";
+import { Tooltip } from "@/components/base/tooltip/tooltip";
+import { Badge, CountBadge } from "@/components/base/badges/badges";
+import type { BadgeColor } from "@/components/base/badges/badges";
+import { FeaturedIcon } from "@/components/foundations/featured-icon/featured-icon";
+import { ProgressBarBase } from "@/components/base/progress-indicators/progress-indicators";
+import { BentoCard } from "@/app/pages/_shared/bento-card";
+import { projects } from "@/app/pages/_shared/project-list-content";
+import { projectDetailsPath } from "@/app/pages/_shared/project-routes";
+import { agreementStatusMeta } from "@/app/pages/_shared/agreement-status";
+import { nominationStatusMeta } from "@/app/pages/_shared/nominations/nomination-data";
+import { useDlas } from "@/app/pages/_shared/dla/dla-store";
+import { useNominations } from "@/app/pages/_shared/nominations/nomination-store";
+import { cx } from "@/utils/cx";
+import { useRoleHref } from "@/lib/use-role-href";
+import { FlaggedConceptsHomeQueue } from "@/app/pages/project-detail/flagged-home-queue";
+import { useUserRole } from "@/lib/use-user-role";
+import { useFeatureAccess } from "@/lib/use-feature-access";
+import { useCanOpen } from "@/lib/use-can-open";
+import { isBiodataAdmin } from "@/lib/user-role";
+
+// The real Home/BioData Dashboard content - the single source every sidebar shell
+// (dashboard, project-list, project-detail) renders for the "Home" section, instead of the
+// generic SectionPlaceholder. Home is real, built content, not an unscoped section - clicking the
+// Home icon (or the Home breadcrumb) from any of those three screens must always show this exact
+// content, not a "this lives on another page, go there" placeholder. Flagged directly by the user
+// off a screenshot of this content, after a placeholder was shown instead on project-list/
+// project-detail. Not shared with dashboard/option-2 (top-nav shell) - clicking Home there is a
+// real page navigation to its own dashboard, which already renders this correctly; the bug this
+// fixes is specific to the sidebar shells' in-place, no-navigation section switching.
+//
+// The "This is where alerts go" banner used to live here, with its own local dismiss state - moved
+// out to app/pages/_shared/home-tab-panels.tsx instead, since it also needs to show on the Data
+// Overview tab and dismissing it on either tab must dismiss it on both (one shared piece of state
+// above both tab panels, not two independent copies) - flagged directly by the user.
+//
+// Quick actions used to also repeat "Add project"/"Upload dataset" here, duplicating the
+// persistent header actions every sidebar-shell page already has - flagged directly by the user
+// (`/pages/project-list`) as redundant, so they're removed from this row rather than
+// kept "flagged, not hidden" as before. "Manage projects & datasets" and the two disabled actions
+// below aren't duplicates of anything in the header, so they stay. That button group's gap is
+// `gap-2` (the 8px token), not `gap-3` (12px) - flagged directly by the user off a screenshot.
+//
+// TaskItem's action ("Continue", "Go to X") uses `iconTrailing={ArrowNarrowRight}`, not a literal
+// "→" appended to the label text - Button already supports a trailing icon on every color variant
+// including `link-color`, so the arrow is a real icon like everywhere else, not a text character
+// standing in for one. See context/archive/final-check.md, "Final check" list.
+
+// `onDark` - the Sept 16 layout decision brought option-2's gradient greeting banner into this
+// shell as the shared template for "Hi, X" + KPI row (see HomeDashboardContent/
+// AdminHomeDashboardContent below), so this one KpiStat now needs to render on both a plain
+// (light) background and that dark gradient - a variant prop rather than a second, near-duplicate
+// component, same "extend, don't fork" convention as elsewhere in this codebase.
+function KpiStat({
+  value,
+  label,
+  note,
+  trend,
+  last = false,
+  onDark = false,
+}: {
+  value: string;
+  label: string;
+  note: string;
+  trend?: boolean;
+  last?: boolean;
+  onDark?: boolean;
+}) {
+  return (
+    <div className={cx("flex flex-col gap-2 pr-6", !last && (onDark ? "border-r border-white/20" : "border-r border-secondary"))}>
+      <p className={cx("text-2xl font-medium tabular-nums", onDark ? "text-white" : "text-primary")}>{value}</p>
+      <p className={cx("text-md font-medium", onDark ? "text-white" : "text-primary")}>{label}</p>
+      <div className={cx("flex items-center gap-1.5 text-sm", onDark ? "text-white/80" : "text-tertiary")}>
+        {trend && <TrendUp02 className="size-3.5 text-fg-success-primary" />}
+        <span>{note}</span>
+      </div>
+    </div>
+  );
+}
+
+// A quick-actions button pointing at a real, already-built destination.
+function QuickAction({ icon, label, href }: { icon: FC<{ className?: string }>; label: string; href: string }) {
+  return (
+    <Button color="secondary" iconLeading={icon} href={href}>
+      {label}
+    </Button>
+  );
+}
+
+// One row in the "needs your attention" list. `actionHref` is only set when there's a real page
+// behind it (project-list, project-detail); DLA requests and species nominations don't have one
+// yet, so those rows are status-only, no fake link, same "honest, not a placeholder" convention as
+// everywhere else in this build.
+// A leading FeaturedIcon per task, colour="brand" - flagged directly by the user off a page
+// screenshot ("what if these cards were more visual?" / "what if the icons were primary colour?").
+// Real component (components/foundations/featured-icon/featured-icon.tsx), the same one
+// ContinueCard already uses in this file - not a second hand-rolled icon-in-a-box treatment.
+// A task's progress through a real, but currently-invented, 2-step flow: the step it's on now
+// (a filled ProgressBarBase, warning-coloured since it's the thing genuinely in motion) and what
+// comes after (an empty ProgressBarBase, greyed - nothing to report yet). Content here is a
+// placeholder per the user directly ("invent a reasonable 2-step flow... clearly a placeholder,
+// refine later") - the real DLA/nomination review steps and timelines haven't been confirmed.
+interface TaskProgressStep {
+  label: string;
+  detail: string;
+  // 100 = done, 0 < n < 100 = the step actually in motion right now, 0 = not started yet.
+  // Which of those three a step is drives its own display (see TaskItem below) - not a separate
+  // enum to keep in sync with the number.
+  percent: number;
+  // A step that stopped and will not finish: its label and bar turn red and it gets an alert icon,
+  // whatever its percent (where it stopped). Optional, so every existing caller is unchanged.
+  failed?: boolean;
+}
+
+interface TaskProgress {
+  steps: TaskProgressStep[];
+}
+
+// Rebuilt from a reference card the user shared (a different project's "action required" pattern:
+// coloured banner + title/subtitle + a 2-step progress tracker) - pulled apart into what already
+// exists in this design system vs. what didn't. The banner (AlertFullWidth, color="warning") is
+// real but deliberately not used here: neither DLA requests nor species nominations need the
+// user's action right now - both are "submitted, waiting on someone else's review" - so an
+// "Action required" banner would misrepresent their actual state. `ProgressBarBase` (the piece
+// that didn't exist in this codebase before the user pulled it in) is what's new here - used bare
+// (no built-in label), since ProgressBar's own label positions only show a percentage, not custom
+// step text like "Your action"/"Next: X".
+// `actionHref` xor `onActionClick` - a real navigable destination, or a local callback (e.g.
+// switching a page's own view) when there's nowhere real to navigate to. Both are additive, kept
+// for the original callers here (which all use `actionHref`) - `onActionClick` was added once a
+// second real consumer (`/proto/collection-sidebar`) needed a task row whose action stays on the
+// same page instead of navigating away.
+export function TaskItem({
+  title,
+  detail,
+  status,
+  statusColor,
+  icon,
+  actionLabel,
+  actionHref,
+  onActionClick,
+  progress,
+  iconColor = "brand",
+  footer,
+}: {
+  title: string;
+  /** One line under the title. Left out where the step list says the same thing (a card with `progress`). */
+  detail?: string;
+  status: string;
+  statusColor: BadgeColor<"pill-color">;
+  icon: FC<{ className?: string }>;
+  actionLabel?: string;
+  actionHref?: string;
+  onActionClick?: () => void;
+  progress?: TaskProgress;
+  /** The icon colour: "warning" for a task needing attention, "error" for one that failed. */
+  iconColor?: "brand" | "warning" | "error";
+  /** Extra content under the progress, inside the card (for example the reasons a task failed). */
+  footer?: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-4 rounded-lg border border-secondary p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-start gap-3">
+          <FeaturedIcon icon={icon} color={iconColor} theme="modern" size="md" />
+          <div className="flex flex-col gap-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-base font-medium text-primary">{title}</p>
+              <Badge size="sm" color={statusColor}>{status}</Badge>
+            </div>
+            {detail && <p className="text-sm text-tertiary">{detail}</p>}
+          </div>
+        </div>
+        {actionLabel && actionHref && (
+          <Button color="link-color" size="sm" href={actionHref} iconTrailing={ArrowNarrowRight} className="shrink-0">
+            {actionLabel}
+          </Button>
+        )}
+        {actionLabel && !actionHref && onActionClick && (
+          <Button color="link-color" size="sm" onPress={onActionClick} iconTrailing={ArrowNarrowRight} className="shrink-0">
+            {actionLabel}
+          </Button>
+        )}
+      </div>
+      {progress && (
+        <div className="grid grid-cols-1 gap-4 border-t border-secondary pt-4 sm:grid-cols-3">
+          {progress.steps.map((step) => {
+            // Once a step has failed nothing comes "next", so the steps after it are just not started.
+            const anyFailed = progress.steps.some((st) => st.failed);
+            const isFailed = !!step.failed;
+            const isUpcoming = step.percent === 0 && !isFailed;
+            const isCurrent = step.percent > 0 && step.percent < 100 && !isFailed;
+            const isDone = step.percent === 100 && !isFailed;
+            return (
+              <div key={step.label} className="flex flex-col gap-2">
+                <span className={cx("flex items-center gap-1.5 text-sm", isFailed ? "font-semibold text-error-primary" : isCurrent ? "font-semibold text-primary" : isDone ? "font-medium text-secondary" : "text-tertiary")}>
+                  {/* Small tick on the done step - flagged directly by the user as a UX tweak on
+                      the "Submitted" step specifically, but keyed off isDone (not the label) so any
+                      step that reaches 100% gets the same treatment, not just the first one. */}
+                  {isDone && <Check className="size-3.5 shrink-0 text-fg-success-primary" />}
+                  {isFailed && <AlertCircle className="size-3.5 shrink-0 text-fg-error-primary" />}
+                  {isUpcoming && !anyFailed ? `Next: ${step.label}` : step.label}
+                </span>
+                {/* Detail always renders, every step - a tooltip-only detail on just the upcoming
+                    step (the reference card's own treatment) left that column one row shorter
+                    than the other two, so its progress bar sat higher than theirs in the shared
+                    grid row. Flagged directly by the user: "Outcome bar isn't aligned properly."
+                    Showing the same real detail text plainly for all three keeps every column's
+                    height identical, so the bars line up by construction instead of needing a
+                    flex/height patch to force it. */}
+                <span className="text-xs text-tertiary">{step.detail}</span>
+                {/* No progressClassName override - ProgressBarBase's own default fill
+                    (bg-fg-brand-primary) is already our primary colour. The reference card's
+                    orange fill was a detail of that other project's own styling, not something to
+                    copy - flagged directly by the user: it was a pattern reference, not a style
+                    one, same "extract pattern, not pixels" rule this build already follows for
+                    every external reference (Mobbin, Figma, screenshots). */}
+                <ProgressBarBase value={step.percent} progressClassName={isFailed ? "bg-fg-error-primary" : undefined} />
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {footer}
+    </div>
+  );
+}
+
+// "Continue where you left off" - pulled out of the flat Needs-your-attention list into its own
+// strip, decided via /get-creative at /proto/dashboard-options (Alert/Card/Banner/Strip explored;
+// Strip won for being the lightest-weight, most elegant option). The task shown here is
+// deliberately left out of the Needs-your-attention list below it (see `otherTasks` in
+// HomeDashboardContent) - stating the same task in two treatments on one page is exactly the
+// redundancy bug this pattern replaced (an earlier pass had it as a giant duplicate hero banner
+// instead of this strip).
+//
+// Background is bg-brand-50 (a light brand tint), not bg-brand-solid (a solid brand fill) - the
+// first pass used bg-brand-solid with the trailing action overridden to white text to stay
+// legible, which the user flagged directly as violating the design system (patching a real
+// component's colours instead of using it as shipped - see `color="link-color"` below, no
+// overrides). Reverting the button to its plain, unmodified form made the real problem visible:
+// `link-color`'s text token (`--color-brand-700`) has almost no contrast against `bg-brand-solid`
+// (`--color-brand-600`) - "Continue button not visible now, haha," per the user directly. Fixed by
+// changing the strip's background to `bg-brand-50` instead of touching the button at all - the
+// lightest tint on the same brand scale `link-color`'s text already belongs to, so the pairing
+// works because the tokens were designed to sit together, not because anything was overridden.
+function ContinueStrip({ title, actionLabel, actionHref }: { title: string; actionLabel: string; actionHref: string }) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-brand-50 px-4 py-3">
+      <div className="flex items-center gap-2 text-sm text-primary">
+        {/* text-fg-brand-primary - see KnowledgeBaseCard's comment below for why not
+            text-fg-brand-secondary (a non-existent class - resolves to nothing). */}
+        <FileSearch01 className="size-4 shrink-0 text-fg-brand-primary" />
+        <span>
+          Continue where you left off - <span className="font-semibold">{title}</span>
+        </span>
+      </div>
+      {/* color="link-color", used exactly as-is - same as "View all projects" below, no className
+          overrides needed. Its text token is --color-brand-700; this strip's own bg-brand-50 is
+          the lightest tint on that same brand scale (the same pairing already used elsewhere in
+          this codebase, e.g. the filter chips' old selected state: bg-brand-50 + text-brand-700) -
+          real contrast because the two tokens were designed to sit together, not because either
+          was overridden. */}
+      <Button color="link-color" size="sm" href={actionHref} iconTrailing={ArrowNarrowRight}>
+        {actionLabel}
+      </Button>
+    </div>
+  );
+}
+
+// ── Featured Projects + Knowledge Base - the rest of the /proto/dashboard-options exploration,
+// decided alongside the Strip (the user: "the entire exploration... not just that strip
+// component"). Cards only for Knowledge Base, per the user - the real guide/template content and
+// download flow come later; icons distinguish "read this" (BookOpen01) from "fill this in
+// correctly" (FileCheck02) from "get a file" (DownloadCloud02) from "get help" (LifeBuoy01) rather
+// than reusing one generic icon four times. Titles at text-base (not text-sm, not text-lg) - a
+// step up from this codebase's dense metadata-card convention since these are discovery cards
+// meant to invite a click, but not the same size as the text-lg section heading above them - see
+// /proto/dashboard-options's own comment trail for the two rounds that landed on this size. ──
+const knowledgeBaseItems = [
+  { icon: BookOpen01, title: "How to run a bird survey", description: "Point-count and transect methodology, step by step." },
+  { icon: FileCheck02, title: "Data collection standards", description: "Formatting and metadata your dataset needs before upload." },
+  { icon: DownloadCloud02, title: "Dataset templates", description: "Pre-built spreadsheets for common survey types." },
+  { icon: LifeBuoy01, title: "Getting help & support", description: "Contact the DEW biodiversity team or browse FAQs." },
+];
+
+// Draft and Under review projects are excluded regardless of recency - neither is
+// published/verified yet, so neither belongs in "Featured". Flagged directly by the user: "Featured
+// projects won't have drafts / under review projects in there, would it?" - they would have, on a
+// naive `slice(0, n)` by array position.
+const featuredProjects = projects.filter((project) => project.status === "Active" || project.status === "Completed");
+
+function KnowledgeBaseCard({ icon: Icon, title, description }: { icon: FC<{ className?: string }>; title: string; description: string }) {
+  return (
+    <BentoCard className="flex-1 gap-4">
+      {/* text-fg-brand-primary, not text-fg-brand-secondary - flagged directly by the user: the
+          icons weren't reading as coloured at all. Checked why: `--color-fg-brand-secondary`
+          (no suffix) is never defined in app/globals.css - only `_alt` and `_hover` variants
+          exist - so the class compiled to nothing, same category of gap as `text-md`.
+          `--color-fg-brand-primary` (brand-600) is the real, defined "fg" token for this - a real
+          `@theme` colour entry, not a hand-written @utility, so bg-/text-/border-/ring- variants
+          and opacity modifiers all work on it for free (see globals.css's own "Foreground"
+          comment). */}
+      <Icon className="size-6 text-fg-brand-primary" />
+      <div className="flex flex-col gap-1.5">
+        {/* The title is plain text: none of these cards links anywhere yet, and link-coloured text promises a destination (2.10, the 5 Oct 2026 audit). */}
+        <p className="text-base font-semibold text-primary">{title}</p>
+        <p className="text-sm text-tertiary">{description}</p>
+      </div>
+    </BentoCard>
+  );
+}
+
+function FeaturedProjectCard({ project }: { project: (typeof projects)[number] }) {
+  const roleHref = useRoleHref();
+  const content = (
+    <BentoCard className={`flex-1 gap-4 ${project.href ? "transition-colors duration-150 group-hover:border-primary" : ""}`}>
+      <div className="flex items-center justify-between gap-2">
+        <Badge size="sm" color={project.statusColor}>
+          {project.status}
+        </Badge>
+        <span className="text-xs whitespace-nowrap text-quaternary">{project.updated}</span>
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <p className={`text-base font-semibold text-primary ${project.href ? "group-hover:text-brand-700 group-hover:underline" : ""}`}>{project.name}</p>
+        <p className="text-sm text-tertiary">{project.org}</p>
+      </div>
+    </BentoCard>
+  );
+  // Only "Adelaide Hills Bushland Survey" has a real detail page - same "only wire what has a real
+  // page" convention as the Projects table/global search, not a fake link on every card.
+  return project.href ? (
+    <Link href={roleHref(project.href)} className="group flex flex-1">
+      {content}
+    </Link>
+  ) : (
+    content
+  );
+}
+
+function FeaturedProjectsSection({ roleHref }: { roleHref: (path: string) => string }) {
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-lg font-semibold text-primary">Featured projects</h2>
+        <Button color="link-color" size="sm" href={roleHref("/pages/project-list")} iconTrailing={ArrowNarrowRight}>
+          View all projects
+        </Button>
+      </div>
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+        {featuredProjects.map((project) => (
+          <FeaturedProjectCard key={project.id} project={project} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function KnowledgeBaseSection() {
+  return (
+    <div className="flex flex-col gap-3">
+      <h2 className="text-lg font-semibold text-primary">Knowledge base</h2>
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        {knowledgeBaseItems.map((item) => (
+          <KnowledgeBaseCard key={item.title} {...item} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── biodata-admin's Home content - the "Triage" direction decided at
+// /proto/admin-dashboard-options (5 variants explored: Baseline/Operational Overview/Queue-First/
+// Triage/Command Center - Triage won). Renders through the exact same shell every other role's
+// Home content does (the same `border-b p-6` header block + `gap-8 p-6` content block below,
+// inside the same page.tsx header/icon-rail/breadcrumb chrome) - deliberately not a bespoke
+// admin-only layout, so the two personas stay one codebase to maintain, not two. Flagged directly
+// by the user: "we need to keep a consistent shell - that's so that development is easier."
+// Content grounded in the real admin IA (project_biodata_admin_scope memory: User Management, DLA
+// approve/reject, Control Vocabulary, Reports) - numbers are realistic-scale placeholders (247 pending
+// user access requests, not 3), the same "worst content survives" rule used everywhere else in
+// this build, since an admin's cognitive-overload risk is different from a registered user's.
+//
+// User Management has a real page, but no access-request queue yet, so that queue stays a "Coming
+// soon" gap with a placeholder count. DLA requests and nominations are built: their queues count
+// the real records waiting for a decision (from the DLA and nomination stores) and link to them.
+type AdminQueue = { id: string; label: string; count: number; icon: FC<{ className?: string }>; description: string; href?: string };
+
+export const USER_ACCESS_REQUESTS = 247;
+
+// Statuses that are waiting on a reviewer.
+export const PENDING_DLA = ["submitted", "under_review", "on_hold"] as const;
+export const PENDING_NOMINATION = ["submitted", "under_review"] as const;
+
+/** The requests and nominations waiting on a reviewer, counted from the DLA and nomination stores. */
+export function useAdminPendingCounts() {
+  const dlas = useDlas();
+  const nominations = useNominations();
+  return {
+    dlas: dlas.filter((d) => (PENDING_DLA as readonly string[]).includes(d.status)).length,
+    nominations: nominations.filter((n) => (PENDING_NOMINATION as readonly string[]).includes(n.status)).length,
+  };
+}
+
+function AdminQueueCard({ queue }: { queue: AdminQueue }) {
+  return (
+    <BentoCard className="flex-row items-center justify-between gap-4">
+      <div className="flex items-center gap-3">
+        <FeaturedIcon icon={queue.icon} color="brand" theme="modern" size="md" />
+        <div className="flex flex-col gap-0.5">
+          <div className="flex items-center gap-2">
+            <p className="text-base font-semibold text-primary">{queue.label}</p>
+            <CountBadge count={queue.count} color="brand" />
+          </div>
+          <p className="text-sm text-tertiary">{queue.description}</p>
+        </div>
+      </div>
+      {queue.href ? (
+        <Button color="link-color" size="sm" iconTrailing={ArrowNarrowRight} href={queue.href}>
+          Review
+        </Button>
+      ) : (
+        <Tooltip title="Coming soon - the approvals queue isn't built yet">
+          <Focusable>
+            <span className="inline-flex shrink-0">
+              <Button color="link-color" size="sm" iconTrailing={ArrowNarrowRight} isDisabled>
+                Review
+              </Button>
+            </span>
+          </Focusable>
+        </Tooltip>
+      )}
+    </BentoCard>
+  );
+}
+
+function AdminHomeDashboardContent() {
+  // Controlled Vocabulary is the BioData Super Admin's alone.
+  const canManageVocab = useFeatureAccess("ctrlVocabManagement");
+  const roleHref = useRoleHref();
+  const { dlas: pendingDlas, nominations: pendingNominations } = useAdminPendingCounts();
+  const alsoPending: AdminQueue[] = [
+    {
+      id: "dla",
+      label: "DLA requests",
+      count: pendingDlas,
+      icon: FileLock01,
+      description: "Data licencing agreements waiting for a decision.",
+      href: roleHref(`/pages/dla?scope=all&status=${PENDING_DLA.join(",")}`),
+    },
+    {
+      id: "nominations",
+      label: "Sensitive species nominations",
+      count: pendingNominations,
+      icon: Feather,
+      description: "Nominations waiting for a panel decision.",
+      href: roleHref(`/pages/nominations?scope=all&status=${PENDING_NOMINATION.join(",")}`),
+    },
+  ];
+  const totalPendingReviews = USER_ACCESS_REQUESTS + pendingDlas + pendingNominations;
+  return (
+    <>
+      {/* Same gradient banner template as HomeDashboardContent's - see that component's own
+          comment on the Sept 16 layout decision this ports in from dashboard/option-2. */}
+      <div className="p-6">
+        <div className="flex flex-col gap-8 rounded-2xl bg-gradient-to-b from-brand-900 via-brand-800 via-[63.942%] to-brand-700 p-6">
+          <div className="flex flex-col gap-1">
+            {/* "Jane" - the sanctioned placeholder persona for the biodata-admin role, parallel to
+                "Olivia Wyatt" for registered-user (see context/decisions/2026-09-00-avatar-build-known-gaps.md, "Placeholder person convention") -
+                never the real current user's name. */}
+            <h1 className="text-2xl font-semibold text-white">Hi, Jane</h1>
+            <p className="text-md text-white">Platform activity at a glance</p>
+          </div>
+          <div className="flex flex-wrap items-start gap-x-6 gap-y-4">
+            <KpiStat value="3,482" label="Registered users" note="128 active projects" onDark />
+            <KpiStat value="340" label="Datasets this month" note={`${pendingDlas} DLA ${pendingDlas === 1 ? "request" : "requests"} pending`} onDark />
+            <KpiStat value={totalPendingReviews.toLocaleString()} label="Pending reviews" note="Across users, DLA, nominations" last onDark />
+          </div>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-3 px-6 pb-6">
+        <h2 className="text-lg font-semibold text-primary">Quick actions</h2>
+        <div className="flex flex-wrap items-center gap-2">
+          <QuickAction icon={UserCheck01} label="User Management" href={roleHref("/pages/user-management")} />
+          {canManageVocab && <QuickAction icon={Database01} label="Controlled Vocabulary" href={roleHref("/pages/ctrl-vocab")} />}
+          <QuickAction icon={BarChartSquare01} label="Reports" href={roleHref("/pages/reports")} />
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-8 px-6 pb-6">
+        <div className="flex flex-col gap-4 rounded-lg bg-brand-50 p-6">
+          <p className="text-sm font-medium text-brand-secondary">Needs your review</p>
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div className="flex flex-col gap-1">
+              <p className="text-4xl font-medium text-primary tabular-nums">{USER_ACCESS_REQUESTS.toLocaleString()}</p>
+              <p className="text-base text-secondary">User access requests awaiting approval</p>
+            </div>
+            <Tooltip title="Coming soon - the approvals queue isn't built yet">
+              <Focusable>
+                <span className="inline-flex">
+                  <Button color="primary" iconTrailing={ArrowNarrowRight} isDisabled>
+                    Review requests
+                  </Button>
+                </span>
+              </Focusable>
+            </Tooltip>
+          </div>
+        </div>
+        <div className="flex flex-col gap-3">
+          <h2 className="text-lg font-semibold text-primary">Also pending</h2>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {alsoPending.map((queue) => (
+              <AdminQueueCard key={queue.id} queue={queue} />
+            ))}
+          </div>
+        </div>
+        <FlaggedConceptsHomeQueue />
+      </div>
+    </>
+  );
+}
+
+// One array driving both the rendered list and its count badge, so the heading can never drift
+// out of sync with what's actually shown. Exported so the icon rail (dashboard/project-list/
+// project-detail) can badge the Home icon with this same count instead of a second,
+// possibly-stale copy of it.
+export const dashboardTasks: {
+  title: string;
+  detail: string;
+  status: string;
+  statusColor: BadgeColor<"pill-color">;
+  icon: FC<{ className?: string }>;
+  actionLabel?: string;
+  actionHref?: string;
+  progress?: TaskProgress;
+}[] = [
+  {
+    // Olivia's real request (DLA-2026-00510 in dla-data.ts), with its real status: approved, and
+    // active from its start date. The label and colour come from the shared status map.
+    title: "DLA request - Naracoorte Caves National Park",
+    detail: "Approved. Becomes active on 1 Dec 2026.",
+    status: agreementStatusMeta.approved.label,
+    statusColor: agreementStatusMeta.approved.badgeColor,
+    // Same icon as the "Request new DLA" quick action above - one icon per concept, not a
+    // different one depending on where that concept shows up on the page.
+    icon: FileLock01,
+    actionLabel: "View request",
+    actionHref: "/pages/dla/DLA-2026-00510",
+    progress: {
+      steps: [
+        { label: "Submitted", detail: "5 Sep 2026", percent: 100 },
+        { label: "Approved by DEW", detail: "23 Sep 2026", percent: 100 },
+        { label: "Active", detail: "From 1 Dec 2026, until 30 Nov 2028.", percent: 0 },
+      ],
+    },
+  },
+  {
+    title: "Sensitive species nomination - Southern Bell Frog",
+    detail: "Submitted 1 week ago, under review by the sensitive species panel.",
+    // NSS-2026-00001's real status, label and colour from the shared nomination status map, so
+    // Home and the nomination pages cannot disagree.
+    status: nominationStatusMeta.under_review.label,
+    statusColor: nominationStatusMeta.under_review.badgeColor,
+    icon: Feather,
+    actionLabel: "View nomination",
+    actionHref: "/pages/nominations/NSS-2026-00001",
+    progress: {
+      steps: [
+        { label: "Submitted", detail: "1 week ago", percent: 100 },
+        { label: "Panel is currently reviewing", detail: "Reviewed by the sensitive species panel.", percent: 40 },
+        { label: "Outcome", detail: "Nomination is accepted or returned for more information.", percent: 0 },
+      ],
+    },
+  },
+  {
+    title: "Flinders Ranges Reptile Atlas",
+    detail: "Project draft - not yet submitted.",
+    status: "Draft",
+    statusColor: "gray",
+    icon: Folder,
+    actionLabel: "Continue",
+    // This project's own page (not Adelaide Hills'), from the shared route helper.
+    actionHref: projectDetailsPath("flinders"),
+    // No progress data - this task renders via ContinueStrip, not TaskItem, so there's no tracker
+    // to show it in.
+  },
+];
+
+export function HomeDashboardContent() {
+  // A plain `href="/pages/project-list"` (or `task.actionHref` below) drops the active
+  // role - there's no real auth/session in this build, so the URL is the only place it lives (see
+  // lib/use-role-href.ts). Flagged directly by the user as a dead end: navigating away as
+  // `public-user` silently landed back on `registered-user`'s view.
+  const roleHref = useRoleHref();
+  // A button or link to a screen the role cannot open is not drawn (3.15).
+  const canOpen = useCanOpen();
+
+  // biodata-admin gets entirely different content (see AdminHomeDashboardContent above) - a
+  // registered user's own species-observed/DLA-request activity means nothing to an admin managing
+  // the whole platform. Branches here, inside the one shared Home content component, rather than
+  // as a separate admin page/shell - the surrounding chrome (header, icon rail, breadcrumb) in
+  // dashboard/project-list/project-detail sidebar shells stays identical for every role;
+  // flagged directly by the user as a "keep a consistent shell" requirement, for development ease.
+  const role = useUserRole();
+  if (isBiodataAdmin(role)) {
+    return <AdminHomeDashboardContent />;
+  }
+
+  // The task the user can pick up (a draft) is the ContinueStrip; "Your requests" below shows the rest, so nothing is stated twice. The rail's red dot on the Home icon still badges off the full `dashboardTasks.length`,
+  // a different question (how many things across the app), left for the designer (the 5 Oct 2026 audit).
+  // Only something the user can pick up and continue (a draft), not a link to something they are waiting on.
+  const continueTask = dashboardTasks.find((task) => task.actionHref && task.actionLabel === "Continue");
+  const otherTasks = dashboardTasks.filter((task) => task !== continueTask);
+  const link = (path: string) => (canOpen(path) ? roleHref(path) : undefined);
+
+  return (
+    <>
+      {/* ── Greeting/KPI banner - the Sept 16 layout decision's gradient card, ported from
+          dashboard/option-2 as the shared visual template for this "Hi, X" + stats block (see
+          KpiStat's own comment). No action buttons inside the banner (option-2's Figma reference
+          had "Upload a dataset"/"Action 2" here) - this shell already has its own "Add project"/
+          "Upload dataset" buttons in the persistent page header, so repeating them here would just
+          be the same redundancy already flagged and removed elsewhere in this file (Quick actions'
+          own comment above). ── */}
+      <div className="p-6">
+        <div className="flex flex-col gap-8 rounded-2xl bg-gradient-to-b from-brand-900 via-brand-800 via-[63.942%] to-brand-700 p-6">
+          <div className="flex flex-col gap-1">
+            <h1 className="text-2xl font-semibold text-white">Hi, Olivia</h1>
+            <p className="text-md text-white">Your activity at a glance</p>
+          </div>
+          <div className="flex flex-wrap items-start gap-x-6 gap-y-4">
+            <KpiStat value="15" label="Species observed" note="3 up from last week" trend onDark />
+            <KpiStat value="3" label="Datasets contributed" note="1 dataset under review" last onDark />
+          </div>
+        </div>
+      </div>
+
+      {/* ── Quick actions - its own labelled section below the banner, not folded into it, same
+          split dashboard/option-2 uses (a gradient card for identity/stats, a plain section
+          underneath for actions). ── */}
+      <div className="flex flex-col gap-3 px-6 pb-6">
+        <h2 className="text-lg font-semibold text-primary">Quick actions</h2>
+        {/* The Add menu's own names for these (lib/create-menu.ts), so one thing has one name; each moves on to another screen, so its icon is the forward arrow (3.12). */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button color="secondary" iconTrailing={ArrowNarrowRight} href={roleHref("/pages/project-list")}>
+            Your projects and datasets
+          </Button>
+          {canOpen("/pages/dla/new") && (
+            <Button color="secondary" iconTrailing={ArrowNarrowRight} href={roleHref("/pages/dla/new")}>
+              Data licence request
+            </Button>
+          )}
+          {canOpen("/pages/nominations/new") && (
+            <Button color="secondary" iconTrailing={ArrowNarrowRight} href={roleHref("/pages/nominations/new")}>
+              Sensitive species nomination
+            </Button>
+          )}
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-8 px-6 pb-6">
+        {continueTask?.actionHref && continueTask.actionLabel && link(continueTask.actionHref) && (
+          <ContinueStrip title={continueTask.title} actionLabel={continueTask.actionLabel} actionHref={link(continueTask.actionHref)!} />
+        )}
+        <div className="flex flex-col gap-3">
+          {/* What the person has put in and where it has got to: a request they are waiting on is not something that "needs your attention", so the heading says what it is, and there is no red count
+              or filter row over two items (the 5 Oct 2026 audit). The draft they can pick up is the strip above. */}
+          <h2 className="text-lg font-semibold text-primary">Your requests</h2>
+          <div className="flex flex-col gap-3">
+            {otherTasks.map((task) => (
+              <TaskItem key={task.title} {...task} detail={task.progress ? undefined : task.detail} actionHref={task.actionHref ? link(task.actionHref) : undefined} />
+            ))}
+          </div>
+        </div>
+        <FeaturedProjectsSection roleHref={roleHref} />
+        <KnowledgeBaseSection />
+      </div>
+    </>
+  );
+}

@@ -1,0 +1,401 @@
+// Shared form-state shapes for the 3-step Add Project wizard (see page.tsx's own header comment
+// for the Figma source and overall design). Pure data - no components import from here except to
+// read/write this shape, so the step files can stay focused on their own JSX.
+
+import { getLocalTimeZone, today } from "@internationalized/date";
+import type { DateValue } from "react-aria-components";
+import type { Boundary } from "@/app/pages/_shared/map-search/geo";
+
+// ── Step 1: Project Details ──
+
+export type DataOwnerType = "organisation" | "individual";
+
+export interface ContactPerson {
+    id: number;
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string;
+    /** The contact's own team/organisation, if it differs from the project's own publishing
+     *  organisation (`dataOwnerOrgName`) - e.g. a DEW staffer publishing on behalf of a partner
+     *  org still belongs to their own internal team. Optional and not asked by the wizard's own
+     *  Data Owner step today (that step only asks for the org name once, not per contact) - real
+     *  display-only detail a caller can set directly on seed data, same as `ProjectManager.
+     *  organisation` already supports per manager. */
+    organisation?: string;
+    /** This contact's role or type of work (a `ROLE_OF_WORK_OPTIONS` id). Every data owner contact has
+     *  one. Optional and additive: the registration wizard still records the first contact's role as
+     *  `ProjectDetailsState.roleOfWork`; project detail reads `role ?? roleOfWork` for that contact. */
+    role?: string | null;
+    roleOther?: string;
+}
+
+export function emptyContact(id: number): ContactPerson {
+    return { id, firstName: "", lastName: "", email: "", phone: "" };
+}
+
+// A Project Manager, per Figma's own "Project Manager/s" card (node 2298:175996) - richer than a
+// name-only pick: First/Last/Email are the card's own required fields (asterisked in the source),
+// Organisation/Role/Phone/Primary are present in the same card but carry no asterisk there - i.e.
+// real, optional, per-person detail, not a second mandatory block. Flagged directly by the user
+// off the first pass, which only captured a name.
+export interface ProjectManager {
+    id: number;
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string;
+    organisation: string;
+    /** A `ROLE_OF_WORK_OPTIONS` id - the same role vocabulary as the top-level "Role or type of
+     *  work" question, since Figma's own "Role or type of work" select for a manager offers the
+     *  identical option list. */
+    role: string | null;
+    roleOther: string;
+    isPrimary: boolean;
+}
+
+export function emptyProjectManager(id: number): ProjectManager {
+    return { id, firstName: "", lastName: "", email: "", phone: "", organisation: "", role: null, roleOther: "", isPrimary: false };
+}
+
+/** One person in Add Project's Project contacts (the designer, 9 Oct 2026): the separate Primary contact and Project
+ *  managers blocks became one list, where each person has a role in the project and one is the primary contact. A project
+ *  manager is a person whose role is Project Manager (16 Oct 2026; it was the `isManager` tick). On create, the list is also
+ *  written out as `dataOwnerContacts` (the primary first) and `projectManagers`, so the project page reads it as it reads
+ *  version 1. */
+export interface ProjectContact extends ProjectManager {
+    /** No longer asked or read: a manager is the Project Manager role (`isManager` in option-2/sections.ts). */
+    isManager: boolean;
+    /** What this person can do on the project (lab `/proto/project-access`, 25 Oct 2026). Optional so stored projects still
+     *  read; a Project Manager is always "full", whatever is stored (`accessOf`). */
+    access?: ProjectAccessLevel;
+}
+
+/** One data owner and its project officers (the designer, 16 Nov 2026: "Allow for the users to add multiple data owners and their
+ *  respective project officers", and "project contacts" became "project officers"). Each owner has its own primary contact. */
+export interface DataOwner {
+    id: number;
+    type: DataOwnerType;
+    /** The organisation's name; empty for an individual, who is named by their primary officer. */
+    orgName: string;
+    officers: ProjectContact[];
+}
+
+/** The data owners of a project. A project saved before there could be more than one has its one owner in the flat fields
+ *  (`dataOwnerType`, `dataOwnerOrgName`, `projectContacts`), read here as a list of one. */
+export function ownersOf(d: Pick<ProjectDetailsState, "dataOwners" | "dataOwnerType" | "dataOwnerOrgName" | "projectContacts">): DataOwner[] {
+    return d.dataOwners ?? [{ id: 1, type: d.dataOwnerType, orgName: d.dataOwnerOrgName, officers: d.projectContacts ?? [] }];
+}
+
+/** An owner's name: the organisation's, or an individual's primary officer. */
+export function ownerName(o: DataOwner): string {
+    if (o.type === "organisation") return o.orgName.trim();
+    const p = o.officers.find((x) => x.isPrimary) ?? o.officers[0];
+    return p ? `${p.firstName} ${p.lastName}`.trim() : "";
+}
+
+export function emptyDataOwner(id: number, officerId: number): DataOwner {
+    return { id, type: "organisation", orgName: "", officers: [{ ...emptyProjectContact(officerId), isPrimary: true }] };
+}
+
+/** What a project contact can do on the project. Read through `accessOf` (data.ts). */
+export type ProjectAccessLevel = "full" | "records" | "view";
+
+export function emptyProjectContact(id: number): ProjectContact {
+    return { ...emptyProjectManager(id), isManager: false };
+}
+
+/** Optional org/institution logo picked on Step 1's data-ownership card - a local object URL
+ *  only (no backend exists in this build), see logo-upload.tsx. */
+export interface OrgLogo {
+    fileName: string;
+    sizeBytes: number;
+    previewUrl: string;
+}
+
+export interface ProjectDetailsState {
+    roleOfWork: string | null;
+    roleOfWorkOther: string;
+    shortTitle: string;
+    fullTitle: string;
+    /** Defaults `true` - Full Title mirrors Short Title until the user explicitly asks to
+     *  customise it (see the Step 1 "optional details" review screen). Inverted from an early
+     *  version of this field, which defaulted `false` and asked for both titles up front. */
+    sameAsShortTitle: boolean;
+    abstract: string;
+    startDate: DateValue | null;
+    endDate: DateValue | null;
+    dataOwnerType: DataOwnerType;
+    dataOwnerOrgName: string;
+    dataOwnerOrgLogo: OrgLogo | null;
+    dataOwnerContacts: ContactPerson[];
+    projectManagers: ProjectManager[];
+    /** Version 2 of option 2 only (see `ProjectContact`). Optional, so a project saved before it existed still reads. Since
+     *  `dataOwners`, every owner's officers in one list (owner 1's first), kept in step by `withOwners` (option-2/sections.ts). */
+    projectContacts?: ProjectContact[];
+    /** Every data owner with its project officers (see `DataOwner`); read through `ownersOf`. The flat owner fields above hold the
+     *  first owner, so what reads them still works. Optional, so a project saved before it existed still reads. */
+    dataOwners?: DataOwner[];
+    /** What each person on the project can do, by lower-case email (the project page's Project access tab; set from Project
+     *  contacts when a project is created). A person with no entry is View only; a project manager is always Full control.
+     *  Kept apart from the contact lists so editing a contact never loses it. Optional, so older projects still read. */
+    projectAccess?: Record<string, ProjectAccessLevel>;
+}
+
+export function initialProjectDetails(): ProjectDetailsState {
+    return {
+        roleOfWork: null,
+        roleOfWorkOther: "",
+        shortTitle: "",
+        fullTitle: "",
+        sameAsShortTitle: true,
+        abstract: "",
+        // The project starts today unless the person chooses another day (designer, 6 Oct 2026: start dates open as today).
+        startDate: today(getLocalTimeZone()),
+        endDate: null,
+        dataOwnerType: "organisation",
+        dataOwnerOrgName: "",
+        dataOwnerOrgLogo: null,
+        dataOwnerContacts: [emptyContact(1)],
+        // The first manager defaults to Primary Contact - a project always has a real single
+        // point of contact in practice, and defaulting it removes a click for the common case
+        // (one manager) rather than asking the user to flip a toggle that only ever has one
+        // sensible answer. Flagged directly by the user off the first pass, which left every
+        // manager unset by default.
+        projectManagers: [{ ...emptyProjectManager(1), isPrimary: true }],
+        // Version 2: the first person starts as the primary contact, the common case of one person.
+        projectContacts: [{ ...emptyProjectContact(1), isPrimary: true }],
+    };
+}
+
+// ── Shared: geographic extent (Step 2's own extent, and every location restriction entry) ──
+
+export type GeoMethod = "shapefile" | "map" | "list" | "coordinates";
+
+export interface GeoExtentValue {
+    method: GeoMethod | null;
+    shapefileName?: string;
+    /** Set by "Draw on the Map" or "Coordinates". */
+    boundary?: Boundary | null;
+    /** Set by "Choose from a List" - the chosen Named location entry's id (a national park's id on choices saved before the
+     *  list was a vocabulary). */
+    parkId?: string;
+    /** The chosen place's name, kept with the choice so it reads without the vocabulary. */
+    listName?: string;
+}
+
+/** A new extent starts on the first way of defining one, drawing on the map: the picker's first tab is selected in the value itself and not
+ *  only on screen (the designer, 30 Oct 2026). With no method in the value, a shape drawn on the tab that looked selected was not counted. */
+export function emptyGeoExtent(): GeoExtentValue {
+    return { method: "map", boundary: null };
+}
+
+export function isGeoExtentComplete(extent: GeoExtentValue): boolean {
+    if (extent.method === "shapefile") return !!extent.shapefileName;
+    if (extent.method === "list") return !!extent.parkId;
+    if (extent.method === "map" || extent.method === "coordinates") return !!extent.boundary;
+    return false;
+}
+
+// ── Step 2: Data Collection Details ──
+
+/** What kind of survey the project runs (the designer, 2 Oct 2026): a Biological Survey or a Native
+ *  Vegetation Survey. The templates offered to the project are to be narrowed by it once the templates say
+ *  which survey type they belong to (they do not carry that yet). */
+export type SurveyType = "biological" | "native-vegetation";
+
+export type CollectionMethod = "incidental" | "systematic" | "analysis" | "unknown" | "other";
+
+export interface PermitRow {
+    id: number;
+    type: string | null;
+    number: string;
+}
+
+export function emptyPermitRow(id: number): PermitRow {
+    return { id, type: null, number: "" };
+}
+
+/** One methodology added in version 2 of option 2, with its own note on any variation, limitation or bias. */
+export interface MethodologyChoice {
+    /** Tells two "Other" methodologies apart; the rest are added once each. */
+    rid: number;
+    /** The entry's name in the Survey methodology vocabulary (BIODATA-117), as version 1 keeps the Survey method's name. */
+    id: string;
+    /** What an "Other" methodology is. */
+    other?: string;
+    note: string;
+}
+
+export interface DataCollectionState {
+    geographicExtent: GeoExtentValue;
+    focusAreas: string[];
+    /** Only populated when `focusAreas` includes `"other"` - the user's own free-text description
+     *  of the additional, non-listed domain, same "Other" reveal pattern as `roleOfWorkOther`. */
+    focusAreaOther: string;
+    targetedSpeciesIds: string[];
+    surveyType: SurveyType | null;
+    collectionMethod: CollectionMethod | null;
+    /** The methodology: the name of an entry in the Survey method controlled vocabulary. Older projects
+     *  hold free text here, which still displays. */
+    methodDetails: string;
+    permits: PermitRow[];
+    uriDoi: string;
+    limitationsAndBiases: string;
+    /** Version 2 of option 2 only: the methodologies added (a Systematic project), in the order added, each with its note.
+     *  On create they are also written out as `methodDetails` and `limitationsAndBiases`, which the project page reads. */
+    methodologies?: MethodologyChoice[];
+    /** The same for an Analysis/Reporting project: the kinds of analysis or reporting added, each with its note. */
+    analyses?: MethodologyChoice[];
+    /** The description an Other method must have (the designer, 25 Oct 2026). */
+    otherMethod?: string;
+}
+
+export function initialDataCollection(): DataCollectionState {
+    return {
+        geographicExtent: emptyGeoExtent(),
+        // "Biological" defaults selected, and can never be unselected - see data.ts's
+        // FOCUS_AREA_OPTIONS comment.
+        focusAreas: ["biological"],
+        focusAreaOther: "",
+        targetedSpeciesIds: [],
+        surveyType: null,
+        collectionMethod: null,
+        methodDetails: "",
+        permits: [emptyPermitRow(1)],
+        uriDoi: "",
+        limitationsAndBiases: "",
+        methodologies: [],
+    };
+}
+
+// ── Step 3: Privacy and Restrictions ──
+
+export type RestrictionTypeKey = "embargo" | "species" | "cultural" | "locations" | "all" | "metadata" | "other";
+
+/** What the person expects the restriction to be (the designer, 25 Oct 2026: "Expectations data restrictions"). An expectation
+ *  only: a BioData Admin decides the level after an internal review. */
+export type ExpectedRestriction = "1km" | "10km" | "government";
+
+export type EmbargoType = "publication" | "completion" | "cultural" | "other";
+
+export interface EmbargoState {
+    /** Multi-select, per direct feedback - a project can have more than one real reason to stay
+     *  embargoed at once (e.g. both a publication embargo and a cultural one). The system-provided
+     *  maximum embargo period is the longest of every selected type's own maximum (see
+     *  `data.ts`'s `maxEmbargoMonths`) - the strictest single reason never gets silently
+     *  shortened just because a less-restrictive one is also selected. */
+    types: EmbargoType[];
+    typeOther: string;
+    reason: string;
+    endDate: DateValue | null;
+    /** Any other sensitivity of the data to consider once the embargo has ended. Optional; older projects have none. */
+    afterEmbargo?: string;
+}
+
+export function emptyEmbargo(): EmbargoState {
+    return { types: [], typeOther: "", reason: "", endDate: null, afterEmbargo: "" };
+}
+
+/** "Restrict all concepts" vs. "restrict only the concepts I pick" - the one choice a species
+ *  restriction asks (replaces the old custom-restrictions checkbox + All/Specific radio pair). */
+export type ConceptScope = "all" | "selected";
+
+/** One restricted concept and its value. Which field holds the value depends on the concept's
+ *  own `valueType` (see data.ts's `ConceptOption`): text/select/boolean fill `value`, multi fills
+ *  `values`, dateRange fills `dateFrom`/`dateTo`, none uses no value at all. */
+export interface ConceptValueRow {
+    id: number;
+    concept: string | null;
+    conceptOther: string;
+    value: string;
+    values: string[];
+    dateFrom: DateValue | null;
+    dateTo: DateValue | null;
+    /** Why this concept is restricted. Every concept gives its own (the designer, 2 Oct 2026). */
+    justification: string;
+}
+
+export function emptyConceptRow(id: number): ConceptValueRow {
+    return { id, concept: null, conceptOther: "", value: "", values: [], dateFrom: null, dateTo: null, justification: "" };
+}
+
+export interface SpeciesRestrictionEntry {
+    id: number;
+    speciesId: string;
+    scope: ConceptScope;
+    concepts: ConceptValueRow[];
+    justification: string;
+    expectation?: ExpectedRestriction | null;
+}
+
+export interface LocationRestrictionEntry {
+    id: number;
+    name: string;
+    extent: GeoExtentValue;
+    justification: string;
+    expectation?: ExpectedRestriction | null;
+}
+
+/** "Restrict data based on Cultural Sensitivities": who speaks for the data, and why it is restricted. */
+export interface CulturalRestrictionState {
+    /** The Indigenous Information Authority. */
+    authority: string;
+    /** How to reach the Indigenous Information Authority. */
+    contact: string;
+    justification: string;
+    expectation: ExpectedRestriction | null;
+}
+
+export function emptyCulturalRestriction(): CulturalRestrictionState {
+    return { authority: "", contact: "", justification: "", expectation: null };
+}
+
+/** "Restrict all records within this Project". */
+export interface AllRecordsRestrictionState {
+    justification: string;
+    expectation: ExpectedRestriction | null;
+}
+
+export function emptyAllRecordsRestriction(): AllRecordsRestrictionState {
+    return { justification: "", expectation: null };
+}
+
+export interface MetadataRestrictionState {
+    /** Each concept carries its own justification. */
+    concepts: ConceptValueRow[];
+}
+
+export function initialMetadataRestriction(): MetadataRestrictionState {
+    return { concepts: [emptyConceptRow(1)] };
+}
+
+export interface RestrictionsState {
+    hasRestrictions: boolean;
+    enabledTypes: Set<RestrictionTypeKey>;
+    embargo: EmbargoState;
+    species: SpeciesRestrictionEntry[];
+    locations: LocationRestrictionEntry[];
+    metadata: MetadataRestrictionState;
+    otherRestrictions: string;
+    /** Optional so a project saved before these kinds existed still reads; read them with `culturalOf` and `allRecordsOf`. */
+    cultural?: CulturalRestrictionState;
+    allRecords?: AllRecordsRestrictionState;
+}
+
+export const culturalOf = (r: RestrictionsState): CulturalRestrictionState => r.cultural ?? emptyCulturalRestriction();
+export const allRecordsOf = (r: RestrictionsState): AllRecordsRestrictionState => r.allRecords ?? emptyAllRecordsRestriction();
+
+export function initialRestrictions(): RestrictionsState {
+    return {
+        hasRestrictions: false,
+        enabledTypes: new Set(),
+        embargo: emptyEmbargo(),
+        species: [],
+        locations: [],
+        metadata: initialMetadataRestriction(),
+        otherRestrictions: "",
+        cultural: emptyCulturalRestriction(),
+        allRecords: emptyAllRecordsRestriction(),
+    };
+}

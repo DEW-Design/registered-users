@@ -1,0 +1,21 @@
+// Stacking order for the layers that float over a page. Kept in one place so a new overlay picks
+// its level from here instead of guessing a number (Tailwind scans this file, so the class names
+// below are generated).
+//
+//   z-[1000]   map controls and the floating results panel (Leaflet's own panes reach ~700). A map is its own stacking context
+//              (`isolation: isolate` on `.leaflet-container`, and `isolate` on a wrapper that holds its own buttons), so these values
+//              compete only inside the map: a pinned bar or a card above the page is never under them.
+//   z-[9999]   full-screen takeovers (the registration map, the docked edit column)
+//   z-[10000]  the Prototype tools bar (preview role, layout, upload result) and lab dev buttons
+//   z-[20000]  modals and slide-over panels - above everything, the dev tools included
+//   popovers   react-aria sets its own z-index of 100000, so a menu or date picker inside a modal
+//              still opens above it
+//   z-[100001] the drawn scrollbars (app/_scrollbars): one layer over everything, so the thumb of a scroller inside a menu or a modal is not under it. A thumb is drawn only where its scroller is what is under it.
+/** Map controls and the floating cards over a map (above Leaflet's own panes, which reach about 700). */
+export const MAP_CONTROLS_Z_INDEX = "z-[1000]";
+/** A button drawn on the map over its other controls (the Expand button). */
+export const MAP_BUTTON_Z_INDEX = "z-[1001]";
+/** A full-screen takeover (the expanded map outside a modal). */
+export const TAKEOVER_Z_INDEX = "z-[9999]";
+export const MODAL_Z_INDEX = "z-[20000]";
+export const SCROLLBAR_Z_INDEX = "z-[100001]";

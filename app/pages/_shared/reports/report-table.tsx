@@ -1,0 +1,477 @@
+"use client";
+
+import { cloneElement, isValidElement, useCallback, useMemo, useState, type FC, type ReactElement, type ReactNode } from "react";
+import type { SortDescriptor } from "react-aria-components";
+import { SearchLg } from "@untitledui/icons";
+import { HeroMeta, RecordHero } from "@/app/pages/_shared/record-hero";
+import { Badge } from "@/components/base/badges/badges";
+import { SectionHeader } from "@/components/application/section-headers/section-headers";
+import { Table, TableCard } from "@/components/application/table/table";
+import { sortRows, type SortValue } from "@/app/pages/_shared/agreement-scope";
+import { AttributeFilterChips, useAttributeFilter, type AppliedFilter, type Attribute, type AttributeFilterApi } from "@/app/pages/_shared/attribute-filter";
+import { FilterMenu } from "@/app/pages/_shared/filter-menu";
+import { ListEmptyState } from "@/app/pages/_shared/list-empty-state";
+import { RecordActionBar, type RecordAction } from "@/app/pages/_shared/record-action-bar";
+import { ColumnChooser, useColumnChoice } from "@/app/pages/_shared/reports/column-chooser";
+import { reportExportActions } from "@/app/pages/_shared/reports/report-export";
+import { ParametersPopover, type ReportParameters } from "@/app/pages/_shared/reports/report-parameters";
+import { ToolbarSearch } from "@/app/pages/_shared/toolbar-search";
+import { MetricTile } from "@/app/pages/_shared/map-search/metric-tile";
+import { cx } from "@/utils/cx";
+
+// The one ledger every report after the Data Ingestion Report is drawn with (designer, 1 Oct 2026: "follow the
+// logic on how to bring reports in from the first report"). The first report (ingestion-report.tsx) set the
+// pattern and this is that pattern as a component, so each report is only its columns and its rows:
+//   - CONTRACTS 4.6: a report is a deep dive, so it opens like the project page: the gradient identity card
+//     (`RecordHero`) with the report's name, what it answers, a row of facts and its actions at the top right (one
+//     white button, the rest in the "..." menu), under a Back link (`ReportPage`);
+//   - CONTRACTS 4.2: then one toolbar row: ToolbarSearch, the report's Parameters if it has any (a button and a popover of its fields, with what is
+//     set beside it: report-parameters.tsx, /patterns/report-toolbar), the attribute filter (4.2d: a report has many facets) and, at the right, the Columns
+//     chooser; then the table in
+//     a TableCard with a sticky header and the numbered pagination, fitted to the viewport, and never smaller than about 7 rows (24rem): where the
+//     controls take more than that the page scrolls and the table does not shrink;
+//   - every column of the wireframe's "Columns" list is in the table, which scrolls sideways inside its card; the
+//     first column is pinned while it does, and a Columns button at the right of the toolbar (`column-chooser.tsx`, the
+//     wireframe's column panel) hides, shows and reorders the others;
+//   - an empty table is a `ListEmptyState` (4.2e), told apart as "nothing exists yet" and "nothing matches";
+//   - an empty cell is left empty and is never a stray dash (2.3).
+// A report passes `belowHeader` for what sits between its hero and the toolbar (tiles, a project scope, tabs) and
+// `extraActions` for what the hero's menu holds besides Export CSV and Export XLSX, which every report has (`exportName`,
+// report-export.tsx); `belowHeader` may be a function of the rows in view.
+// `report-columns.tsx` has the builders for columns that also know how they read as plain text (for the export).
+
+const dayInAdelaide = new Intl.DateTimeFormat("en-AU", { day: "numeric", month: "short", year: "numeric", timeZone: "Australia/Adelaide" });
+const dayAsWritten = new Intl.DateTimeFormat("en-AU", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+
+/** The newest of the rows' dates, as a day, or null. A date written as a day (2026-09-24) is that day; an instant is that day in Adelaide. */
+function newestDay<R>(rows: R[], get: (row: R) => string | number | null | undefined): string | null {
+  let best: { ms: number; dayOnly: boolean } | null = null;
+  for (const r of rows) {
+    const v = get(r);
+    if (v === null || v === undefined || v === "") continue;
+    const ms = typeof v === "number" ? v : Date.parse(v);
+    if (Number.isNaN(ms)) continue;
+    if (!best || ms > best.ms) best = { ms, dayOnly: typeof v === "string" && v.length === 10 };
+  }
+  return best ? (best.dayOnly ? dayAsWritten : dayInAdelaide).format(best.ms) : null;
+}
+
+export interface ReportFact {
+  label: string;
+  value: ReactNode;
+}
+
+export interface ReportColumn<R> {
+  id: string;
+  label: string;
+  /** A static class (`w-[160px]`) so Tailwind sees it: the column's width, wide enough for the longest value on
+   *  one line. The table is fixed-layout, so this is the column's real width, not a floor it grows past. */
+  width: string;
+  /** Pins the column at the left edge while the table scrolls sideways: the first column only. */
+  sticky?: boolean;
+  /** What the column sorts by. A column without one is not sortable. */
+  sort?: (row: R) => SortValue;
+  cell: (row: R) => ReactNode;
+  /** The cell as plain text, for the export. Left out, the export reads the text the cell shows (report-export.tsx). */
+  text?: (row: R) => string;
+}
+
+// ── Cells ──
+// The roles the first report's cells set, as components, so every report reads the same: a plain value, a value
+// that is the row's subject, an identifier, a number, a scientific name, a long value that clamps to one line.
+export function TextCell({ children, strong }: { children?: ReactNode; strong?: boolean }) {
+  if (children === undefined || children === null || children === "") return null;
+  // One line in a fixed-width column: a value longer than its column is cut with an ellipsis, and the whole of it is the
+  // tooltip. (Each column's width is fixed, so a long value can never widen it.)
+  return (
+    <span className={cx("block truncate text-sm", strong ? "text-primary" : "text-secondary")} title={typeof children === "string" ? children : undefined}>
+      {children}
+    </span>
+  );
+}
+
+export function IdCell({ children }: { children?: ReactNode }) {
+  if (children === undefined || children === null || children === "") return null;
+  return <span className="text-sm font-medium text-primary tabular-nums">{children}</span>;
+}
+
+/** A number or a date: tabular, so a changing figure does not shift the column. */
+export function NumberCell({ value }: { value: number | string | null | undefined }) {
+  if (value === undefined || value === null || value === "") return null;
+  return <span className="text-sm text-secondary tabular-nums">{typeof value === "number" ? value.toLocaleString("en-AU") : value}</span>;
+}
+
+/** A scientific name, in italics, with the common name under it when there is one. */
+export function SpeciesCell({ scientific, common }: { scientific?: string; common?: string }) {
+  if (!scientific && !common) return null;
+  return (
+    <span className="flex flex-col">
+      {scientific ? <span className="text-sm text-primary italic">{scientific}</span> : null}
+      {common ? <span className={cx("text-xs", scientific ? "text-tertiary" : "text-sm text-primary")}>{common}</span> : null}
+    </span>
+  );
+}
+
+/** A cell that can be long: one line, with the full text as the tooltip. */
+export function Clamped({ text, max = "max-w-[272px]" }: { text?: string; max?: string }) {
+  if (!text) return null;
+  return (
+    <span className={cx("block truncate text-sm text-secondary", max)} title={text}>
+      {text}
+    </span>
+  );
+}
+
+// ── Tiles ──
+/** The row of counts under a report's heading: the shared `MetricTile` (icon, label, count) in the same compact grid the
+ *  project page's "Survey at a glance" and Explore's results use, read-only here because a report's totals go nowhere. */
+export function ReportTiles({
+  tiles,
+  label,
+  compact = false,
+}: {
+  tiles: { label: string; value: number | string; icon: FC<{ className?: string }> }[];
+  label: string;
+  /** One quiet line of icon, label and value instead of a row of tiles (used with the slim header while layouts are compared in /proto/layouts). */
+  compact?: boolean;
+}) {
+  if (compact) {
+    return (
+      <div role="group" aria-label={label} className="flex shrink-0 flex-wrap items-center gap-x-6 gap-y-1 px-6 pt-3">
+        {tiles.map((tile) => (
+          <span key={tile.label} className="flex items-center gap-1.5 text-sm text-tertiary">
+            <tile.icon className="size-4 text-fg-quaternary" />
+            {tile.label}
+            <span className="font-medium text-primary tabular-nums">{typeof tile.value === "number" ? tile.value.toLocaleString("en-AU") : tile.value}</span>
+          </span>
+        ))}
+      </div>
+    );
+  }
+  // Up to five tiles sit in one row; six do not fit at the width main has beside the rail and column 2 (two labels
+  // would wrap and their counts fall out of line), so they go three across and two down (static classes so Tailwind sees them).
+  const wide = tiles.length <= 3 ? "lg:grid-cols-3" : tiles.length === 4 ? "lg:grid-cols-4" : tiles.length === 5 ? "lg:grid-cols-5" : "lg:grid-cols-3";
+  return (
+    <div role="group" aria-label={label} className={cx("grid shrink-0 grid-cols-2 gap-2 px-6 [&+&]:mt-2", wide)}>
+      {tiles.map((tile) => (
+        <MetricTile key={tile.label} icon={tile.icon} label={tile.label} value={typeof tile.value === "number" ? tile.value.toLocaleString("en-AU") : tile.value} />
+      ))}
+    </div>
+  );
+}
+
+// ── The report ──
+/** A slot that may depend on the rows the table is showing (after search and filters). */
+type RowsSlot<R> = ReactNode | ((rowsInView: R[]) => ReactNode);
+
+export interface DataReportProps<R> {
+  title: string;
+  subtitle: string;
+  /** The empty state's icon. */
+  icon: FC<{ className?: string }>;
+  /** Already limited to what the signed-in role may see. */
+  rows: R[];
+  /** One mock record the table shows while the report has no rows of its own (designer, 16 Oct 2026: "in the empty states, can we just add one record ... just mock
+   *  data"), marked "Example record" on the toolbar, in place of the empty state. It goes as soon as there is a real row; the search and the filters act on it like
+   *  any row. Left out, an empty report shows its empty state (4.2e). */
+  example?: R;
+  rowId: (row: R) => string;
+  columns: ReportColumn<R>[];
+  /** Memoised by the caller: the attribute filter keeps its own state against this list. */
+  attributes: Attribute<R>[];
+  /** The text the search box matches, per row. */
+  searchText: (row: R) => (string | undefined)[];
+  searchLabel: string;
+  searchPlaceholder: string;
+  tableLabel: string;
+  /** What a row is, plural, lower case: "records". Names the empty states and the "Show all ..." action. */
+  noun: string;
+  /** What appears here once there is data, for the "nothing exists yet" state. */
+  emptyDescription: string;
+  initialSort?: SortDescriptor;
+  initialQuery?: string;
+  /** A row's own date (ms, or an ISO day or time). The newest across all the rows is the "Latest record" fact; leave it out where rows carry no date. */
+  latest?: (row: R) => string | number | null | undefined;
+  /** More facts in the hero, after Latest record (a label and its value): the report's own totals. A function gets the rows in view. */
+  facts?: ReportFact[] | ((rowsInView: R[]) => ReportFact[]);
+  /** What the report is run on (a project, a dataset, a species code, a date range): one Parameters button right after the search and before Filter,
+   *  with a popover of the report's fields and a chip beside it for each one that is set, or (`inline`) the fields themselves as dropdowns to the right of Filter. Leave out where the report has none (report-parameters.tsx). */
+  parameters?: ReportParameters;
+  /** Between the hero and the toolbar: tiles, a project scope, tabs. A function gets the rows in view, so tiles can count them. */
+  belowHeader?: RowsSlot<R>;
+  /** The file name, without its extension, of the report's Export CSV and Export XLSX: the rows in view, every column, the hidden ones too. */
+  exportName: string;
+  /** Columns that start hidden: the extras a report's wireframe offers under "Add columns". They are in the Columns chooser, which says how many are hidden,
+   *  and in the export. Reset in the chooser puts them back out of sight. */
+  hiddenColumns?: string[];
+  /** Filters that are on when the report opens (a generated report opens on the project it was made for). They are the report's own chips, removable like any other. */
+  initialFilters?: AppliedFilter[];
+  /** The rows the sheet carries above its column headings (title, metadata): written above the columns in Export CSV and Export XLSX.
+   *  A function gets the search and the filters in view, for a sheet whose metadata is the table's own search and Filter. */
+  exportPreamble?: string[][] | ((state: { search: string; filter: AttributeFilterApi<R> }) => string[][]);
+  /** What the hero holds besides export: the white next-step button, and more items for the "..." menu (after the exports). */
+  extraActions?: { primary?: RecordAction; menu?: RecordAction[] };
+  /** The card ("card", the record page's gradient identity card) or a slim header ("line": the list screens' title and subheading, the facts on one line, the actions in a plain bar). Compared in /proto/layouts.
+   *  "none" draws no header at all, for a report shown inside another screen that already says what it is (Explore's Map and table view): the actions (the "..." menu with the exports) sit at the right of the toolbar. */
+  header?: "card" | "line" | "none";
+  /** The search, when it is kept by the screen around the report (Explore's Map and table view: the search card's field). The toolbar then has no search box of its own, so the
+   *  screen never shows two (4.6: "doesn't make sense to have two different search bars"). Left out, the report has its own search, as every report page does. */
+  search?: string;
+  /** With `header="none"`: what sits at the right of the toolbar in place of the report's "..." menu (a screen that gates export for a role draws its own control). */
+  actions?: ReactNode;
+  /** After the actions at the right of the toolbar: a control of the screen around the report (Explore's full screen for the table). */
+  toolbarEnd?: ReactNode;
+  /** Told which row the pointer is over, or none (Explore's Map and table view lights the row's dot on its map). */
+  onRowHover?: (row: R | null) => void;
+  /** A panel of facets beside the table in place of the Filter menu and its chips. Gets the filter and every row, so it can count. Compared in /proto/layouts. */
+  filterPanel?: (filter: AttributeFilterApi<R>, allRows: R[]) => ReactNode;
+  /** When this changes the search, filters, sort and page go back to how they start, without remounting (a tab list
+   *  in `belowHeader` keeps its keyboard focus). */
+  resetKey?: string;
+  /** With `resetKey`: the search is kept when the key changes (the designer, 16 Oct 2026: a search for an NSX code on one tab of a taxonomy report carries over to the
+   *  others), while the filters, sort and page still start again, because each tab has its own facets and columns. */
+  keepSearch?: boolean;
+  /** Wraps everything under `belowHeader` (toolbar, chips, table), so that block can be a tab panel. */
+  wrapBody?: (body: ReactNode) => ReactNode;
+}
+
+const DEFAULT_PAGE_SIZE = 50;
+
+export function DataReport<R>({
+  title,
+  subtitle,
+  icon,
+  rows: realRows,
+  example,
+  rowId,
+  columns,
+  attributes,
+  searchText,
+  searchLabel,
+  searchPlaceholder,
+  tableLabel,
+  noun,
+  emptyDescription,
+  initialSort,
+  initialQuery = "",
+  latest,
+  facts = [],
+  parameters,
+  header = "card",
+  filterPanel,
+  belowHeader,
+  exportName,
+  exportPreamble,
+  hiddenColumns,
+  initialFilters,
+  extraActions,
+  resetKey,
+  keepSearch,
+  wrapBody,
+  search: outerSearch,
+  actions,
+  toolbarEnd,
+  onRowHover,
+}: DataReportProps<R>) {
+  const showingExample = realRows.length === 0 && example !== undefined;
+  const allRows = useMemo(() => (showingExample ? [example] : realRows), [showingExample, example, realRows]);
+  const [ownSearch, setSearch] = useState(initialQuery);
+  const search = outerSearch ?? ownSearch;
+  // A search kept outside the report starts the table at page 1 when it changes, as the report's own box does (adjusted while rendering, as `resetKey` below).
+  const [seenOuterSearch, setSeenOuterSearch] = useState(outerSearch);
+  const [page, setPage] = useState(1);
+  if (seenOuterSearch !== outerSearch) {
+    setSeenOuterSearch(outerSearch);
+    setPage(1);
+  }
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [sort, setSort] = useState<SortDescriptor | undefined>(initialSort);
+
+  const { visible: shownColumns, chooser } = useColumnChoice(columns, hiddenColumns);
+
+  const resetPage = useCallback(() => setPage(1), []);
+  const filter = useAttributeFilter(attributes, resetPage, initialFilters);
+
+  // Starting over when the key changes (another tab) is adjusting state while rendering, the pattern React documents
+  // for a prop that resets state: it renders once more at once and nothing is remounted.
+  const [seenKey, setSeenKey] = useState(resetKey);
+  if (seenKey !== resetKey) {
+    setSeenKey(resetKey);
+    if (!keepSearch) setSearch("");
+    setPage(1);
+    setSort(initialSort);
+    filter.clear();
+  }
+
+  const sortKeys = useMemo(() => {
+    const keys: Record<string, (row: R) => SortValue> = {};
+    for (const c of columns) if (c.sort) keys[c.id] = c.sort;
+    return keys;
+  }, [columns]);
+
+  const query = search.trim().toLowerCase();
+  const matching = allRows.filter(filter.matches).filter((r) => !query || searchText(r).some((v) => v?.toLowerCase().includes(query)));
+  const rows = sort ? sortRows(matching, sort, sortKeys) : matching;
+  const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
+  const currentPage = Math.min(page, pageCount);
+  const paged = rows.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  const showAll = () => {
+    setSearch("");
+    filter.clear();
+    setPage(1);
+  };
+
+  const resolve = (slot: ReactNode | ((rowsInView: R[]) => ReactNode)) => (typeof slot === "function" ? slot(rows) : slot);
+  const heroActions = <RecordActionBar onDark primary={extraActions?.primary} menu={[...reportExportActions(rows, columns, exportName, typeof exportPreamble === "function" ? exportPreamble({ search, filter }) : exportPreamble), ...(extraActions?.menu ?? [])]} />;
+  const latestDay = latest ? newestDay(allRows, latest) : null;
+  const heroFacts = typeof facts === "function" ? facts(rows) : facts;
+  const lineActions = isValidElement(heroActions) ? cloneElement(heroActions as ReactElement<{ onDark?: boolean }>, { onDark: false }) : heroActions;
+  const noneActions = actions ?? lineActions;
+
+  const body = (
+    <div className={cx("flex min-h-0 min-w-0 flex-1 flex-col", header === "line" ? "gap-3 px-6 pb-4 pt-3" : header === "none" ? "gap-3" : "gap-4 p-6")}>
+      <div className={cx("flex shrink-0 flex-wrap gap-3", parameters?.inline ? "items-end" : "items-center")}>
+        {outerSearch === undefined && (
+        <ToolbarSearch
+          label={searchLabel}
+          placeholder={searchPlaceholder}
+          value={search}
+          onChange={(v) => {
+            setSearch(v);
+            setPage(1);
+          }}
+          onClear={() => {
+            setSearch("");
+            setPage(1);
+          }}
+        />
+        )}
+        {parameters ? <ParametersPopover parameters={parameters} /> : null}
+        {!filterPanel && <FilterMenu filter={filter} />}
+        {/* A report whose parameters are drawn inline has them here, to the right of Filter, as dropdowns (report-parameters.tsx). */}
+        {parameters?.inline ? parameters.fields : null}
+        <div className="ml-auto flex items-center gap-3">
+          {showingExample ? <Badge color="gray" size="md">Example record</Badge> : null}
+          <ColumnChooser chooser={chooser} />
+          {header === "none" ? noneActions : null}
+          {toolbarEnd}
+        </div>
+      </div>
+      {!filterPanel && <AttributeFilterChips filter={filter} />}
+
+      {rows.length === 0 ? (
+        allRows.length === 0 ? (
+          <ListEmptyState icon={icon} title={`No ${noun} yet`} description={emptyDescription} />
+        ) : (
+          <ListEmptyState
+            icon={SearchLg}
+            title={`No ${noun} match`}
+            description={filter.count > 0 ? "Try a different search, or remove a filter." : "Try a different search."}
+            // A search kept outside the report is not the report's to clear: only the filters are, so the action is offered only when one is on.
+            action={outerSearch === undefined ? { label: `Show all ${noun}`, onPress: showAll } : filter.count > 0 ? { label: "Remove all filters", onPress: () => filter.clear() } : undefined}
+          />
+        )
+      ) : (
+        <TableCard.Root size="xs" className="flex min-h-96 flex-1 flex-col">
+          <Table
+            bodyScrollable
+            layout="fixed"
+            aria-label={tableLabel}
+            sortDescriptor={sort}
+            onSortChange={(next) => {
+              setSort(next);
+              setPage(1);
+            }}
+          >
+            <Table.Header sticky>
+              {shownColumns.map((c) => (
+                <Table.Head
+                  key={c.id}
+                  id={c.id}
+                  label={c.label}
+                  isRowHeader={!!c.sticky}
+                  allowsSorting={!!c.sort}
+                  className={cx(c.width, c.sticky && "sticky left-0 z-20 border-r border-secondary bg-secondary")}
+                />
+              ))}
+            </Table.Header>
+            <Table.Body items={paged} dependencies={[shownColumns]}>
+              {(r) => (
+                <Table.Row id={rowId(r)} textValue={rowId(r)} onHoverChange={onRowHover ? (hovered) => onRowHover(hovered ? r : null) : undefined}>
+                  {shownColumns.map((c) => (
+                    <Table.Cell key={c.id} className={cx("whitespace-nowrap", c.sticky && "sticky left-0 z-1 border-r border-secondary bg-primary [tr:hover_&]:bg-secondary")}>
+                      {c.cell(r)}
+                    </Table.Cell>
+                  ))}
+                </Table.Row>
+              )}
+            </Table.Body>
+          </Table>
+          <TableCard.PaginationNumbered
+            page={currentPage}
+            pageCount={pageCount}
+            onPageChange={setPage}
+            pageSize={pageSize}
+            onPageSizeChange={(size) => {
+              setPageSize(size);
+              setPage(1);
+            }}
+            totalCount={rows.length}
+          />
+        </TableCard.Root>
+      )}
+    </div>
+  );
+
+  const lineFacts: ReportFact[] = [...(latestDay ? [{ label: "Latest record", value: latestDay }] : []), ...heroFacts];
+
+  const panelled = filterPanel ? (
+    <div className="flex min-h-0 flex-1">
+      <aside aria-label="Filters" className="w-60 shrink-0 overflow-y-auto border-r border-secondary px-4 py-3">
+        {filterPanel(filter, allRows)}
+      </aside>
+      {body}
+    </div>
+  ) : (
+    body
+  );
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      {header === "none" ? null : header === "line" ? (
+        <div className="shrink-0 px-6 pt-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex min-w-0 flex-col gap-1">
+              <SectionHeader.Heading>{title}</SectionHeader.Heading>
+              <SectionHeader.Subheading>{subtitle}</SectionHeader.Subheading>
+              {lineFacts.length > 0 ? (
+                <p className="m-0 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-tertiary">
+                  {lineFacts.map((f) => (
+                    <span key={f.label}>
+                      {f.label} <span className="font-medium text-primary tabular-nums">{f.value}</span>
+                    </span>
+                  ))}
+                </p>
+              ) : null}
+            </div>
+            {lineActions}
+          </div>
+        </div>
+      ) : (
+        <RecordHero eyebrow="Report" title={title} description={subtitle} actions={heroActions}>
+          {latestDay ? <HeroMeta label="Latest record">{latestDay}</HeroMeta> : null}
+          {heroFacts.map((f) => (
+            <HeroMeta key={f.label} label={f.label}>
+              {f.value}
+            </HeroMeta>
+          ))}
+        </RecordHero>
+      )}
+
+      {belowHeader ? <div className={cx("flex shrink-0 flex-col", header === "card" ? "pt-4" : "pt-0")}>{resolve(belowHeader)}</div> : null}
+
+      {wrapBody ? wrapBody(panelled) : panelled}
+    </div>
+  );
+}

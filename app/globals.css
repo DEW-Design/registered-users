@@ -1,0 +1,809 @@
+@import "tailwindcss";
+
+/* Tailwind reads every file in the repo for class names. The audit reports and the decision log are prose that quotes class names
+   and patterns (`ring-[var(--color-brand-50|100)]`), and one such line made the CSS fail to parse and the whole dev server answer
+   500. They are never source, so they are not scanned. */
+@source not "../audit";
+@source not "../context";
+@plugin "tailwindcss-animate";
+
+/* ─────────────────────────────────────────────────────────────────────
+   Custom variants Untitled UI's pulled components rely on.
+   React Aria sets `data-placement="top|right|bottom|left"` on the
+   Tooltip/Popover overlay wrapper; these let descendant elements target
+   it via the `in-` ancestor combinator, e.g. `in-placement-top:slide-in-from-bottom-0.5`.
+   ───────────────────────────────────────────────────────────────────── */
+@custom-variant placement-top (&[data-placement="top"]);
+@custom-variant placement-bottom (&[data-placement="bottom"]);
+@custom-variant placement-left (&[data-placement="left"]);
+@custom-variant placement-right (&[data-placement="right"]);
+
+/* ─────────────────────────────────────────────────────────────────────
+   DEW Design System - Token Foundation (Untitled UI scale)
+   ───────────────────────────────────────────────────────────────────── */
+
+@theme inline {
+  /* Fonts */
+  --font-sans: var(--font-geist, "Geist"), ui-sans-serif, system-ui, sans-serif;
+  --font-barlow: var(--font-barlow, "Barlow"), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono, "Geist Mono"), ui-monospace, monospace;
+
+  /* ── Neutral (Gray) palette ── */
+  /* DEW's warm-gray scale, not Untitled UI's stock cool one - confirmed via 5 independent
+     Figma frames (Input, Checkbox/Radio, Avatar, Badge, Button; see CONTEXT.md's Known gaps),
+     and again 29 Sept 2026 against the real "DS - Foundations" file's own Colors page
+     (llQ4DndM7U0la4qg6MttC5, node 5225:371288), which is authoritative and gave a real 950
+     value for the first time - all 12 steps now confirmed. 950 was Untitled UI's stock cool
+     value (#0C111D) until this pass; it is real, read by `--ui-bg-primary-solid` and
+     `--ui-fill-bg-primary-solid` (the near-black solid fills - FloatingMenuFab, etc.), so the
+     old "nothing in this codebase reads it" note was wrong on both counts. */
+  --color-gray-25:  #FCFCFC;
+  --color-gray-50:  #F8F8F7;
+  --color-gray-100: #F2F2F1;
+  --color-gray-200: #E5E4E2;
+  --color-gray-300: #D2D0CE;
+  --color-gray-400: #B5B2AF;
+  --color-gray-500: #8F8B87;
+  --color-gray-600: #706B68;
+  --color-gray-700: #585451;
+  --color-gray-800: #423E3B;
+  --color-gray-900: #2E2925;
+  --color-gray-950: #1A1715;
+
+  /* ── Brand (Primary) - DEW Marine Teal ── */
+  --color-brand-25:  #F6FBFC;
+  --color-brand-50:  #EDF7F9;
+  --color-brand-100: #DCECEF;
+  --color-brand-200: #C3D9DF;
+  --color-brand-300: #9CA9B3;
+  --color-brand-400: #4D788A;
+  --color-brand-500: #2A667C;
+  --color-brand-600: #185E74;
+  --color-brand-700: #0D576E;
+  --color-brand-800: #0A485A;
+  --color-brand-900: #073542;
+  --color-brand-950: #041E27;
+
+  /* ── Accent (Secondary) - DEW Seagrass Green ── */
+  --color-accent-25:  #F7FBFB;
+  --color-accent-50:  #EEF6F6;
+  --color-accent-100: #DEEAEA;
+  --color-accent-200: #C9DBDB;
+  --color-accent-300: #B6C7C7;
+  --color-accent-400: #80A9A9;
+  --color-accent-500: #649898;
+  --color-accent-600: #568F8F;
+  --color-accent-700: #4A8C8C;
+  --color-accent-800: #3B7272;
+  --color-accent-900: #2A5555;
+  --color-accent-950: #162D2D;
+
+  /* ── Flinders Violet ── the DS - Foundations "Secondary colors" violet, exact from Figma
+     (contracts/figma-colours.json). Ingested 29 Sept 2026 for one job only, per designer
+     decision: the Prototype tools status bar, a dev tool that must read as "not the product".
+     Not a product accent (CONTRACTS.md 2.1). */
+  --color-flinders-violet-25:  #FAFAFB;
+  --color-flinders-violet-50:  #F4F4F7;
+  --color-flinders-violet-100: #E7E6EB;
+  --color-flinders-violet-200: #D4D2DA;
+  --color-flinders-violet-300: #B8B4BF;
+  --color-flinders-violet-400: #8A8699;
+  --color-flinders-violet-500: #716C86;
+  --color-flinders-violet-600: #65607B;
+  --color-flinders-violet-700: #5C5873;
+  --color-flinders-violet-800: #4A465D;
+  --color-flinders-violet-900: #353242;
+  --color-flinders-violet-950: #1D1B24;
+
+  /* ── Error ── */
+  --color-error-25:  #FFFBFA;
+  --color-error-50:  #FEF3F2;
+  --color-error-100: #FEE4E2;
+  --color-error-200: #FECDCA;
+  --color-error-300: #FDA29B;
+  --color-error-400: #F97066;
+  --color-error-500: #F04438;
+  --color-error-600: #D92D20;
+  --color-error-700: #B42318;
+  --color-error-800: #912018;
+  --color-error-900: #7A271A;
+  --color-error-950: #55160C;
+
+  /* ── Warning ── */
+  --color-warning-25:  #FFFCF5;
+  --color-warning-50:  #FFFAEB;
+  --color-warning-100: #FEF0C7;
+  --color-warning-200: #FEDF89;
+  --color-warning-300: #FEC84B;
+  --color-warning-400: #FDB022;
+  --color-warning-500: #F79009;
+  --color-warning-600: #DC6803;
+  --color-warning-700: #B54708;
+  --color-warning-800: #93370D;
+  --color-warning-900: #7A2E0E;
+  --color-warning-950: #4E1D09;
+
+  /* ── Success ── */
+  --color-success-25:  #F6FEF9;
+  --color-success-50:  #ECFDF3;
+  --color-success-100: #DCFAE6;
+  --color-success-200: #ABEFC6;
+  --color-success-300: #75E0A7;
+  --color-success-400: #47CD89;
+  --color-success-500: #17B26A;
+  --color-success-600: #079455;
+  --color-success-700: #067647;
+  --color-success-800: #085D3A;
+  --color-success-900: #074D31;
+  --color-success-950: #053321;
+
+  /* ── Utility colours (Untitled UI's extended badge/tag palette) ──
+     neutral-* is DEW's warm-gray scale, not Untitled UI's stock cool
+     one - confirmed against Figma's "Badge" frame (node 100:20530,
+     Component colors/Utility/Gray/utility-gray-700 = #585451, -500 =
+     #8f8b87, -200 = #e5e4e2) plus the same values independently
+     confirmed 50/200/400/500/700 across the Input, Checkbox/Radio,
+     and Avatar frames (see CONTEXT.md). Only the steps Badge actually
+     consumes (filledColors.gray + its addonButton hover state) are
+     fixed here - 300 is untouched since nothing in this codebase reads
+     utility-neutral-300 (separate namespace from --color-gray-*, which
+     now carries the same warm-gray fix sitewide - see above). */
+  --color-utility-neutral-50:  #F8F8F7;
+  --color-utility-neutral-100: #F2F2F1;
+  --color-utility-neutral-200: #E5E4E2;
+  --color-utility-neutral-300: #D0D5DD;
+  --color-utility-neutral-400: #B5B2AF;
+  --color-utility-neutral-500: #8F8B87;
+  --color-utility-neutral-700: #585451;
+
+  --color-utility-brand-50:  #EDF7F9;
+  --color-utility-brand-100: #DCECEF;
+  --color-utility-brand-200: #C3D9DF;
+  --color-utility-brand-400: #4D788A;
+  --color-utility-brand-500: #2A667C;
+  --color-utility-brand-700: #0D576E;
+
+  --color-utility-accent-50:  #EEF6F6;
+  --color-utility-accent-100: #DEEAEA;
+  --color-utility-accent-200: #C9DBDB;
+  --color-utility-accent-400: #80A9A9;
+  --color-utility-accent-500: #649898;
+  --color-utility-accent-700: #4A8C8C;
+
+  --color-utility-red-50:  #FEF3F2;
+  --color-utility-red-100: #FEE4E2;
+  --color-utility-red-200: #FECDCA;
+  --color-utility-red-400: #F97066;
+  --color-utility-red-500: #F04438;
+  --color-utility-red-700: #B42318;
+
+  --color-utility-yellow-50:  #FFFAEB;
+  --color-utility-yellow-100: #FEF0C7;
+  --color-utility-yellow-200: #FEDF89;
+  --color-utility-yellow-400: #FDB022;
+  --color-utility-yellow-500: #F79009;
+  --color-utility-yellow-700: #B54708;
+
+  --color-utility-green-50:  #ECFDF3;
+  --color-utility-green-100: #DCFAE6;
+  --color-utility-green-200: #ABEFC6;
+  --color-utility-green-400: #47CD89;
+  --color-utility-green-500: #17B26A;
+  --color-utility-green-700: #067647;
+
+  --color-utility-slate-50:  #F8F9FC;
+  --color-utility-slate-100: #EAECF5;
+  --color-utility-slate-200: #D5D9EB;
+  --color-utility-slate-400: #717BBC;
+  --color-utility-slate-500: #4E5BA6;
+  --color-utility-slate-700: #3E4784;
+
+  --color-utility-sky-50:  #F0F9FF;
+  --color-utility-sky-100: #E0F2FE;
+  --color-utility-sky-200: #B9E6FE;
+  --color-utility-sky-400: #36BFFA;
+  --color-utility-sky-500: #0BA5EC;
+  --color-utility-sky-700: #026AA2;
+
+  --color-utility-blue-50:  #EFF8FF;
+  --color-utility-blue-100: #D1E9FF;
+  --color-utility-blue-200: #B2DDFF;
+  --color-utility-blue-400: #53B1FD;
+  --color-utility-blue-500: #2E90FA;
+  --color-utility-blue-700: #175CD3;
+
+  --color-utility-indigo-50:  #EEF4FF;
+  --color-utility-indigo-100: #E0EAFF;
+  --color-utility-indigo-200: #C7D7FE;
+  --color-utility-indigo-400: #8098F9;
+  --color-utility-indigo-500: #6172F3;
+  --color-utility-indigo-700: #3538CD;
+
+  --color-utility-purple-50:  #F4F3FF;
+  --color-utility-purple-100: #EBE9FE;
+  --color-utility-purple-200: #D9D6FE;
+  --color-utility-purple-400: #9B8AFB;
+  --color-utility-purple-500: #7A5AF8;
+  --color-utility-purple-700: #5925DC;
+
+  --color-utility-pink-50:  #FDF2FA;
+  --color-utility-pink-100: #FCE7F6;
+  --color-utility-pink-200: #FCCEEE;
+  --color-utility-pink-400: #F670C7;
+  --color-utility-pink-500: #EE46BC;
+  --color-utility-pink-700: #C11574;
+
+  --color-utility-orange-50:  #FFF6ED;
+  --color-utility-orange-100: #FFEAD5;
+  --color-utility-orange-200: #FDDCAB;
+  --color-utility-orange-400: #FF9C66;
+  --color-utility-orange-500: #EF6820;
+  --color-utility-orange-700: #B93815;
+
+  /* ── Foreground ("fg") colours ──
+     Unlike primary/secondary/tertiary (where bg/text/ring diverge per
+     name), an "fg" token is the SAME value regardless of which property
+     uses it - text-fg-brand-primary, border-fg-brand-primary, and
+     bg-fg-brand-primary are all brand-600. Declaring these as real
+     `--color-*` theme entries (not hand-written @utility) gives every
+     property variant (bg-/text-/border-/ring-/outline-/fill-) AND full
+     opacity-modifier support (`/30`, `/10`, …) for free - required by
+     FeaturedIcon's `outline` theme, which does `before:border-fg-brand-primary/30`. */
+  --color-fg-secondary:              var(--color-gray-700);
+  --color-fg-tertiary:               var(--color-gray-600);
+  --color-fg-quaternary:             var(--color-gray-500);
+  --color-fg-quaternary_hover:       var(--color-gray-600);
+  --color-fg-brand-primary:          var(--color-brand-600);
+  --color-fg-brand-secondary_alt:    var(--color-brand-500);
+  --color-fg-brand-secondary_hover:  var(--color-brand-600);
+  --color-fg-error-primary:          var(--color-error-600);
+  --color-fg-error-secondary:        var(--color-error-500);
+  --color-fg-warning-primary:        var(--color-warning-600);
+  --color-fg-success-primary:        var(--color-success-600);
+  --color-fg-success-secondary:      var(--color-success-500);
+  --color-fg-white:                  #ffffff;
+
+  /* Featured icon (light theme) - icon colour sitting on a tinted circle */
+  --color-featured-icon-light-fg-brand:   var(--color-brand-600);
+  --color-featured-icon-light-fg-gray:    var(--color-gray-500);
+  --color-featured-icon-light-fg-error:   var(--color-error-600);
+  --color-featured-icon-light-fg-warning: var(--color-warning-600);
+  --color-featured-icon-light-fg-success: var(--color-success-600);
+
+  /* ── Border Radius ── */
+  --radius-none: 0px;
+  --radius-xs:   2px;
+  --radius-sm:   4px;
+  --radius-md:   6px;
+  --radius-lg:   8px;
+  --radius-xl:   12px;
+  --radius-2xl:  16px;
+  --radius-3xl:  20px;
+  --radius-4xl:  24px;
+  --radius-full: 9999px;
+
+  /* ── Shadows ── */
+  --shadow-xs:   0px 1px 2px 0px rgba(16, 24, 40, 0.05);
+  --shadow-sm:   0px 1px 2px 0px rgba(16, 24, 40, 0.06), 0px 1px 3px 0px rgba(16, 24, 40, 0.10);
+  --shadow-md:   0px 2px 4px -2px rgba(16, 24, 40, 0.06), 0px 4px 8px -2px rgba(16, 24, 40, 0.10);
+  --shadow-lg:   0px 4px 6px -2px rgba(16, 24, 40, 0.03), 0px 12px 16px -4px rgba(16, 24, 40, 0.08);
+  --shadow-xl:   0px 8px 8px -4px rgba(16, 24, 40, 0.03), 0px 20px 24px -4px rgba(16, 24, 40, 0.08);
+  --shadow-2xl:  0px 24px 48px -12px rgba(16, 24, 40, 0.18);
+  --shadow-3xl:  0px 32px 64px -12px rgba(16, 24, 40, 0.14);
+  --shadow-xs-skeuomorphic:
+    0px 1px 2px 0px rgba(16, 24, 40, 0.05),
+    0px 0px 0px 1px rgba(16, 24, 40, 0.18) inset,
+    0px -2px 0px 0px rgba(16, 24, 40, 0.05) inset;
+
+  /* ── Motion ── */
+  --duration-fast:   100ms;
+  --duration-normal: 200ms;
+  --duration-slow:   300ms;
+  --duration-slower: 500ms;
+  --ease-default:  cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in:       cubic-bezier(0.4, 0, 1, 1);
+  --ease-out:      cubic-bezier(0, 0, 0.2, 1);
+  --ease-in-out:   cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-spring:   cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* ── Display text sizes (Untitled UI custom scale) ── */
+  --text-display-xs:  clamp(1.25rem, 2vw, 1.5rem);
+  --text-display-sm:  clamp(1.5rem, 2.5vw, 1.875rem);
+  --text-display-md:  clamp(1.875rem, 3vw, 2.25rem);
+  --text-display-lg:  clamp(2.25rem, 4vw, 3rem);
+  --text-display-xl:  clamp(3rem, 5vw, 3.75rem);
+  --text-display-2xl: clamp(3.75rem, 7vw, 4.5rem);
+
+  /* ── Spacing extras ── */
+  --spacing-10\\.5: 2.625rem;
+  --spacing-16\\.5: 4.125rem;
+  --spacing-20\\.5: 5.125rem;
+  --spacing-24\\.5: 6.125rem;
+
+  /* ── Container (max-w-container, used by full-width Alert) ── */
+  --container-container: 1280px;
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   Untitled UI Semantic Token Variables
+   These are intentionally namespaced so bg/text/ring can differ.
+   ───────────────────────────────────────────────────────────────────── */
+:root {
+  /*
+   * Every value below is a `var(--color-*)` reference into the primitive
+   * scale defined in @theme above - never a duplicated hex literal.
+   * Components inherit from primitives: rebrand by editing the primitive
+   * palette (Colours page) and every semantic token - and therefore every
+   * component built on it - updates automatically. `#ffffff` is kept
+   * literal because pure white isn't a step on the gray ramp.
+   */
+
+  /* Surfaces */
+  --ui-bg-primary:             #ffffff;
+  --ui-bg-primary-solid:       var(--color-gray-950);
+  --ui-bg-primary_hover:       var(--color-gray-50);
+  --ui-bg-primary_alt:         var(--color-gray-25);
+  --ui-bg-secondary:           var(--color-gray-50);
+  --ui-bg-secondary-solid:     var(--color-gray-600);
+  --ui-bg-tertiary:            var(--color-gray-100);
+  --ui-bg-brand-primary:       var(--color-brand-50);
+  --ui-bg-brand-solid:         var(--color-brand-600);
+  --ui-bg-brand-solid_hover:   var(--color-brand-700);
+  --ui-bg-brand-secondary:     var(--color-brand-100);
+  --ui-bg-accent-solid:        var(--color-accent-600);
+  --ui-bg-accent-solid_hover:  var(--color-accent-700);
+  --ui-bg-accent-secondary:    var(--color-accent-100);
+  --ui-bg-error-primary:       var(--color-error-50);
+  --ui-bg-error-solid:         var(--color-error-600);
+  --ui-bg-error-solid_hover:   var(--color-error-700);
+  --ui-bg-error-secondary:     var(--color-error-100);
+  --ui-bg-warning-solid:       var(--color-warning-600);
+  --ui-bg-warning-primary:     var(--color-warning-50);
+  --ui-bg-warning-secondary:   var(--color-warning-100);
+  --ui-bg-success-solid:       var(--color-success-600);
+  --ui-bg-success-secondary:   var(--color-success-100);
+  /* The dim behind a modal or slide-over panel: black at 40% (designer's call, Sept 28 2026; not yet checked against a Figma frame). */
+  --ui-bg-overlay:             rgb(0 0 0 / 0.4);
+
+  /* Foreground / Text */
+  --ui-text-primary:                 var(--color-gray-900);
+  --ui-text-secondary:               var(--color-gray-700);
+  --ui-text-secondary_hover:         var(--color-gray-800);
+  --ui-text-tertiary:                var(--color-gray-600);
+  --ui-text-tertiary_hover:          var(--color-gray-700);
+  --ui-text-quaternary:              var(--color-gray-500);
+  --ui-text-placeholder:             var(--color-gray-400);
+  --ui-text-brand-secondary:         var(--color-brand-700);
+  --ui-text-brand-secondary_hover:   var(--color-brand-800);
+  --ui-text-brand-tertiary:          var(--color-brand-600);
+  --ui-text-brand-tertiary_alt:      var(--color-brand-700);
+  --ui-text-accent-secondary:        var(--color-accent-700);
+  --ui-text-accent-secondary_hover:  var(--color-accent-800);
+  --ui-text-accent-tertiary:         var(--color-accent-600);
+  --ui-text-error-primary:           var(--color-error-600);
+  --ui-text-error-primary_hover:     var(--color-error-700);
+  --ui-text-tooltip-supporting-text: var(--color-gray-400);
+
+  /* Ring / Border */
+  --ui-ring-primary:            var(--color-gray-300);
+  /* Text-field focus ring (Input/Select/ComboBox/MultiSelect/TagSelect/PinInput,
+     `isFocusWithin && "ring-2 ring-brand"`) - brand-500 per Figma's "Select"
+     documentation frame (border-brand, #2A667C). A different token from
+     --ui-ring-focus-ring below (the focus-VISIBLE outline on discrete controls
+     like Checkbox/Radio/Toggle/Button/SelectItem) - that one was previously
+     unaudited, now confirmed against Figma's "Checkbox" frame (node 95:15178):
+     its focus-ring effect is a two-layer shadow, 2px bg-primary then 4px
+     Colors/Effects/Focus rings/focus-ring (#2A667C, brand-500 again, not the
+     paler brand-300 both tokens used to carry). Figma is the source of truth
+     here - see CONTEXT.md. */
+  --ui-ring-brand:              var(--color-brand-500);
+  --ui-ring-brand-solid:        var(--color-brand-600);
+  --ui-ring-accent:             var(--color-accent-300);
+  --ui-ring-accent-solid:       var(--color-accent-600);
+  --ui-ring-secondary:          var(--color-gray-200);
+  --ui-ring-secondary_alt:      var(--color-gray-100);
+  /* Destructive text-field border, resting vs focused - same Figma "Input field"
+     sandbox as the brand fix above. Resting invalid state (node 91:13669) uses
+     border-error_subtle = error-300 (#FDA29B); focused invalid state (node
+     91:13879) uses border-error = error-500 (#F04438). Both were previously one
+     and two steps too pale (error-200 / error-300). Figma is the source of
+     truth here - see CONTEXT.md. */
+  --ui-ring-error_subtle:       var(--color-error-300);
+  --ui-ring-error:              var(--color-error-500);
+  --ui-ring-focus-ring:         var(--color-brand-500);
+  --ui-ring-border-primary:     var(--color-gray-300);
+  --ui-ring-border-brand:       var(--color-brand-500);
+  --ui-ring-border-error_subtle:var(--color-error-300);
+  --ui-ring-border-error:       var(--color-error-500);
+
+  /* Border (distinct namespace from ring - same visual role, different property) */
+  --ui-border-primary:          var(--color-gray-300);
+  --ui-border-secondary:        var(--color-gray-200);
+  --ui-border-toggle-border:                    var(--color-gray-300);
+  --ui-border-toggle-slim-border_pressed:       var(--color-brand-600);
+  --ui-border-toggle-slim-border_pressed-hover: var(--color-brand-700);
+
+  /* Outline */
+  --ui-outline-brand:           var(--color-brand-300);
+  --ui-outline-accent:          var(--color-accent-300);
+  /* Destructive Button's focus-visible outline (all 4 destructive colour variants) and
+     InputNumber's invalid+focused outline - same error-300/500 subtle/full split already
+     applied to --ui-ring-error* above, confirmed again via Figma's "Buttons/Button
+     destructive" frame (node 101:21443): focus-ring-error = error-500 (#F04438). This sibling
+     token was missed when that fix was made - see CONTEXT.md. */
+  --ui-outline-error:           var(--color-error-500);
+  --ui-outline-error_subtle:    var(--color-error-300);
+  --ui-outline-focus-ring:      var(--color-brand-500);
+  --ui-outline-primary:         var(--color-gray-300);
+
+  /* Fill */
+  --ui-fill-bg-primary-solid:   var(--color-gray-950);
+
+  /* Doc site layout tokens (used by Sidebar, PageHeader, etc.) */
+  --bg-page:         var(--color-gray-25);
+  --bg-sidebar:      var(--color-gray-25);
+  --border-default:  var(--color-gray-200);
+  --border-strong:   var(--color-gray-300);
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   Untitled UI Semantic Utilities
+   Declared with `@utility` (not `@layer utilities`) so Tailwind treats
+   each as a real utility eligible for variant compounding - hover:,
+   focus-within:, group-invalid:, in-data-*:, etc. A plain CSS class in
+   `@layer utilities` is NOT variant-aware in Tailwind v4; `@utility` is.
+   Separate namespaces → bg-primary ≠ text-primary ≠ ring-primary.
+   ───────────────────────────────────────────────────────────────────── */
+
+/* ── Backgrounds ── */
+@utility bg-primary             { background-color: var(--ui-bg-primary); }
+@utility bg-primary-solid       { background-color: var(--ui-bg-primary-solid); }
+@utility bg-primary_hover       { background-color: var(--ui-bg-primary_hover); }
+@utility bg-primary_alt         { background-color: var(--ui-bg-primary_alt); }
+@utility bg-secondary           { background-color: var(--ui-bg-secondary); }
+@utility bg-secondary-solid     { background-color: var(--ui-bg-secondary-solid); }
+@utility bg-tertiary            { background-color: var(--ui-bg-tertiary); }
+@utility bg-brand-primary       { background-color: var(--ui-bg-brand-primary); }
+@utility bg-brand-solid         { background-color: var(--ui-bg-brand-solid); }
+@utility bg-brand-solid_hover   { background-color: var(--ui-bg-brand-solid_hover); }
+@utility bg-brand-secondary     { background-color: var(--ui-bg-brand-secondary); }
+@utility bg-accent-solid        { background-color: var(--ui-bg-accent-solid); }
+@utility bg-accent-solid_hover  { background-color: var(--ui-bg-accent-solid_hover); }
+@utility bg-accent-secondary    { background-color: var(--ui-bg-accent-secondary); }
+@utility bg-error-primary       { background-color: var(--ui-bg-error-primary); }
+@utility bg-error-solid         { background-color: var(--ui-bg-error-solid); }
+@utility bg-error-solid_hover   { background-color: var(--ui-bg-error-solid_hover); }
+@utility bg-error-secondary     { background-color: var(--ui-bg-error-secondary); }
+@utility bg-warning-solid       { background-color: var(--ui-bg-warning-solid); }
+@utility bg-warning-primary     { background-color: var(--ui-bg-warning-primary); }
+@utility bg-warning-secondary   { background-color: var(--ui-bg-warning-secondary); }
+@utility bg-overlay             { background-color: var(--ui-bg-overlay); }
+@utility bg-success-solid       { background-color: var(--ui-bg-success-solid); }
+@utility bg-success-secondary   { background-color: var(--ui-bg-success-secondary); }
+
+/* ── Text ── */
+@utility text-primary                 { color: var(--ui-text-primary); }
+@utility text-secondary               { color: var(--ui-text-secondary); }
+@utility text-secondary_hover         { color: var(--ui-text-secondary_hover); }
+@utility text-tertiary                { color: var(--ui-text-tertiary); }
+@utility text-tertiary_hover          { color: var(--ui-text-tertiary_hover); }
+@utility text-quaternary              { color: var(--ui-text-quaternary); }
+@utility text-placeholder             { color: var(--ui-text-placeholder); }
+@utility text-brand-secondary         { color: var(--ui-text-brand-secondary); }
+@utility text-brand-secondary_hover   { color: var(--ui-text-brand-secondary_hover); }
+@utility text-brand-tertiary          { color: var(--ui-text-brand-tertiary); }
+@utility text-brand-tertiary_alt      { color: var(--ui-text-brand-tertiary_alt); }
+@utility text-accent-secondary        { color: var(--ui-text-accent-secondary); }
+@utility text-accent-secondary_hover  { color: var(--ui-text-accent-secondary_hover); }
+@utility text-accent-tertiary         { color: var(--ui-text-accent-tertiary); }
+@utility text-error-primary           { color: var(--ui-text-error-primary); }
+@utility text-error-primary_hover     { color: var(--ui-text-error-primary_hover); }
+@utility text-tooltip-supporting-text { color: var(--ui-text-tooltip-supporting-text); }
+/* text-fg-*, text-featured-icon-light-fg-*, border-fg-*, and bg-fg-brand-primary
+   are real @theme colours (see "Foreground colours" above) - Tailwind
+   generates their bg-/text-/border-/ring- utilities automatically, with
+   opacity-modifier support, so no manual @utility declaration is needed. */
+
+/* ── Rings ── */
+@utility ring-primary             { --tw-ring-color: var(--ui-ring-primary); }
+@utility ring-brand               { --tw-ring-color: var(--ui-ring-brand); }
+@utility ring-brand-solid         { --tw-ring-color: var(--ui-ring-brand-solid); }
+@utility ring-accent              { --tw-ring-color: var(--ui-ring-accent); }
+@utility ring-accent-solid        { --tw-ring-color: var(--ui-ring-accent-solid); }
+@utility ring-secondary           { --tw-ring-color: var(--ui-ring-secondary); }
+@utility ring-secondary_alt       { --tw-ring-color: var(--ui-ring-secondary_alt); }
+@utility ring-error_subtle        { --tw-ring-color: var(--ui-ring-error_subtle); }
+@utility ring-error               { --tw-ring-color: var(--ui-ring-error); }
+@utility ring-focus-ring          { --tw-ring-color: var(--ui-ring-focus-ring); }
+@utility ring-border-primary      { --tw-ring-color: var(--ui-ring-border-primary); }
+@utility ring-border-brand        { --tw-ring-color: var(--ui-ring-border-brand); }
+@utility ring-border-error_subtle { --tw-ring-color: var(--ui-ring-border-error_subtle); }
+@utility ring-border-error        { --tw-ring-color: var(--ui-ring-border-error); }
+
+/* ── Border colour (distinct from ring - Alert/FeaturedIcon use real `border`, not `ring`) ── */
+@utility border-primary          { border-color: var(--ui-border-primary); }
+@utility border-secondary        { border-color: var(--ui-border-secondary); }
+@utility border-toggle-border                    { border-color: var(--ui-border-toggle-border); }
+@utility border-toggle-slim-border_pressed       { border-color: var(--ui-border-toggle-slim-border_pressed); }
+@utility border-toggle-slim-border_pressed-hover { border-color: var(--ui-border-toggle-slim-border_pressed-hover); }
+
+/* ── Outlines ── */
+@utility outline-brand        { outline-color: var(--ui-outline-brand); }
+@utility outline-accent       { outline-color: var(--ui-outline-accent); }
+@utility outline-error        { outline-color: var(--ui-outline-error); }
+@utility outline-error_subtle { outline-color: var(--ui-outline-error_subtle); }
+@utility outline-focus-ring   { outline-color: var(--ui-outline-focus-ring); }
+@utility outline-primary      { outline-color: var(--ui-outline-primary); }
+
+/* ── Fills (SVG) ── */
+@utility fill-bg-primary-solid { fill: var(--ui-fill-bg-primary-solid); }
+
+/* ── Shadows ── */
+@utility shadow-xs-skeuomorphic { box-shadow: var(--shadow-xs-skeuomorphic); }
+
+/* ── Button: inner gradient mask on ::before ── */
+@utility mask-b-from-0\% {
+  -webkit-mask-image: linear-gradient(to bottom, black 0%, black 100%);
+  mask-image: linear-gradient(to bottom, black 0%, black 100%);
+}
+
+/* ── Icon / text: inherit parent transition ── */
+@utility transition-inherit-all {
+  transition-property: inherit;
+  transition-timing-function: inherit;
+  transition-duration: inherit;
+}
+
+/* ── Pill text: the label inside a pill is trimmed to its capitals, so it sits in the middle of the pill ──
+   A line box is taller than the letters in it, and a font's room above the capitals is not its room below the baseline, so text centred
+   in a pill by its line box sits a pixel off the middle (Barlow's capitals sat 18px from the top of a pill and 16px from the bottom at
+   2x). `text-box: trim-both cap alphabetic` cuts the line box to the capitals' top and the baseline; the padding then gives back
+   the half of (line height - cap height) that was cut, on each side, so the pill is the same height it always was. Where the browser
+   cannot trim, both are left off and the pill is as it was. Used inside the Badge, around its label; where the whole pill is
+   centred (the lone number of a CountBadge) it trims the number the same way. */
+@utility pill-text {
+  /* A pill can be capped in width: its label shrinks with it, and a label that truncates (`truncate` on a span inside it) still does. */
+  min-width: 0;
+  /* A truncating label is cut sideways only. `truncate` sets `overflow: hidden`, which also cut the label top and bottom at its own line box, and
+     that line is as tall as the type (`leading-none`), so descenders lost their tails: "embargo" read "embarao" in a multi-select's chips (11 Nov
+     2026). `clip` on the inline axis still gives the ellipsis and leaves the block axis visible. Padding on the span would stop the trim below. */
+  & > .truncate { display: block; overflow-x: clip; overflow-y: visible; }
+  @supports (text-box: trim-both cap alphabetic) {
+    text-box: trim-both cap alphabetic;
+    padding-block: calc((1lh - 1cap) / 2);
+  }
+}
+
+/* ── Hit area: a control is as easy to hit as its smallest allowed size, whatever it draws as ──
+   A control that draws smaller than `--hit-min` gets an invisible, centred box of that size (an `::after` of the control, so a
+   press on it is a press on the control): 40px with a mouse, 44px on a touch screen. It never changes how the control looks or
+   where it sits, so it is built into the components (Button, ButtonUtility, CloseButton, Tab and the rest) and nothing at a call
+   site has to ask for it. The control must be positioned (`relative`, `absolute`, `fixed` or `sticky`); one with no position of its own is
+   made `relative` by the rule below, which a position utility on the control overrides.
+   Two targets must never overlap: where controls touch or sit closer than the extension, the group sets `--hit-min` to a smaller
+   size (`[--hit-min:0px]` leaves its controls as drawn), or `data-no-hit-area` on it turns the extension off for what is inside.
+   The box is centred on the control's padding box, so a control with a border is off by half the difference between its borders: it sets
+   `--hit-dx` or `--hit-dy` to half of it (an underline tab's 2px bottom border is `[--hit-dy:1px]`). */
+:root { --hit-min: 40px; }
+@media (pointer: coarse) { :root { --hit-min: 44px; } }
+@utility hit-area {
+  &::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: max(100%, var(--hit-min));
+    height: max(100%, var(--hit-min));
+    translate: calc(-50% + var(--hit-dx, 0px)) calc(-50% + var(--hit-dy, 0px));
+  }
+}
+[data-no-hit-area] .hit-area::after { content: none; }
+/* Docs only (Craft details): inside an element with `data-show-hit-area`, every hit area is drawn, so it can be seen. */
+[data-show-hit-area] .hit-area::after { outline: 1px dashed var(--ui-outline-brand); background-color: color-mix(in srgb, var(--ui-outline-brand) 10%, transparent); }
+/* ── Ghost fill: the box a ghost control draws when it is pointed at ──
+   A ghost control (Link grey and Ghost colour, the record pages' way back, a breadcrumb, a switcher's trigger) draws nothing until it is pointed at, then a gray fill and, from the keyboard, a focus ring. Those draw its
+   padding box: `--ghost-min` high (32px) for a line of 20px, so 6px of padding all round (never under 6px), and an equal negative margin that gives the room back, so the text sits exactly where it sat and nothing around
+   it moves. The target is still `--hit-min` (40px, 44px on touch) as the invisible `hit-area` extension each ghost control also carries: a 40px fill was tried (2026-10-23-47) and was too big, taking room from its
+   neighbours and running to the edge of its card. The radius is `rounded-md` (6px). The padding is `!important` because a Button's own size padding is a utility of the same layer. */
+:root { --ghost-min: 32px; }
+@utility ghost-fill {
+  --ghost-pad: max(calc((var(--ghost-min, var(--hit-min)) - 1.25rem) / 2), 0.375rem);
+  padding: var(--ghost-pad) !important;
+  margin: calc(var(--ghost-pad) * -1);
+}
+/* ── The fade at the end of a list or a strip eases in and out ──
+   `ScrollFade` draws its fade as a mask (a gradient), and a gradient cannot be transitioned; the two lengths in it can, once they are registered as lengths here. `--scroll-fade-length` is how long the fade is and
+   `--scroll-fade-clear` the stretch at the very end that is faded clear (under a pinned button). When the end of a list comes into view they go to 0 over 200ms, so the last rows come out of the fade instead of
+   snapping to full strength, and they come back the same way. The room kept under the last row for a pinned button (`padding-bottom`) eases too: a list scrolled into that room by a wheel gets its end back
+   over the same 200ms (the rows settle) instead of being cut back in one frame. Reduced motion: no transition. */
+@property --scroll-fade-length { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@property --scroll-fade-clear { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@utility scroll-fade-ease {
+  transition: --scroll-fade-length 200ms ease-out, --scroll-fade-clear 200ms ease-out, padding-bottom 200ms ease-out;
+  @media (prefers-reduced-motion: reduce) { transition: none; }
+}
+/* A control with a hit area is positioned, or its extension would hang off the nearest positioned ancestor: this is the default for one
+   that has no position of its own. It is in the base layer, below the utilities, so `absolute`, `fixed` and the rest still win. */
+@layer base {
+  :where(.hit-area) { position: relative; }
+  /* The browser's scrollbar is off everywhere: every scroller draws the one thumb from app/_scrollbars (CONTRACTS 2.17), which takes no width from the content, so a scroller that overflows in one state and not in
+     another does not move what is in it. Wheel, touch and keyboard scrolling are the browser's, as before. */
+  * { scrollbar-width: none; }
+  *::-webkit-scrollbar { display: none; }
+}
+
+/* The map's cursor while a shape is being drawn is the crosshair over everything, the shapes already drawn too (Leaflet gives them a pointer, which says "press me" while a press is a point of the new shape). */
+.leaflet-container.is-drawing .leaflet-interactive { cursor: crosshair; }
+
+/* ─────────────────────────────────────────────────────────────────────
+   Base
+   ───────────────────────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+/* A search input's own clear mark is the browser's (a blue x drawn by the OS, not by the design system): hide it. A field
+   that clears has its own clear button with the design system's icon (the Input's onClear, the search in MultiSelect). */
+input[type="search"]::-webkit-search-cancel-button,
+input[type="search"]::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+  display: none;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* Barlow now loads a real italic (see app/layout.tsx) - this stops the
+     browser faking a slant or a weight we never loaded, so a missing font
+     file shows up as a visible gap instead of a quietly-wrong imitation. */
+  font-synthesis: none;
+}
+
+body {
+  background-color: var(--bg-page);
+  color: var(--ui-text-primary);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  /* Every number in the product is set in tabular figures (designer, 21 Oct 2026: "tabular-nums for numbers ...
+     in general across all number usages. No dancing layouts"): each digit has the same width, so a count,
+     a price, a date or a table column does not change width as its value changes. It inherits, so a new
+     component or screen is covered without a class. Form fields reset `font` to inherit, which carries it in. */
+  font-variant-numeric: tabular-nums;
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   Doc site prose styles
+   ───────────────────────────────────────────────────────────────────── */
+.prose-doc h2 {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--ui-text-primary);
+  margin-top: 48px;
+  margin-bottom: 12px;
+  letter-spacing: -0.02em;
+}
+
+.prose-doc h3 {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ui-text-quaternary);
+  margin-top: 32px;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* Direct-child combinator, not a descendant selector: this must style the
+   docs' own top-level prose paragraphs only. A bare `.prose-doc p` also
+   matches <p> tags buried inside a rendered DEW component's own internals
+   (Checkbox and Toggle both label themselves with a <p>) and corrupts their
+   spacing with a phantom 16px margin-bottom every time that component is
+   demonstrated on a doc page - caught via a Checkbox+Button row that looked
+   misaligned on /test-page despite already being items-center in one flex row. */
+.prose-doc > p {
+  color: var(--ui-text-tertiary);
+  line-height: 1.7;
+  margin-bottom: 16px;
+  max-width: 640px;
+}
+
+.prose-doc code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--color-gray-100);
+  border: 1px solid var(--color-gray-200);
+  border-radius: 4px;
+  padding: 1px 5px;
+  color: var(--ui-text-secondary);
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   Token table
+   ───────────────────────────────────────────────────────────────────── */
+.token-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid var(--color-gray-200);
+  border-radius: 8px;
+  overflow: hidden;
+  font-size: 13px;
+}
+
+.token-table th {
+  text-align: left;
+  padding: 10px 16px;
+  background: var(--color-gray-50);
+  color: var(--ui-text-quaternary);
+  font-weight: 500;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--color-gray-200);
+}
+
+.token-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-gray-100);
+  vertical-align: middle;
+  color: var(--ui-text-secondary);
+}
+
+.token-table tr:last-child td { border-bottom: none; }
+.token-table tr:hover td { background: var(--color-gray-25); }
+.token-table code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ui-text-tertiary);
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   leaflet-draw override
+   ───────────────────────────────────────────────────────────────────── */
+/* leaflet-draw's own floating "Click to start drawing shape." tooltip follows the cursor,
+   unstyled (a stock dark box, no DEW tokens) and gets clipped against the viewport edge near the
+   top of the map. app/pages/_shared/map-search/sa-map.tsx already shows a real, on-brand hint
+   (the same instructional copy) in its own search card, so this stock library default is
+   suppressed rather than styled - one real hint, not two disagreeing ones. */
+.leaflet-draw-tooltip {
+  display: none !important;
+}
+
+/* Leaflet sets its own text (the scale bar and the attribution) in Helvetica with its stock blue and
+   grey, which showed up as a second typeface inside the product's Barlow. Every map now takes the
+   surrounding font and the DEW text tokens (CONTRACTS 2.2, 2.1). The `body` prefix wins over
+   leaflet.css, which loads after this file. */
+body .leaflet-container {
+  font-family: inherit;
+}
+/* A map is one layer. Leaflet gives its panes and controls z-index values of 400 to 1000, and without a stacking context of its
+   own those compete with the rest of the page: a card's Cancel and Save changes, pinned to the bottom of the window while the card
+   runs past it, were painted under the map's tiles and the drawn shape (30 Oct 2026). Isolated, everything inside a map stays
+   inside it, and a floating panel or a pinned bar is above or below the whole map, never between its layers. */
+body .leaflet-container {
+  isolation: isolate;
+}
+body .leaflet-container .leaflet-control-attribution,
+body .leaflet-container .leaflet-control-scale-line {
+  color: var(--ui-text-tertiary);
+}
+body .leaflet-container .leaflet-control-attribution a {
+  color: var(--ui-text-brand-secondary);
+}
+
+/* A restricted (Level 2) record on the map: the flat square block of the generalisation grid it is in,
+   never a precise dot and never a blurred blob (app/pages/_shared/map-search/sa-map.tsx,
+   `SAMapMarker.fuzzyBlock`). */
+.map-fuzzy-area {
+  cursor: pointer;
+}
+
+/* A map dot that has keyboard focus (app/pages/_shared/map-search/sa-map.tsx, `keyboardDot`):
+   a dark ring drawn on the dot itself, since an SVG path has no usable outline. */
+.leaflet-interactive:focus-visible {
+  outline: none;
+  stroke: var(--ui-text-primary);
+  stroke-width: 3px;
+  stroke-opacity: 1;
+}

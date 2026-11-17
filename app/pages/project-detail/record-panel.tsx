@@ -1,0 +1,885 @@
+"use client";
+
+// VERSION 3: the record details panel (beside the list).
+//
+// - A quiet toolbar: the record's path on the left (the middle folds into "..." so it never runs
+//   under the icons), and two icons on the right: one Actions menu with everything you can do to the
+//   record (Edit, Add inside by type, Delete), and full screen. Linear's and Notion's "..." pattern.
+// - The header reads like the tree: icon (or species photo), name, then the type in muted text.
+// - Metadata sections are accordions, all closed. A header shows what notes its fields carry, and on
+//   hover (or keyboard focus) a small edit icon appears before the chevron: it opens full-screen
+//   edit at that section.
+// - Fields carry notes (flags, comments, files), read here; on hover an edit icon opens that field in
+//   the full view's edit mode, where notes are added (field-notes.tsx).
+
+import { useEffect, useRef, useState, type FC, type Key as ReactKey } from "react";
+import { ChevronDown, ChevronDownDouble, ChevronRight, ChevronUpDouble, Edit05, Flag01, InfoCircle, Maximize02, MessageSquare01, Minimize02, Paperclip, Plus, Trash01 } from "@untitledui/icons";
+import { Accordion } from "@/components/base/accordion/accordion";
+import { Button } from "@/components/base/buttons/button";
+import { cx } from "@/utils/cx";
+import { Dropdown } from "@/components/base/dropdown/dropdown";
+import { Tooltip, TooltipTrigger } from "@/components/base/tooltip/tooltip";
+import { DestructiveModal } from "@/components/application/modals/modal";
+import { toast } from "@/components/application/toast/toast";
+import { SpeciesPhoto } from "@/app/pages/_shared/map-search/species-photo";
+import { LocationDetailsTable } from "@/app/pages/_shared/location-details-table";
+import { useEditStore } from "./edit-store";
+import { ProjectCrumb, RecordIcon, recordIcon } from "./record-inspector";
+import { EventShape, ObservationShape, OccurrenceShape, typeLabel } from "@/app/pages/_shared/record-shapes";
+import { RecordQuickActions } from "./record-quick-actions";
+import {
+  EMPTY_VALUES,
+  displayValue,
+  fieldTypeOf,
+  isLockedRow,
+  locationSummary,
+  rowHasValue,
+  trapLabels,
+} from "./field-schema";
+import { RecordMap } from "./record-map";
+import { RecordHeaderMeta } from "./record-header-meta";
+import { SiteScoresSection } from "./site-scores-section";
+import { flashElement } from "./flash";
+import { type ChildOption } from "./record-rules";
+import {
+  type MetaSection,
+  type RecordKind,
+  type SurveyRecord,
+} from "./survey-data";
+import { FieldRow, NOTE_MARK, NOTE_TONE } from "./field-notes";
+import { TrapEntryView } from "./trap-effort";
+import {
+  LANDSCAPE_SCORE_LABEL,
+  LandscapeScoreLink,
+  LandscapeSummary,
+  OverstoreyStats,
+  ReadingsTable,
+  foliageCoverText,
+  scoreBlock,
+} from "./landscape-view";
+import { boundaryAreaKm2 } from "./landscape";
+import { hasNotes, sectionSummary, useFieldNotes } from "./field-notes-store";
+import {
+  isSectionShown,
+  sectionHasContent,
+  useHiddenFields,
+} from "./field-visibility-store";
+
+export function shownPosition(record: SurveyRecord): [number, number] {
+  if (!record.locationNote) return [record.lat, record.lon];
+  return [Math.round(record.lat * 10) / 10, Math.round(record.lon * 10) / 10];
+}
+
+const iconButton =
+  "flex size-8 cursor-pointer items-center justify-center rounded-md text-fg-quaternary outline-focus-ring hover:bg-primary_hover hover:text-fg-quaternary_hover focus-visible:outline-2";
+
+/**
+ * A section's fields (and its map, for location), each with its notes. Hidden fields (the edit view's
+ * "Concepts shown" checklist) are left out. `onEditField` gives every field an edit icon on hover.
+ */
+export function SectionFields({
+  record,
+  section,
+  showMap = true,
+  labelWidth,
+  onEditField,
+  hiddenOverride,
+}: {
+  record: SurveyRecord;
+  section: MetaSection;
+  showMap?: boolean;
+  labelWidth?: string;
+  onEditField?: (sectionId: string, fieldKey: string) => void;
+  /** The edit session's hidden fields, used instead of the saved ones while editing. */
+  hiddenOverride?: Set<string>;
+}) {
+  const { canEdit, saveRecord } = useEditStore();
+  const notes = useFieldNotes();
+  const saved = useHiddenFields(record.id);
+  const hidden = hiddenOverride ?? saved;
+  const forRecord = notes[record.id] ?? {};
+  const onEdit =
+    canEdit && onEditField
+      ? (key: string) => onEditField(section.id, key)
+      : undefined;
+  const measurements = (section.measurements ?? []).filter(
+    (m) => !hidden.has(`${section.id}:${m.type}`),
+  );
+  const noted = (label: string) =>
+    hasNotes(forRecord[`${section.id}:${label}`]);
+  // Fields with no value are left out of the view (they show in edit mode); a field with notes stays.
+  const rows = (section.rows ?? []).filter(
+    (r) =>
+      !hidden.has(`${section.id}:${r.label}`) &&
+      (r.type === "measurements"
+        ? measurements.length > 0
+        : rowHasValue(r, section.rows) || noted(r.label)),
+  );
+  const [lat, lon] = shownPosition(record);
+  const landscapeCtx = {
+    lat: record.lat,
+    lon: record.lon,
+    areaKm2: boundaryAreaKm2(record.location?.boundary),
+  };
+  const measurementRows = measurements.map((m) => (
+    <FieldRow
+      key={`m-${m.type}`}
+      recordId={record.id}
+      fieldKey={`${section.id}:${m.type}`}
+      label={m.type}
+      notes={forRecord[`${section.id}:${m.type}`]}
+      onEdit={onEdit}
+      labelWidth={labelWidth}
+      value={
+        <>
+          {m.value}
+          {m.unit && m.unit !== "No unit" && (
+            <span className="ml-1 text-tertiary">{m.unit}</span>
+          )}
+          {m.method && (
+            <span className="block text-xs text-tertiary">{m.method}</span>
+          )}
+        </>
+      }
+    />
+  ));
+  return (
+    <div className="flex flex-col gap-3">
+      {section.withMap && (
+        <>
+          {showMap && (
+            <RecordMap record={record} lat={lat} lon={lon} className="h-40" />
+          )}
+          {/* In the expanded view the map sits in the side column; the card shows what was entered. */}
+          {/* The table belongs to Location details, so the row's divider sits under the table. */}
+          <div className="flex flex-col gap-2 border-b border-secondary pb-3">
+            <FieldRow
+              recordId={record.id}
+              fieldKey={`${section.id}:Location details`}
+              label="Location details"
+              value={
+                record.locationNote
+                  ? "Generalised for a restricted species"
+                  : locationSummary(
+                      record.location ?? {
+                        method: "coordinates",
+                        boundary: {
+                          id: "pt",
+                          kind: "circle",
+                          center: [record.lat, record.lon],
+                          radiusKm: 0.1,
+                        },
+                      },
+                    )
+              }
+              notes={forRecord[`${section.id}:Location details`]}
+              onEdit={onEdit}
+              labelWidth={labelWidth}
+              divider={false}
+            />
+            {/* A restricted record shows no coordinates, rounded or not: only its block on the map. */}
+            {!record.locationNote && <LocationDetailsTable lat={lat} lon={lon} />}
+          </div>
+        </>
+      )}
+      <div className="flex flex-col">
+        {section.siteScores ? (
+          <SiteScoresSection
+            record={record}
+            sectionId={section.id}
+            data={section.siteScores}
+            labelWidth={labelWidth}
+            onSave={
+              canEdit
+                ? (siteScores) => {
+                    saveRecord({
+                      ...record,
+                      sections: record.sections.map((x) =>
+                        x.id === section.id ? { ...x, siteScores } : x,
+                      ),
+                    });
+                    toast.success("Conservation significance score saved");
+                  }
+                : undefined
+            }
+          />
+        ) : section.trapEffort ? (
+          (() => {
+            const names = trapLabels(section.trapEffort);
+            const shown = section.trapEffort
+              .map((e, i) => ({ e, name: names[i] }))
+              .filter(({ name }) => !hidden.has(`${section.id}:${name}`));
+            return shown.length === 0 ? (
+              <p className="px-3 text-sm text-quaternary">
+                No trap types recorded
+              </p>
+            ) : (
+              shown.map(({ e, name }) => (
+                <FieldRow
+                  key={name}
+                  recordId={record.id}
+                  fieldKey={`${section.id}:${name}`}
+                  label={name}
+                  notes={forRecord[`${section.id}:${name}`]}
+                  onEdit={onEdit}
+                  labelWidth={labelWidth}
+                  value={<TrapEntryView entry={e} />}
+                />
+              ))
+            );
+          })()
+        ) : (
+          <>
+            {section.landscape &&
+              !hidden.has(`${section.id}:${LANDSCAPE_SCORE_LABEL}`) && (
+                <>
+                  <div className="@container pb-3">
+                    <LandscapeSummary
+                      score={scoreBlock(section.landscape.inputs, landscapeCtx)}
+                    />
+                  </div>
+                  <FieldRow
+                    recordId={record.id}
+                    fieldKey={`${section.id}:${LANDSCAPE_SCORE_LABEL}`}
+                    label={LANDSCAPE_SCORE_LABEL}
+                    notes={forRecord[`${section.id}:${LANDSCAPE_SCORE_LABEL}`]}
+                    labelWidth={labelWidth}
+                    editable={false}
+                    value={
+                      <LandscapeScoreLink
+                        inputs={section.landscape.inputs}
+                        ctx={landscapeCtx}
+                        title={`${record.name}, ${record.code}`}
+                        onSave={
+                          canEdit
+                            ? (inputs) => {
+                                saveRecord({
+                                  ...record,
+                                  sections: record.sections.map((x) =>
+                                    x.id === section.id
+                                      ? { ...x, landscape: { inputs } }
+                                      : x,
+                                  ),
+                                });
+                                toast.success("Landscape context scores saved");
+                              }
+                            : undefined
+                        }
+                      />
+                    }
+                  />
+                </>
+              )}
+            {section.overstorey && (
+              <>
+                {overstoreyRows(section.overstorey)
+                  .filter(
+                    (r) =>
+                      !hidden.has(`${section.id}:${r.label}`) &&
+                      (rowHasValue({ label: r.label, value: r.value }) ||
+                        noted(r.label)),
+                  )
+                  .map((r) => (
+                    <FieldRow
+                      key={r.label}
+                      recordId={record.id}
+                      fieldKey={`${section.id}:${r.label}`}
+                      label={r.label}
+                      notes={forRecord[`${section.id}:${r.label}`]}
+                      onEdit={onEdit}
+                      labelWidth={labelWidth}
+                      value={r.value}
+                    />
+                  ))}
+                {!hidden.has(`${section.id}:Readings`) &&
+                  (section.overstorey.readings.length > 0 ||
+                    noted("Readings")) && (
+                    <FieldRow
+                      recordId={record.id}
+                      fieldKey={`${section.id}:Readings`}
+                      label="Readings"
+                      notes={forRecord[`${section.id}:Readings`]}
+                      onEdit={onEdit}
+                      labelWidth={labelWidth}
+                      value={<ReadingsTable data={section.overstorey} />}
+                    />
+                  )}
+                {section.overstorey.readings.length > 0 && (
+                  <div className="py-3">
+                    <OverstoreyStats data={section.overstorey} />
+                  </div>
+                )}
+              </>
+            )}
+            {rows.length === 0 &&
+            !section.landscape &&
+            !section.overstorey &&
+            measurements.length === 0 &&
+            !(section.measurements && !section.rows) ? (
+              <p className="px-3 text-sm text-quaternary">
+                {section.measurements ? "No measurements yet" : "None recorded"}
+              </p>
+            ) : (
+              <>
+                {rows.map((row) =>
+                  row.type === "measurements" ? (
+                    measurementRows
+                  ) : (
+                    <FieldRow
+                      key={row.label}
+                      recordId={record.id}
+                      fieldKey={`${section.id}:${row.label}`}
+                      label={row.label}
+                      value={
+                        fieldTypeOf(row) === "codes" &&
+                        !EMPTY_VALUES.has(row.value) ? (
+                          <span className="whitespace-pre-line">
+                            {displayValue(row, section.rows)}
+                          </span>
+                        ) : (
+                          displayValue(row, section.rows)
+                        )
+                      }
+                      notes={forRecord[`${section.id}:${row.label}`]}
+                      onEdit={onEdit}
+                      editable={!isLockedRow(row)}
+                      labelWidth={labelWidth}
+                    />
+                  ),
+                )}
+                {!section.rows && measurementRows}
+              </>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Canopy type and projected foliage cover, as field rows. */
+export function overstoreyRows(o: NonNullable<MetaSection["overstorey"]>) {
+  return [
+    { label: "Canopy type", value: o.canopyType },
+    {
+      label: "Projected foliage cover",
+      value: foliageCoverText(o.foliageCover),
+    },
+  ];
+}
+
+export function SectionTitle({
+  record,
+  section,
+}: {
+  record: SurveyRecord;
+  section: MetaSection;
+}) {
+  const s = sectionSummary(useFieldNotes(), record, section.id);
+  return (
+    <span className="inline-flex items-center gap-2">
+      {section.title}
+      {s.flags > 0 && (
+        <span
+          className={cx(NOTE_MARK, NOTE_TONE.flag)}
+          title={`${s.flags} flagged concept${s.flags === 1 ? "" : "s"}`}
+        >
+          <Flag01 className="size-3" />
+          {s.flags}
+        </span>
+      )}
+      {s.comments > 0 && (
+        <span
+          className={cx(NOTE_MARK, NOTE_TONE.comment)}
+          title={`${s.comments} comment${s.comments === 1 ? "" : "s"}`}
+        >
+          <MessageSquare01 className="size-3" />
+          {s.comments}
+        </span>
+      )}
+      {s.files > 0 && (
+        <span
+          className={cx(NOTE_MARK, NOTE_TONE.file)}
+          title={`${s.files} file${s.files === 1 ? "" : "s"}`}
+        >
+          <Paperclip className="size-3" />
+          {s.files}
+        </span>
+      )}
+    </span>
+  );
+}
+
+/** The record's path: in compact views the project and the current record, with every step between folded into "...". */
+export function Path({
+  ancestors,
+  current,
+  onSelect,
+  fold = true,
+}: {
+  ancestors: SurveyRecord[];
+  current?: SurveyRecord;
+  onSelect: (id: string | null) => void;
+  fold?: boolean;
+}) {
+  const { project } = useEditStore();
+  const crumb = (label: string, onPress: () => void, title?: string) => (
+    <button
+      type="button"
+      onClick={onPress}
+      title={title}
+      className="shrink-0 rounded px-1 py-0.5 hover:bg-secondary hover:text-primary"
+    >
+      {label}
+    </button>
+  );
+  // Compact views show only the first step (the project) and the current record; every step in
+  // between folds into one "..." menu. Full screen (fold={false}) shows the whole path.
+  const folded = fold && ancestors.length > 0;
+  const hidden = folded ? ancestors : [];
+  const shown = folded ? [] : ancestors;
+  return (
+    <nav
+      aria-label="Record path"
+      className="flex min-w-0 items-center gap-1 overflow-hidden text-xs whitespace-nowrap text-tertiary"
+    >
+      <ProjectCrumb
+        title={project.details.shortTitle}
+        onPress={() => onSelect(null)}
+      />
+      {hidden.length > 0 && (
+        <span className="flex shrink-0 items-center gap-1">
+          <ChevronRight className="size-3 text-fg-quaternary" />
+          <Dropdown.Root>
+            <Button
+              color="tertiary"
+              size="sm"
+              aria-label="Show the full path"
+              className="h-6 px-1"
+            >
+              ...
+            </Button>
+            <Dropdown.Popover placement="bottom start">
+              <Dropdown.Menu
+                aria-label="Path"
+                onAction={(key) => onSelect(String(key))}
+              >
+                {hidden.map((a) => (
+                  <Dropdown.Item
+                    key={a.id}
+                    id={a.id}
+                    label={a.name}
+                    icon={recordIcon(a)}
+                  />
+                ))}
+              </Dropdown.Menu>
+            </Dropdown.Popover>
+          </Dropdown.Root>
+        </span>
+      )}
+      {shown.map((a) => (
+        <span key={a.id} className="flex min-w-0 items-center gap-1">
+          <ChevronRight className="size-3 shrink-0 text-fg-quaternary" />
+          {crumb(a.name, () => onSelect(a.id), `${typeLabel(a)}, ${a.code}`)}
+        </span>
+      ))}
+      {current && (
+        <span className="flex min-w-0 items-center gap-1">
+          <ChevronRight className="size-3 shrink-0 text-fg-quaternary" />
+          <span
+            aria-current="page"
+            title={current.name}
+            className="truncate px-1 py-0.5 font-medium text-primary"
+          >
+            {current.name}
+          </span>
+        </span>
+      )}
+    </nav>
+  );
+}
+
+const KIND_MENU: { kind: RecordKind; label: string; icon: FC<{ className?: string }> }[] =
+  [
+    { kind: "event", label: "Events", icon: EventShape },
+    { kind: "occurrence", label: "Occurrences", icon: OccurrenceShape },
+    { kind: "observation", label: "Observations", icon: ObservationShape },
+  ];
+
+/**
+ * Add a record inside this one: one button, one menu. The types are listed under Events, Occurrences and
+ * Observations, each marked with the tree's shape, so a type is one click away instead of two levels down.
+ */
+export function AddRecordMenu({
+  options,
+  onAdd,
+  label = "Add",
+  size = "sm",
+  color = "secondary",
+  className,
+}: {
+  options: ChildOption[];
+  onAdd: (o: ChildOption) => void;
+  label?: string;
+  size?: "sm" | "md";
+  color?: "primary" | "secondary" | "tertiary";
+  className?: string;
+}) {
+  const kinds = KIND_MENU.filter((k) => options.some((o) => o.kind === k.kind));
+  if (kinds.length === 0) return null;
+  return (
+    <Dropdown.Root>
+      <Button color={color} size={size} iconLeading={Plus} iconTrailing={ChevronDown} className={className}>
+        {label}
+      </Button>
+      <Dropdown.Popover placement="bottom end" className="w-56">
+        <Dropdown.Menu
+          aria-label="Add a record inside"
+          onAction={(key) => {
+            const o = options.find((x) => `${x.kind}:${x.type}` === key);
+            if (o) onAdd(o);
+          }}
+        >
+          {kinds.map((k, i) => (
+            <Dropdown.Section key={k.kind}>
+              <Dropdown.SectionHeader
+                className={cx(
+                  "flex items-center gap-1.5 px-2.5 pt-1.5 pb-1 text-xs font-semibold text-quaternary",
+                  i > 0 && "mt-1 border-t border-secondary pt-2",
+                )}
+              >
+                <k.icon className="size-4" />
+                {k.label}
+              </Dropdown.SectionHeader>
+              {options
+                .filter((o) => o.kind === k.kind)
+                .map((o) => (
+                  <Dropdown.Item
+                    key={`${o.kind}:${o.type}`}
+                    id={`${o.kind}:${o.type}`}
+                    label={o.type}
+                  />
+                ))}
+            </Dropdown.Section>
+          ))}
+        </Dropdown.Menu>
+      </Dropdown.Popover>
+    </Dropdown.Root>
+  );
+}
+
+export function FullscreenToggle({
+  isFullscreen,
+  onToggle,
+}: {
+  isFullscreen: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <Tooltip title={isFullscreen ? "Exit full screen" : "Full screen"}>
+      <TooltipTrigger
+        aria-label={isFullscreen ? "Exit full screen" : "Open full screen"}
+        onPress={onToggle}
+        className={iconButton}
+      >
+        {isFullscreen ? (
+          <Minimize02 className="size-4" />
+        ) : (
+          <Maximize02 className="size-4" />
+        )}
+      </TooltipTrigger>
+    </Tooltip>
+  );
+}
+
+/**
+ * Expand all / Collapse all, as one icon: collapses when everything is open, expands otherwise. The
+ * same control on the tree, the details panel's sections and the full view's cards.
+ */
+export function ExpandAllToggle({
+  allOpen,
+  onToggle,
+}: {
+  allOpen: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <Tooltip title={allOpen ? "Collapse all" : "Expand all"}>
+      <TooltipTrigger
+        aria-label={allOpen ? "Collapse all" : "Expand all"}
+        onPress={onToggle}
+        className="flex size-7 cursor-pointer items-center justify-center rounded-md text-fg-quaternary outline-focus-ring hover:bg-primary_hover hover:text-fg-quaternary_hover focus-visible:outline-2"
+      >
+        {allOpen ? (
+          <ChevronUpDouble className="size-4" />
+        ) : (
+          <ChevronDownDouble className="size-4" />
+        )}
+      </TooltipTrigger>
+    </Tooltip>
+  );
+}
+
+/** A small edit icon for a section header, shown on hover or focus. */
+export function SectionEditIcon({
+  title,
+  onPress,
+}: {
+  title: string;
+  onPress: () => void;
+}) {
+  return (
+    <Tooltip title={`Edit ${title.toLowerCase()}`}>
+      <TooltipTrigger
+        aria-label={`Edit ${title}`}
+        onPress={onPress}
+        className="flex size-7 cursor-pointer items-center justify-center rounded-md text-fg-quaternary opacity-0 outline-focus-ring transition-opacity group-hover/accordion-item:opacity-100 group-hover/section:opacity-100 hover:bg-primary_hover hover:text-fg-quaternary_hover focus-visible:opacity-100 focus-visible:outline-2"
+      >
+        <Edit05 className="size-3.5" />
+      </TooltipTrigger>
+    </Tooltip>
+  );
+}
+
+/** Delete, confirmed, saying what goes with the record. */
+export function useDeleteRecord(
+  record: SurveyRecord | undefined,
+  onDeleted: (parentId: string | null) => void,
+) {
+  const store = useEditStore();
+  const [open, setOpen] = useState(false);
+  const subtree = record ? store.subtreeOf(record.id) : [];
+  const inner = subtree.length - 1;
+  const modal = record ? (
+    <DestructiveModal confirmIcon={Trash01}
+      isOpen={open}
+      onOpenChange={setOpen}
+      title={`Delete ${record.name}?`}
+      description={
+        inner > 0
+          ? `This also deletes ${inner} record${inner === 1 ? "" : "s"} inside it. This can't be undone.`
+          : "This can't be undone."
+      }
+      confirmLabel="Delete record"
+      cancelLabel="Keep record"
+      onConfirm={() => {
+        store.deleteRecord(record.id);
+        setOpen(false);
+        toast.success(`${record.name} deleted`, {
+          description:
+            "Changes are kept for this session only. This preview has no backend.",
+        });
+        onDeleted(record.parentId);
+      }}
+    />
+  ) : null;
+  return { ask: () => setOpen(true), modal };
+}
+
+export function RecordPanel({
+  record,
+  onSelect,
+  onEdit,
+  onAdd,
+  onFullscreen,
+  focusField,
+}: {
+  record: SurveyRecord | undefined;
+  onSelect: (id: string | null) => void;
+  /** Opens the record full screen with a card in edit mode (the first, or a section and field). */
+  onEdit: (sectionId?: string, fieldKey?: string, addSection?: boolean) => void;
+  onAdd: (parent: SurveyRecord | null, option: ChildOption) => void;
+  onFullscreen: () => void;
+  /** A field to scroll to and briefly highlight (from an artefact's "Open record"). */
+  focusField?: { key: string; nonce: number } | null;
+}) {
+  const store = useEditStore();
+  const del = useDeleteRecord(record, onSelect);
+  const hidden = useHiddenFields(record?.id);
+  const notesAll = useFieldNotes();
+  // The first section starts open, so a record shows its details without a click (designer, 23 Oct 2026).
+  const [openSections, setOpenSections] = useState<Set<ReactKey>>(() => {
+    const notes = record ? (notesAll[record.id] ?? {}) : {};
+    const first = record?.sections.find(
+      (section) =>
+        isSectionShown(section, hidden) &&
+        sectionHasContent(section, (k) => hasNotes(notes[k])),
+    );
+    return new Set(first ? [first.id] : []);
+  });
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  // Go to a field: open its section, scroll it into the middle of the panel, and flash it once in
+  // the brand tint so the eye lands on it (a Web Animation, so there is nothing to clean up).
+  const [focusedNonce, setFocusedNonce] = useState<number | null>(null);
+  if (focusField && focusField.nonce !== focusedNonce) {
+    setFocusedNonce(focusField.nonce);
+    const sectionId = focusField.key.slice(0, focusField.key.indexOf(":"));
+    setOpenSections((o) => new Set([...o, sectionId]));
+  }
+  useEffect(() => {
+    if (!focusField || !record) return;
+    const t = setTimeout(() => {
+      const el = rootRef.current?.querySelector<HTMLElement>(
+        `[id="field-${record.id}-${focusField.key}"]`,
+      );
+      if (!el) return;
+      flashElement(el);
+    }, 350);
+    return () => clearTimeout(t);
+  }, [focusField, record]);
+
+  if (!record) {
+    return (
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-secondary bg-primary px-4 py-2">
+          <nav aria-label="Record path" className="flex text-xs">
+            <ProjectCrumb
+              title={store.project.details.shortTitle}
+              onPress={() => onSelect(null)}
+            />
+          </nav>
+          <FullscreenToggle isFullscreen={false} onToggle={onFullscreen} />
+        </div>
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-5">
+          <div className="flex flex-col gap-1">
+            <p className="flex items-center gap-1 text-xs font-semibold tracking-wide text-quaternary uppercase">
+              <EventShape className="size-4" />
+              Project, {store.meta.code}
+            </p>
+            <h2 className="text-xl font-semibold text-balance text-primary">
+              {store.project.details.shortTitle}
+            </h2>
+          </div>
+          <RecordQuickActions record={null} onAdd={(o) => onAdd(null, o)} />
+          <p className="text-sm text-tertiary">
+            {store.records.length} records. Pick a record in the tree or the table to see its details.
+          </p>
+
+        </div>
+      </div>
+    );
+  }
+
+  const recordNotes = notesAll[record.id] ?? {};
+  const shownSections = record.sections.filter(
+    (section) =>
+      isSectionShown(section, hidden) &&
+      sectionHasContent(section, (k) => hasNotes(recordNotes[k])),
+  );
+  return (
+    <div ref={rootRef} className="flex min-h-0 flex-1 flex-col">
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-secondary bg-primary px-4 py-2">
+        <Path
+          ancestors={store.ancestorsOf(record)}
+          current={record}
+          onSelect={onSelect}
+        />
+        <FullscreenToggle isFullscreen={false} onToggle={onFullscreen} />
+      </div>
+
+      {/* Only the body scrolls, so the scrollbar starts under the header, as in the list beside it. */}
+      <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-5">
+        {/* The full view's header at the panel's size (designer, 23 Oct 2026: "make it look clean like it is in full
+            screen"): the kind's shape and type as the eyebrow, with the ID and date, then the name; the quick actions under it. */}
+        <div className="flex flex-col gap-3">
+          <div className="flex items-start gap-3">
+            {record.scientificName && (
+              <SpeciesPhoto
+                scientificName={record.scientificName}
+                alt={record.name}
+                fallbackIcon={recordIcon(record)}
+                className="size-12"
+              />
+            )}
+            <div className="flex min-w-0 flex-col gap-1">
+              <p className="flex items-center gap-1 text-xs font-semibold tracking-wide text-quaternary uppercase">
+                <RecordIcon record={record} className="size-4 shrink-0" />
+                {/* One run of text, so the commas sit against the words and not in a flex gap. */}
+                <span>
+                  {typeLabel(record)}
+                  <span className="font-normal normal-case tracking-normal">
+                    , {record.code}
+                  </span>
+                </span>
+              </p>
+              <h2 className="text-xl font-semibold text-balance text-primary">{record.name}</h2>
+              {record.scientificName && (
+                <p className="text-sm text-tertiary italic">{record.scientificName}</p>
+              )}
+              <div className="pt-1">
+                <RecordHeaderMeta record={record} />
+              </div>
+            </div>
+          </div>
+          <RecordQuickActions
+            record={record}
+            onAdd={(o) => onAdd(record, o)}
+            onEdit={() => onEdit()}
+            onDuplicate={onAdd}
+            onDelete={del.ask}
+            sections={record.sections.filter((x) => !shownSections.includes(x))}
+            onAddSection={(id) => onEdit(id, undefined, true)}
+          />
+        </div>
+
+        {record.locationNote && (
+          <p className="flex items-start gap-2 rounded-lg bg-warning-25 px-3 py-2 text-sm text-secondary">
+            <InfoCircle className="mt-0.5 size-4 shrink-0 text-fg-warning-primary" />
+            {record.locationNote}
+          </p>
+        )}
+
+        <div className="flex flex-col">
+          <div className="flex items-center justify-between py-1.5 pl-0.5">
+            <p className="text-xs font-medium text-tertiary">
+              {shownSections.length} sections
+            </p>
+            <ExpandAllToggle
+              allOpen={
+                shownSections.length > 0 &&
+                shownSections.every((sec) => openSections.has(sec.id))
+              }
+              onToggle={() =>
+                setOpenSections(
+                  shownSections.every((sec) => openSections.has(sec.id))
+                    ? new Set()
+                    : new Set(shownSections.map((sec) => sec.id)),
+                )
+              }
+            />
+          </div>
+          <Accordion
+            key={`sections-${record.id}`}
+            variant="compact"
+            actionPlacement="beforeChevron"
+            className="border-t border-secondary"
+            openKeys={openSections}
+            onOpenKeysChange={(keys) => setOpenSections(new Set(keys))}
+            items={shownSections.map((section) => ({
+              id: section.id,
+              title: <SectionTitle record={record} section={section} />,
+              content: (
+                <SectionFields
+                  record={record}
+                  section={section}
+                  onEditField={(sectionId, fieldKey) =>
+                    onEdit(sectionId, fieldKey)
+                  }
+                />
+              ),
+              action: store.canEdit ? (
+                <SectionEditIcon
+                  title={section.title}
+                  onPress={() => onEdit(section.id)}
+                />
+              ) : undefined,
+            }))}
+          />
+        </div>
+
+      </div>
+      {del.modal}
+    </div>
+  );
+}
