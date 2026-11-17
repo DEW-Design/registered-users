@@ -191,7 +191,7 @@ function SectionPlaceholder({ node }: { node: NavNode }) {
  *  with no Search step - results appear in the same card and follow the areas live. (Its second layout, a
  *  search and then a results page, was retired on 23 Oct 2026.) */
 /** Which layout of Explore to show: the map alone (option 1, /pages/observations), or "Table toggle" (option 2,
- *  /pages/observations/option-2), where a floating "Map only" / "Map and table" switch stacks the map over the Species
+ *  /pages/observations), where a floating "Map only" / "Map and table" switch stacks the map over the Species
  *  Detail Report's table of what the search found. */
 export type ExploreVariant = "map" | "table-toggle";
 

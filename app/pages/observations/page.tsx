@@ -1,18 +1,10 @@
 "use client";
 
 import { ObservationsExplore } from "@/app/pages/observations/observations-search";
-import { ExploreLayoutSwitcher } from "@/app/pages/observations/layout-switcher";
 
-// Explore: one floating card over the map. Search areas are layers (show, hide, rename, resize, remove),
-// adding one is a single menu, and the card grows a results list in place with no Search step. See
-// observations-search.tsx. (The earlier second layout, a search and then a results page, was at
-// /pages/observations/option-2 and was retired on 23 Oct 2026, CONTRACTS 4.4. The route is used again,
-// from 6 Nov 2026, for "Table toggle", compared through the Layout tool.)
+// Explore with the "Table toggle": the map, with a floating "Map only" / "Map and table" switch above the zoom buttons. Map and table
+// stacks the map (search card and all) over the Species Detail Report's table of the species records the search found, split by a
+// drag handle, the table able to go full screen. See observations-search.tsx, "Table toggle".
 export default function ObservationsPage() {
-  return (
-    <>
-      <ObservationsExplore />
-      <ExploreLayoutSwitcher current="option-1" />
-    </>
-  );
+  return <ObservationsExplore variant="table-toggle" />;
 }

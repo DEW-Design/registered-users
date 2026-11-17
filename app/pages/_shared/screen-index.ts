@@ -34,7 +34,6 @@ export interface Screen {
 
 export const SCREENS: Screen[] = [
   { area: "Start", name: "Landing page", path: "/pages/biodata-home", access: "Everyone", description: "The public front door, in the DEW homepage template marketing approved: hero search, what BioData SA is, where to next." },
-  { area: "Start", name: "Landing page, version 2", path: "/pages/biodata-home/version-2", access: "Everyone", description: "The original home page, with the same content in its first design." },
   { area: "Sign in", name: "Log in", path: "/pages/auth/login", access: "Everyone", description: "Email and password, or the password-only step after a reset." },
   { area: "Sign in", name: "Sign up", path: "/pages/auth/signup", access: "Everyone", description: "Create an account; continues to the email code." },
   { area: "Sign in", name: "Verify email", path: "/pages/auth/verify-email", access: "Everyone", description: "The 6-digit code sent to the new account's email." },
@@ -54,7 +53,6 @@ export const SCREENS: Screen[] = [
   { area: "Projects", name: "Add Project", path: "/pages/project-registration", access: "Signed in", description: "The form pattern: sections in column 2, one contacts list with roles, methodologies with notes." },
   { area: "Projects", name: "Add Project, option 2", path: "/pages/project-registration/option-2", access: "Signed in", description: "The same form with a Datasets step after the geographic extent: upload datasets while the project is made, or skip it." },
   { area: "Explore", name: "Explore", path: "/pages/observations", access: "Everyone", description: "A floating card over the map; search areas as layers." },
-  { area: "Explore", name: "Explore, option 2", path: "/pages/observations/option-2", access: "Everyone", description: "Table toggle: a floating Map only / Map and table switch; Map and table stacks the map over the Species Detail Report's rows for the search, split by a handle, the table able to go full screen." },
   { area: "Data licence (DLA)", name: "Licence requests", path: "/pages/dla", access: "Signed in", description: "All requests and My requests, every status in one table." },
   { area: "Data licence (DLA)", name: "Request a licence", path: "/pages/dla/new", access: "Signed in", description: "Locations and licence level, purpose, review." },
   { area: "Data licence (DLA)", name: "Licence request", path: "/pages/dla/DLA-2026-00502", access: "Signed in", description: "One request and its actions (DLA-2026-00502)." },
