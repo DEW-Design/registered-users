@@ -1,0 +1,586 @@
+---
+paths:
+  - "app/pages/**"
+  - "lib/create-menu.ts"
+  - "lib/create-context.ts"
+  - "lib/registered-user-nav.ts"
+  - "lib/page-access.ts"
+  - "lib/use-can-open.ts"
+  - "config/role-access.config.ts"
+---
+
+<!-- GENERATED from CONTRACTS.md by scripts/build-contract-rules.mjs (CONTRACTS.md 5.5). Do not edit: change CONTRACTS.md, then run `npm run contracts:rules`. -->
+
+# DEW contracts: shell
+
+The persona shell and page patterns: header, rail, columns, forms, lists, record pages, floating panels. Full text and numbering: CONTRACTS.md.
+
+### §2.8 Floating panels never overlap
+
+Two floating elements on the same surface (map controls, a summary card, a map key, a search card,
+the map's scale bar and attribution) MUST NOT cover each other, at any window size.
+
+- MUST lay out floating panels that share a surface in one layout (a flex column or row), not
+  position each one on its own with offsets that only work at one size.
+- A panel that can grow (a card with a photo, a results list) MUST be height-bounded by that layout
+  and scroll inside itself; its primary action stays reachable.
+- Where there is not room for panels side by side, they stack; they never overlap.
+- **Exception:** the floating dev tools (§3.8) are draggable and are not product layout.
+- **Origin:** Explore option 2's record summary card grew down over the "Species group" map key.
+- **Enforcement:** `REVIEW` (a live pass measuring panel boxes at several window sizes, §0.6 item 4).
+
+### §3.1 One header
+
+Every real `/pages/**` screen renders `<AppHeader />` and nothing else at the top. It MUST NOT be
+hand-rolled, copied, or wrapped to change what it shows.
+
+- **Enforcement:** `AUTO §3.1`.
+
+### §3.2 One rail, one icon map, legal links in the rail
+
+Column 1 is `<PrimaryRail />`, icons come from `nav-icons.ts`, and the Terms, Privacy and Help links are
+icons at the foot of the rail (`PrimaryRail`), on every screen and every persona. Column 2 carries no
+footer block.
+
+- **Origin:** the designer moved the legal links from a text block at the foot of column 2 into the rail
+  (30 Sept 2026), so they survive on screens that have no column 2.
+- **Enforcement:** `AUTO §3.2`, `AUTO §3.3`, `AUTO §3.5`.
+
+### §3.3 Account controls live in the header
+
+`ProfileMenu` and `GuestAuthActions` are used only by `AppHeader`. MUST NOT be copied.
+
+- **Enforcement:** `AUTO §3.4`.
+
+### §3.4 Persona consistency
+
+A persona sees the same header and rail on every screen. Role-specific behaviour (org pill, the Add menu,
+account control, Home's task badge, which sections the rail lists) is decided inside the shared component
+from the role and `config/role-access.config.ts`, never at a call site. `public-user` is the only
+deliberate exception, and only in account controls and gated actions.
+
+### §3.5 The Add menu
+
+The header has one "Add" button (Jira-style). What it offers comes from `lib/create-menu.ts`, filtered by
+the role-access matrix. MUST NOT add a separate creation button to a header.
+
+**The menu is contextual (designer, 11 Nov 2026).** A page that has things of its own to add tells the menu (`useCreateContext`, `lib/create-context.ts`), and the menu lists them first, under a heading that says where they
+go ("This project"), then a divider, then the general list. A page that says nothing gets the general list alone, as before. The project page is the first: Dataset, Attachments, Events, Occurrences and Observations (each
+opening its types beside it, as a record's own Add menu does), and Restriction.
+
+- MUST NOT draw a second Add button for a page, and MUST NOT write a page's items into `CreateMenu` or the header: the page registers them and they go when the page does.
+- **Every item is one the page already has a control for.** It is offered on the same test as that control (the role, the feature, the state: Restriction only while a kind is left to add and no card is being edited), and
+  picking it does what that control does, on the tab the thing lives on. An item the role could not use is left out, never drawn disabled (3.15). MUST NOT add something to the menu that the page itself cannot do.
+- **Nothing is listed twice.** Where a page's item stands in for one of the general list, it replaces it (`replaces`: the project's own Dataset for the general one, which asks which project).
+- **Override of 3.12's "one control per action", for these items (designer, 11 Nov 2026):** each is also on the page (the card's Upload menu, the records toolbar's Add record, the section's Add restriction). The header's
+  menu is the one place to add from on any tab. Whether the page's own controls then stay is open, for the designer (0.4).
+- **Origin:** the Add menu on a project listed User, Project, Dataset, the agreements and the rest, and nothing of the project a person was looking at; the designer, with a screenshot: "Can we make the + Add button
+  contextual? Add on the project page would be: Add a dataset, event, occ, obs, add restrictions, etc" (11 Nov 2026).
+- **Enforcement:** `REVIEW`. A first occurrence, so no `AUTO` check yet (0.8).
+
+### §3.6 Position
+
+The header is a top-level sibling before the rail + sidebar + main row, full width, never inside `main`.
+
+### §3.7 Three columns
+
+Primary rail, contextual sidebar, main - under the full-width header - on every screen and every persona.
+A role that cannot use a section still gets all three, with the restriction stated in main. Column 2
+always exists and always says something about where you are, except on a record page (below).
+
+- **A record page has no column 2 (designer, 6 Oct 2026, generalising the project page's override).** The deep dive of any
+  collection - a project, a DLA, a DSA, a nomination, a user, a role, a permission, a controlled vocabulary, a taxon, a
+  voucher batch, a report - uses the whole width beside the rail. Where you are is the breadcrumb and its switcher over the
+  collection (§4.6 item 5); the record's actions are in its card. The list, and a create or edit form (whose sections are
+  column 2, §4.1), keep their column 2. A role that cannot open the record still gets the restriction with all three columns.
+  A shell takes this from its record props (`recordPage`), so a new collection's shell MUST do the same.
+- **Enforcement:** `AUTO §3.7b` (a shell that draws the Section sidebar and takes a record prop, without `recordPage`).
+
+- Exempt by name: `app/pages/biodata-home` (marketing), `app/pages/auth/**` (auth flow) and `app/pages/page.tsx`
+  (the `/pages` screen index, a directory of screens rather than one).
+- **Override (designer, 30 Sept 2026), now the rule above:** the project page (`/pages/project-list/<id>/project-details`,
+  `/pages/project-detail`) and that project's record pages have no column 2, for every persona. The
+  project's own actions are in the hero's "..." menu, the records tree is on the Survey records tab, and a
+  breadcrumb project switcher replaces going back to the list. Logged in
+  `context/decisions/2026-09-30-07-*`; it is scoped to those screens and is not a precedent (§0.1).
+- **Override (designer, 1 Oct 2026):** Explore (`/pages/observations`) has no column 2, for every
+  persona, so the map takes the full width. Its search areas are a section of the floating search card and
+  the data-access notice some roles see is the warning banner across the top of the map. Explore's second
+  layout (`/pages/observations/option-2`) was retired on 23 Oct 2026 (§4.4), so this now covers the whole of
+  Explore. Logged in `context/decisions/2026-10-01-*`; it is scoped to that screen and is not a precedent (§0.1).
+
+### §3.10 Column 2 is navigation and actions only
+
+The contextual sidebar (column 2) holds where you are and what you can do from here: a section label, a
+list or tree or scope switch that moves you around, and the Actions group (export, report). It MUST NOT hold information: no explanatory copy, no steps or explainers, no alerts, task cards
+or accordions. Information sits in main, above the content it explains.
+
+- **Exception:** the public-user (signed-out visitor) column 2, which explains what BioData SA is and
+  points to guides (`GuestAboutAside`). No other persona and no other screen.
+- **Where the information goes.** "What is this" content is never in column 2. A short one (how a nomination is
+  reviewed) is an `ExplainerCard` (`app/pages/_shared/explainer-card.tsx`) above the list it belongs to, closable;
+  a notice about the whole screen is a `PageBanner`. Both are documented at `/patterns/banners`. Where a longer
+  explanation should live is not decided (the project explainer is parked, see the backlog in `ref-shell.md`).
+- **Origin:** the nominations list put a "How a nomination is reviewed" steps explainer in column 2; the same
+  mistake came back as the "What is a project?" and project guides block in the Projects column 2, which the check
+  missed because its headings were inside a component the aside rendered (designer, 1 Oct 2026, section 0.8).
+- **Enforcement:** `AUTO §3.10` (a left-hand `<aside>` in `app/pages` containing a heading, Progress steps, alert,
+  accordion or task card, or rendering a component whose own markup does, except the public-user file). It
+  catches structural information only; prose in a plain paragraph is `REVIEW`.
+
+### §3.11 Every item in column 2 has an icon
+
+Every navigation item in column 2 (a scope tab, an area tab, a view tab, an action row) MUST carry an icon to the
+left of its label, so the column scans by shape as well as by word and reads the same on every screen. The same
+items in the mobile menu carry the same icons.
+
+- **Which icon.** "All X" takes the section's own icon from `sectionIcons` (`nav-icons.ts`), as "All projects"
+  takes the Projects icon; "My X" takes `User01`. An area or view tab takes the icon of what it holds (All users
+  `Users01`, All roles `UserCheck01`, All permissions `Key01`; Home's My BioData `User01`, Flora and Fauna Dashboard
+  `PieChart03`). An action row carries its action (Export CSV `Download01`, Create report `BarChart01`).
+- **One icon per concept (§2.4).** An item has the same icon in column 2 and in the mobile menu, and on every
+  screen it appears. A new item takes an icon that is not already another concept's.
+- **Built with.** `Tab icon={...}` in column 2, `ActionRow icon={...}` for actions, and `MobileNavItem`
+  (`app/pages/_shared/mobile-nav.tsx`) for the extra items in the mobile menu, never a hand-built button.
+- **Not covered.** The section label above the items (a heading, not an item), the numbered steps of a form's
+  section list (the step marker is its icon, §4.1), and data rows such as the project's records tree (each row
+  carries its own record-type icon).
+- **Origin:** the All / My switch on DLA, DSA and nominations and User Management's Users / Roles / Permissions
+  tabs were text only, beside Projects and Home, which had icons (designer, 1 Oct 2026).
+- **Enforcement:** `AUTO §3.11` (a vertical `TabList` whose `<Tab>` has no `icon`), `REVIEW` for action rows and the
+  mobile menu.
+
+### §3.13 Underline tabs carry icons
+
+Every tab in an underline tab list (a record page's sections, the project page, the dashboards, a report's tabs) MUST
+carry an icon to the left of its label, as column 2's items do (§3.11): the icon of what the tab holds, so a tab row
+scans by shape as well as by word and the same section has the same icon on every screen.
+
+- **Which icon.** The one the app already uses for the same thing (§2.4): Overview `Grid01`, Locations `MarkerPin04`,
+  Species `Feather`, Survey records and Data Collection Scope `Database01`, Artefacts and attachments `Paperclip`,
+  Project and Projects `Folder`, Permit and Agreement `FileCheck02`, Audit Log `ClockRewind`, Privacy and
+  Restrictions `Lock01`, What to protect `Shield01`, Sensitive species risk `ShieldTick`, Data Sharing `Share07`, Comments `MessageSquare01`, URI/DOI `Link01`,
+  Roles `UserCheck01`, Permissions `Key01`, Users `Users01`, Details `File06`, Favourites `Star01`, Uploads and Datasets
+  `UploadCloud02`; Flora and Fauna take the species group icons, and the record kinds the records tree's icons
+  (`record-icons.ts`). A new tab takes an icon not already another concept's, and is added here.
+- **Counts** (`badge`) stay after the label; the icon does not replace them.
+- **Exempt (open, see the backlog in `ref-shell.md`):** Explore's results tabs (Species and Projects, since the other
+  four were removed on 23 Oct 2026; the designer's redesign of the card draws them without icons, and with two tabs the
+  width that was the first reason no longer applies), a record's dynamic section tabs (`project-details-view.tsx`,
+  whose titles come from the data), and Home's task status filters (`Tabs.List`, filters, not sections).
+- **Origin:** column 2 and the method tabs had icons while the underline tabs did not (designer, 1 Oct 2026: "these to
+  also have icons"); the lab at `/proto/tab-icons` measured the options (A text, B every tab, C selected only) and B
+  was chosen.
+- **Enforcement:** `AUTO §3.13` (an underline `TabList` in `app/pages` with no `icon` in it, except the two listed files).
+
+### §3.15 A role is never offered a screen it cannot open
+
+A link, a button, a menu item, a table row, a toast action, a breadcrumb crumb or an index entry that moves a person to another screen MUST be drawn only for a role that can open that screen. A role is never taken to a
+page that only tells it "this is not for you": that is wasted effort and noise (designer, 10 Nov 2026: "never take the user to the screen if they do not have role permission to access that particular screen. Creates so much bloat").
+Omit the control. Do not draw it disabled, and do not leave it to land on the restriction.
+
+- **What a role cannot open** is one list, `lib/page-access.ts` (`wholePageGates`, read through `canOpenPath`; `isPageBlockedFor` is the same test the Prototype tools use), built from the role-access matrix. A control that goes to a gated
+  page asks it with `useCanOpen()` (`lib/use-can-open.ts`). MUST NOT keep a second list, or test the role inline at the call site (3.4). A new whole-page gate goes in the list (`ref-shell.md`), and every control that leads to the page is checked.
+- **The restriction stays for arrival by address.** A person who types a gated address, or follows a stale link, still sees the shell with the restriction in main (3.7). This clause is about what the product offers, not about
+  that screen.
+- **Sign-up prompts are not a gated page.** A signed-out visitor pressing an action that needs an account is shown the sign-up prompt (`SignUpPromptModal`, `guest-action-gate.tsx`, the public user's gated actions, 3.4); that is the product offering a way in, not a screen
+  that refuses.
+- **The index and the maps.** The `/pages` index lists only what the chosen "Open screens as" role can open, and its access label for each screen matches the gate (`availability`, `app/_prototype-tools/pages-map-data.ts`). A screen's access
+  label in `screen-index.ts` that disagrees with the matrix is a defect: the data ingestion stress test said "Everyone" after it became registered users and above (30 Oct 2026).
+- **A restricted page offers nothing beyond itself.** Its breadcrumb is a plain label, not a link back to the section's list, and the restriction's own action goes Home.
+- **A page with no role** (a doc page) that links into a gated screen opens it as the lowest role that can use it (`?userRole=registered-user`), as the Prototype tools' "In production" link does (4.4).
+- **Origin:** a signed-out visitor was taken to the Data ingestion stress test's restriction (the `/pages` index offered it: its "Open screens as" defaults to the signed-out role and its row said the screen was for everyone); the designer, with a screenshot:
+  "Identify these cases, never take the user to the screen if they do not have role permission to access that particular screen." The audit that followed found the same fault in: the dataset page's "View in Reports" and "Upload a corrected file",
+  the upload problem buttons, the upload toast's "View report", the Map visualise back link and trail, the Home quick actions, the docs data model page's link to the sandbox, and the nomination, DLA and DSA breadcrumbs on their restricted record pages.
+- **Enforcement:** `REVIEW` (a crawl as each role that opens every screen the role can reach and lists each link whose target says the role has no access; the §0.6 item 4 pass). A first occurrence, so no `AUTO` check yet (0.8): which control
+  leads where is in the markup and the data, not a name a script can find. The first thing to check in any new link, button or menu item to a `/pages/**` address is `useCanOpen`.
+
+### §4.1 The form pattern
+
+Every create or edit form (Add Project, DSA, DLA, and any new one) MUST render `<FormPage>`
+(`app/pages/_shared/form-page.tsx`) with fields laid out in `<FormRow>`. Documented at `/patterns/forms`.
+
+1. **Header:** an optional eyebrow, the title (with a status badge for an existing record), a one-line
+   subtitle, and one **close button (X)** at the top right (`CloseButton`, labelled "Close form"): the way out
+   of the form. The header describes the step; it MUST NOT hold any other action.
+2. **Sections live in column 2.** A form with more than about two or three field groups is split into
+   sections, and the sections are listed in the contextual sidebar as a `FormSectionList` (rendered into the
+   shell through `FormSidebar`), which is the real **vertical Progress steps** component
+   (`Progress.IconsWithText`, `orientation="vertical"`): a progress bar, the sections grouped by step, and a
+   state per section (current, complete, needs attention, not started). Any section can be opened at any time. Sections MUST
+   NOT be tabs, a horizontal stepper, or a forward-only wizard. Related fields share a screen.
+3. **Rows:** label and help on the left, fields on the right (`FormRow`). Required fields are marked `*`.
+4. **Mandatory details block progress.** Continue does not move on, and jumping forward through column 2
+   is refused, while the current section has mandatory fields missing. Going back is always free. When it
+   refuses, the form shows a **"Details missing" error alert** above the fields (`FormPage` `problems`,
+   an `AlertFullWidth` with `wrap`) that names exactly what is missing, and switches on the inline error
+   on each empty field. Nothing turns red or alerts while a person is still on their first answer; it only
+   happens after they try to move on, and **only for the section they tried to leave**. A section they have
+   not reached is never validated, marked, or counted ahead of them (it stays "not started"), and
+   arriving at it never shows it in red. The one exception is Submit, which checks the whole form. Column 2 marks the sections that still need attention, with a
+   count. The alert and the inline errors are the only feedback; MUST NOT add a second message for the
+   same fact.
+5. **Footer:** every action, where the task ends. **Back a step** (secondary, left arrow icon) on the left,
+   hidden on the first section. On the right, **Save draft** (secondary), then the primary action:
+   **Continue** (right arrow icon) to move on, or the final action (**Submit**, **Create project**, **Save
+   changes**) on the last section. Save draft is omitted when a draft makes no sense (editing a live record).
+   Toasts are lifted clear of this footer everywhere (`TOAST_OFFSET`), so they never cover its buttons.
+6. **Leaving:** the close button asks before discarding unsaved changes (`DestructiveModal`: discarding is a destructive action, so the confirm button is red, 3.12), and says
+   what will be lost.
+7. **Controls:** real DEW components only (`Input`, `TextArea`, `Select`, `MultiSelect`, `RadioGroup`,
+   `Checkbox`, `Accordion`). No bespoke choice tiles.
+8. **Draft:** a draft needs only what identifies the record; submit validates the rest.
+
+- **Exempt:** editing in place on a detail page's own cards, which follows §4.7 instead. (Add Project's one-question-per-card option was
+  exempt until it was retired on 23 Oct 2026; Add Project is the form pattern, sections in column 2.)
+- **Enforcement:** `AUTO §4.1` (a file that uses `FormRow` must import `FormPage`), `AUTO §4.1b` (a `FormPage` screen must not use tabs).
+
+### §4.2 Lists and tables
+
+Every collection screen is Section header, then search, then table: `SectionHeader` (title, a real
+`CountBadge`, subheading, primary action), a real `Input` search, `TableCard.Root` around `Table` with
+`TableCard.PaginationNumbered`. Applies at every scale, including a small table inside a detail tab. A
+list is a table page whose rows are links (`href`), and the deep dive is its own route
+(`/pages/<name>/<id>`); create and edit are routes too. Never a hand-rolled header or a bare unpaginated
+table.
+
+**The table fits the viewport.** A collection screen never scrolls as a page because of its table. The
+section header, banner and search keep their height, the table takes the rest, the rows scroll inside it
+under a sticky header, and the numbered pagination stays pinned at the bottom.
+
+- MUST give the table `Table bodyScrollable` and `Table.Header sticky`, put it in a `TableCard.Root` that is
+  `flex min-h-48 flex-1 flex-col`, and give every ancestor up to the shell's `main` `flex min-h-0 flex-1 flex-col`
+  (the section header and search are `shrink-0`). The `min-h-48` floor lets a very short window scroll the
+  content area instead of collapsing the table to nothing.
+- MUST NOT let a collection table grow to its full height and push the page into scrolling.
+- **Exception (embedded table):** a small table inside a detail tab (a record's systems, a measurements
+  table). The page is the scroll container there and the rows are few, so it keeps its natural height.
+- **Exception:** doc pages and `/proto` labs.
+- **Origin:** the Explore results page grew taller than the window and carried the toolbar and pagination
+  off screen with it; the Projects, DSA and DLA lists did the same once they held more than a few rows.
+- **Enforcement:** `AUTO §4.2b` (a screen using `TableCard.Root` without `bodyScrollable` fails, except the
+  embedded tables listed in the script), `REVIEW` for the layout chain.
+
+**One search width (§4.2c).** The search box in a collection toolbar (the row of search, then Filter,
+then any view or tree controls, above a list, table or tree) is the same everywhere.
+
+- MUST render `<ToolbarSearch>` (`app/pages/_shared/toolbar-search.tsx`): 384px wide (`max-w-sm`), shrinking
+  only on a narrow screen, small size, the `SearchMd` icon. Filter sits directly after it.
+- MUST NOT let the toolbar search grow to fill the row (`flex-1`), or give it its own width.
+- **Open, not decided:** the species results search (`species-results.tsx`) was made full width on the
+  designer's instruction before this rule existed (it was Explore's results page, retired on 23 Oct 2026, and the
+  dataset ingestion lab is now the only screen that shows it), and project-detail option 2's records search is
+  `max-w-md`. Both now have the Filter menu beside them, so the check names the first as an exception
+  (`species-results.tsx`); bringing them in line is for the designer to decide.
+- **Origin:** the Survey records toolbar on project detail Option 3 grew its search to the full row while the
+  Projects, DSA, DLA and User Management lists all used 384px.
+- **Enforcement:** `AUTO §4.2c` (a file with a `FilterMenu` whose search is a hand-rolled `Input` with a
+  search icon fails), `REVIEW` for toolbars without a Filter button.
+
+**The filter (§4.2d).** Every table that can be filtered has the one filter (designer, 1 Oct 2026, chosen from the filter
+options lab, option A): a **Filter** button, directly after the search, that opens a contextual menu of the attributes
+(`FilterMenu`, `app/pages/_shared/filter-menu.tsx`). Each attribute is a row with an icon and a name, a line between
+related groups, and the number ticked where it is on; pointing at it opens its values in a submenu beside it, a tick after
+each value that is on (a date attribute offers its presets and a Custom range). The filters that are on are removable chips
+under the toolbar, with Clear all (`AttributeFilterChips`, `app/pages/_shared/attribute-filter.tsx`). Documented at
+`/patterns/filters`.
+
+- MUST be the only filter on a table: no second Filter button, popover, side panel, accordion of values or hand-built chips.
+  A list is described to it as attributes (`useAttributeFilter`), as sections and getters (`useListFilter`,
+  `list-filter.tsx`), or as a selection kept outside the list (`useSelectionFilter`).
+- **Exception (designer, 5 Oct 2026): column 2 may draw the filter as places.** The Template Finder's column 2 lists
+  All templates, then the species types and collection methods under group headings, with counts
+  (`TemplateNav`, chosen in `/proto/column-2`). Those items are this filter, not a second one: choosing one MUST set
+  that attribute in the list's one filter state, so the Filter menu, its chips and column 2 never disagree, and
+  "All templates" clears every filter. Any other screen that does the same follows the same rule and needs the
+  designer's say-so first.
+- MUST apply as values are chosen and MUST NOT have an Apply button (§1.9 item 2). Escape closes the menu a level at a time
+  and never changes what is ticked.
+- MUST go back to page 1 whenever a filter changes.
+- MUST give every attribute an icon that names what it holds (`icon`; one left out gets the icon for what its name says).
+- **A list of values that grows with the data (a project, a person, an organisation, a site) is searchable and bounded.**
+  Mark it `searchable`: from 4 values up its submenu has a search box at the top (the keyboard goes from the box into the
+  list), what is ticked stays on top however it is searched, and at most 50 others are drawn at a time with a line saying
+  how many are waiting ("50 of 1,284 shown. Search to find the rest."). The data can run to thousands of projects, so
+  scrolling a full list is not a way to find one. A fixed set (a status, a kind, an access level) is not `searchable`
+  and shows all of its few values. The rule is `boundedOptions` (`app/pages/_shared/option-checklist.tsx`). MUST NOT
+  hand-roll a list of values for a filter.
+- MUST NOT add an attribute the data cannot filter on (a "Project timeline" range needs project start and
+  end dates the project list does not carry yet). What is filtered is a column you would scan, never an identifier
+  (the search covers IDs and names).
+- **Origin:** the Data Ingestion Report has nine filter attributes; twelve always-open filters and a section per facet in
+  one popover were rejected (30 Sept 2026), then a lab compared a contextual menu, quick filters on the toolbar and a
+  side panel, and the designer chose the menu and asked for it on every table with filtering (1 Oct 2026). Until then the
+  lists had a popover of every section open (`ListFilterButton`), the reports an "Add filter" popover, and Explore a side
+  panel of accordions, three filters for one job.
+- **Enforcement:** `AUTO §4.2d` (the old filters' labels, a button or panel titled "All Filters" or "Add filter", under
+  `app/pages`), `tsc` (`ListFilterButton` and `AttributeFilterButton` no longer exist), `REVIEW` for the rest.
+
+**Empty tables (§4.2e).** A collection with no rows to show renders `<ListEmptyState>`
+(`app/pages/_shared/list-empty-state.tsx`) in place of the table: a gray FeaturedIcon, a heading, one balanced
+line that says why and what to do, then the action. Two cases, told apart: nothing exists yet (no action unless
+the designer names one), and nothing matches (an action that undoes the narrowing, named by its outcome, e.g.
+"Show all uploads").
+
+- MUST NOT leave a bare line of grey text where the table would be.
+- **Exception (designer, 16 Oct 2026: "in the empty states, can we just add one record ... just mock data"):** a report whose table has
+  no row of its own shows one mock record, marked "Example record" on the toolbar, in place of the empty state (`DataReport`'s `example`;
+  the Flora Taxonomy Report's Species attributes and Species synonym tabs, the Fauna Taxonomy Report's Species status, Species reference and Species attributes tabs, and the Project Audit Log Report). It
+  goes when a real row exists, is never stored, is made only of placeholder people (0.3) and made-up values, and the search and filters
+  act on it like any row (so "nothing matches" still shows the empty state). Other collections keep the empty state.
+- MUST NOT name the action "Clear search" (it collides with the search box's own clear button); name what the
+  person gets back.
+- **Origin:** the Data Ingestion Report showed "No uploads match your search and filters." as a lone sentence
+  under the chips (designer screenshot, 30 Sept 2026); the Projects, DLA, DSA, Nominations and artefacts lists
+  had the same line.
+- **Enforcement:** `REVIEW`. First occurrence of this fix, so no `AUTO` check yet (§0.8); one is due if it recurs.
+
+**Stable tables (§4.2f).** A collection table's columns keep their width whatever rows are showing. Every table
+that is filtered, searched, sorted or paged is `<Table layout="fixed">` and gives every column a width on its
+`Table.Head` (a percentage for a list that fills the screen, a pixel width for a wide report), with a `min-w-*` on the
+table so a narrow window scrolls it sideways instead of crushing a column. A value longer than its column wraps or is
+cut with an ellipsis and its full text as the tooltip; it never widens the column.
+
+The same holds for a scrollbar. A classic one (Windows, or a Mac with a mouse) takes about 15px from the content when
+it appears, in a scroll area that overflows in one state and not in another (All beside My, one tab beside another). The product's
+scrollbar is drawn over the content and takes no width (2.17), so nothing moves; a scrolling `main` still reserves the gutter
+(`overflow-y-auto [scrollbar-gutter:stable]`) and a scrolling table does it itself (`bodyScrollable`), at no cost, so the content stays steady if the drawn thumb is ever turned off.
+
+- MUST NOT leave a collection table on the automatic layout: it sizes each column to its widest cell, so switching
+  All to My, a search, a sort or the next page moves every column.
+- MUST NOT leave a column without a width in a fixed table (the browser leaves the space unused).
+- MUST NOT make a page's scrolling `<main>` `overflow-y-auto` without `[scrollbar-gutter:stable]`.
+- **Exception:** the results table (`map-search/results-table.tsx`), whose columns are chosen by the person (Explore's
+  second layout showed it until 23 Oct 2026; the dataset ingestion lab's species results now do), and the lab-only
+  `ingestion-report.tsx`; both are listed in the check and are open, see the backlog in `ref-shell.md`.
+- **Origin:** the nominations list moved every column when the designer switched from All to My, because one row
+  had a second line (an organisation) and another a long status; every other list had the same flaw (designer,
+  1 Oct 2026: "no dance-y layouts").
+- **Enforcement:** `AUTO §4.2f` (a `Table` with `bodyScrollable` and no `layout="fixed"`, or a `<main>` with `overflow-y-auto`
+  and no `scrollbar-gutter`, under `app/pages`). A headless browser hides scrollbars and the lane goes unseen: the live pass runs with them drawn (2.17).
+
+**One gap under the header (§4.2g).** Under a `SectionHeader`, the collection body (any notice, the toolbar,
+the table) sits in one wrapper with `p-6`: the same 24px between the header's divider and the search on every
+list, and 24px to the sides and bottom.
+
+- MUST wrap the body that follows `</SectionHeader.Root>` in a `div` with `p-6` (`flex min-h-0 flex-1 flex-col
+  gap-4 p-6`, as every list does).
+- MUST NOT give that wrapper side and bottom padding only (`px-6 pb-6`) or none at all: the search then sits
+  flush against the header's divider.
+- **Origin:** the Notification Management list and the project's Datasets view both shipped with `px-6 pb-6`,
+  the search box touching the divider, while every other list used `p-6`; the designer: "This error is recurring
+  fix it and add to contracts" (1 Oct 2026).
+- **Enforcement:** `AUTO §4.2g` (in a file with `<ToolbarSearch>`, no `div` between `</SectionHeader.Root>` and the
+  first `<ToolbarSearch>` carries `p-6`, `pt-6` or `py-6`).
+
+**A table that fits one page is the basic table (§4.2h).** An embedded table (in a form, a review step, a record's tab, a
+popover) whose rows all fit on one page, 10 or fewer (the smallest page size `TableCard.PaginationNumbered` offers), is the
+basic Table primitive (`components/base/table/table.tsx`: `Table`, `TableHeader`, `Column`, `TableBody`, `Row`, `Cell`) in a
+bordered container (`overflow-hidden rounded-lg border border-secondary bg-primary`), with no pagination. Past 10 rows it is
+`TableCard.Root` with `TableCard.PaginationNumbered`, as above. The switch is made on the row count, so the same table moves
+between the two as rows come and go.
+
+- MUST NOT show "Rows per page", Previous, Next and "1 - 1 of 1" under a table that cannot have a second page.
+- A collection screen (a list page, a report) keeps `TableCard` and its pagination whatever its count: its rows grow, and its
+  toolbar and the fit-the-viewport rule depend on the card.
+- The basic table has no selection, sorting or card. A row action (Remove) is a link-style `Button` in a cell; a
+  bare `Checkbox` in a cell does not work, because the table's rows supply its checkbox context.
+- **Origin:** the nomination form's "Already restricted" table and the Review step's table showed a full pagination bar under a
+  single row; the designer: "use a basic table component if there is less results per page. add this to contract" (25 Oct 2026).
+- **Enforcement:** `REVIEW`. A first occurrence, so no `AUTO` check yet (§0.8): the row count is only known at run time.
+
+**The ID is the first column (§4.2i).** A table that lists records which have an ID of their own (a user, a role, a permission, a
+vocabulary, a notification, a project, a request, an agreement, a nomination, a batch, a dataset, a project record) shows that ID in its
+first column and the record's name and the rest after it, so a person finds a record by its ID in the same place on every list.
+
+- MUST put the ID first, as the table's row header, in the project list's treatment (`text-sm text-tertiary tabular-nums`, one line)
+  where the record also has a name; the name is then the second column and the link. Where the ID is the record's only name (a request,
+  an agreement, a nomination) the ID is the link, as it is. The heading is "ID" ("Project ID" on the project list; the request,
+  agreement, nomination, batch and dataset lists name the column for what it identifies: open, for the designer).
+- MUST NOT put the ID in a later column, or repeat it under the name once it has a column of its own.
+- **Applies to** collection lists and to the embedded tables of related records (a role's users, a permission's roles).
+- **Exceptions:** Reports (their columns are the report's own, `DataReport`); a table whose rows have no ID of their own (the Template
+  Finder, a project's species, artefacts, people); and Taxonomy Management's list, whose identifier, the NSX code, the higher taxa do not
+  have (open, for the designer).
+- **Origin:** the Users, Roles and Permissions lists showed a name first and no ID, the Vocabulary list had its ID second and the
+  Notifications list had none, while the project, request, agreement, nomination, batch and dataset lists led with theirs; the designer:
+  "All users, roles and permissions have IDs. Let's have ID as the first column. Keep the tables across the webapp consistent. Except
+  Reports." (30 Oct 2026).
+- **Enforcement:** `REVIEW`. A first occurrence, so no `AUTO` check yet (§0.8): which column is the ID is a judgement per table.
+
+### §4.3 Cognitive load
+
+More than five or six field groups needs tiering. A conditional field is conditional in the UI. One focal
+point per view. Never restate a fact in two treatments on one screen. When load and one extra click are in
+tension, take the click.
+
+### §4.6 Record pages follow the project page
+
+Every record page (a project, a DLA, a DSA, a nomination, a user, role or permission, a report, and any new
+record) is laid out like the project page (`/pages/project-detail`):
+
+1. A Back link on its own above the card (`RecordBackLink`).
+2. The gradient identity card (`RecordHero`): eyebrow, title, a row of label/value facts, and the
+   record's actions at its top right (`RecordActionBar onDark`): one button for the next step, every
+   other action in the "..." menu, destructive ones below a divider.
+3. Optionally, one notice saying where the record stands and who acts next.
+4. Underline `Tabs`, each panel a bordered card of label/value rows (`RecordRow`). A report is a record whose
+   content is a table: under its card come the report's counts (`MetricTile`s), then search, the attribute filter
+   and the table (`DataReport`, `app/pages/_shared/reports/report-table.tsx`); a report with parts has underline
+   `Tabs` for them. Its eyebrow is "Report"; its facts are the date of its newest record where its rows carry a date and
+   the report's own totals (Events, Occurrences, Observations; Total records), and nothing that restates the table: no row
+   count (the table's footer says it), no column count (the Columns button says it), no scope line (the description is the
+   same for every role, and the rows are what the role may see).
+   A breakdown of those totals (species groups, errors by kind) is a row of `MetricTile`s under the card, an overview.
+   A report has no next step, so all its actions (Export CSV, Export XLSX) are in the card's "..." menu, like the other record
+   pages, with no white button. Every report has both exports (designer, 6 Oct 2026: "Three dot menu to export as CSV, XLSX"),
+   for the rows in view and every column: `DataReport` builds them from the report's columns (`exportName`, `report-export.tsx`),
+   so a report MUST NOT write its own export or leave it out (`tsc` fails a `DataReport` without `exportName`).
+   **The report's controls are one toolbar row (designer, 15 Oct 2026; documented at `/patterns/report-toolbar`):** the search, a
+   **Parameters** button, the Filter button and, at the right, the Columns button. What the report is **run on** (a project, a
+   dataset: what neither the search nor the Filter can say) is its Parameters: one button between the search and Filter
+   that opens a popover of the report's own fields (`ParametersPopover`, `report-parameters.tsx`, given to `DataReport` as
+   `parameters`), with a count on the button and a chip beside it for each parameter that is set, so closing the popover loses
+   nothing. A code or a name is the **search**, which matches it already; what you **narrow the rows by** (a status, a family, a region, a
+   person, a date range) is a Filter attribute (4.2d). A control is never in two of the three, and a report MUST NOT ask for the same thing
+   twice. A sheet's metadata (the Flora Taxonomy Report) is therefore the table's own search and Filter, and the export writes it above the
+   columns.
+   A report with no parameters has no Parameters button (2.12). The fields are the design system's, labelled above, applied as
+   chosen with no Apply button (1.9 item 2), a date being the date field with a calendar (2.11); a report that is always on one
+   thing (one dataset) shows it as chips and has no Reset. MUST NOT draw parameters as a grid of fields, a row of selects or a
+   panel between the card and the toolbar, or add a second filter control (`tsc` fails the old `scopeControl`, which no longer
+   exists). **Exception (designer, 23 Oct 2026: "I feel having parameters is weird. What if they sat as drop downs instead ... move it to the
+   right of the filters button"), for the Data Validation Error Report only:** its project and its dataset, two linked choices (a dataset
+   belongs to a project) that the whole report is about and that are changed often, are two dropdowns on the toolbar, to the right of
+   Filter (`parameters.inline`, `report-parameters.tsx`): the design system's `Select`, small, 256px each at the least and growing into spare room up to 384px, each with the design system's own label above it ("Project", "Dataset": the `Select`'s `label`, as
+   every other labelled field; a dropdown named only by an `aria-label` tells a sighted person nothing, and a label drawn inside the trigger is a pattern the design system does not have, 23 Oct 2026), the row aligned by its foot,
+   each showing its code or id first and the name or file after it, and cut by what it is when it is too long for the dropdown: the code is never cut, a project's title is cut at a word (`truncateAtWords`),
+   a dataset's file name in the middle so its version and extension stay (`labelEnd`, `splitFileName`: "DS-2026-01003 · flinders_bush...01.xlsx"), the full text is the tooltip, and the open list is as wide as its longest row (up to 40rem), with no Parameters button and no
+   chips, because what each is set to is what it shows. The row is search, Filter, the dropdowns, then Columns. Any other report that wants
+   the same takes `inline` with the designer's say-so (0.4); it is not the default. The table keeps at least 24rem, about 7 rows (`DataReport`), so where the card and controls take more the page
+   scrolls and the table does not shrink.
+   A "Columns" button at the right of the toolbar (`column-chooser.tsx`) opens one popover where columns are shown,
+   hidden and reordered (by their handle or the keyboard), the first column pinned and always shown, applying as
+   each is chosen with no Apply button (1.9 item 2), and a Reset; its label says how many are hidden.
+5. **The breadcrumb.** On a record page the section crumb is a switcher, not a plain label or a link back: the
+   section's name with an up-down caret (`BreadcrumbSwitcher`, `app/pages/_shared/breadcrumb-switcher.tsx`, through
+   a thin wrapper per collection such as `ProjectSwitcher` and `ReportSwitcher`). It opens one popup: a searchable
+   list of the other records of the same collection (the design system `ComboBox`, A-Z, about six rows then
+   scrolling inside, the records the role may see and no others, the current one ticked) and a bar fixed at the
+   foot, "View all <things>", which goes to the list. Picking a record opens it with the role kept. The crumb
+   after it is the record's name. On the list page itself the crumb is plain. The section's name is the same in
+   the breadcrumb, the rail and column 2 ("Reports", not "Reports (All Users)": who sees what is the content's
+   rule, not part of the name).
+6. **The Audit Log tab.** A record's history (DLA, DSA, nominations) is `AuditLog` (`app/pages/_shared/audit-log.tsx`,
+   documented at `/patterns/audit-log`), never a hand-built list of `RecordRow`s. It opens with the record's ID and its
+   created, activated (or decided) and last-modified milestones as "on" and "by" pairs, and a "Show all changes (N)" link
+   opens the full list. That list is `AuditFeed` (`app/pages/_shared/audit-feed.tsx`): one sentence per status move,
+   newest first, in a bordered list. The person is the subject (a small avatar and their name, "System" with a bolt for a
+   move the clock made), then "moved this to" (or "created this as" for a draft) and the status as its `Badge`; the date sits
+   at the right ("Today", "Yesterday", then "23 Sep 2026"). The newest move carries a "Current" chip. Consecutive moves by
+   the same person share one header and the lines under it drop the name. A note (a rejection reason, an on-hold note) sits
+   under its move. A log that is somehow empty says so. It lists status moves only, never a field edit, and never an
+   invented step: a record saved before logs existed is rebuilt from its own dates with a note that earlier steps were not
+   recorded.
+7. **The tabs run from the record to what it relates to.** The first tab is **Overview**: the record's own facts that the
+   identity card above it does not already show (a user's ID, username, email, contact number and access dates). A record
+   whose card shows everything has no Overview tab. After it come the things the record holds or is held by, each its own
+   tab and in the order the data rolls up: a user's **Roles**, then the **Permissions** those roles add up to; a role's
+   Permissions, then its Users. A tab is one thing; a tab MUST NOT hold a list that picks between sections of itself (a
+   master and detail), and a fact or count shown in the card or on the tab MUST NOT be repeated inside it. A permission
+   that comes from more than one role names each (the user's Permissions tab). A dataset record is Overview (the
+   dataset's own facts, not the project's), Validation, then Audit Log, and its next step (Upload a corrected file,
+   Approve) is in its card (designer, 30 Oct 2026). Controlled Vocabulary (Entries, Details, Audit Log) has not been
+   brought in line yet: open for the designer (§0.4).
+
+- MUST NOT put a record's actions in a bar above the card, or stack its content without tabs.
+- MUST NOT build a second switcher: a collection's record pages reuse `BreadcrumbSwitcher`.
+- MUST give every collection that has a record page the switcher on it: a shell that hides column 2 for a record (`recordPage`) draws its section crumb as that collection's switcher (a thin wrapper over `BreadcrumbSwitcher`, like `DlaSwitcher`). The new and edit forms keep the plain crumb that links back to the list. A record page that is a view inside another page draws it too: a dataset's page, inside the project page, has `DatasetSwitcher` for "Datasets" (A-Z by ID, the file beside it, the project's own datasets) beside the project's `ProjectSwitcher`.
+- MUST draw every other crumb as a `Link` (`className="hit-area hover:text-primary"`, as "Home" is), never a `<button>` in the crumb's own styling: the link gets the 40px target (2.16).
+- MUST build a project's address with `projectDetailsPath`, `projectTabPath` and `uploadPath` (`app/pages/_shared/project-routes.ts`), never by hand. A project made in this browser through Add Project has no `/pages/project-list/<id>/...` page in the static export (it is one fixed route, `/pages/project-detail/created`, with its id in the query), so a link built by hand to one is a dead link for every new project.
+- MUST NOT build a second audit log: a record page's Audit Log tab reuses `AuditLog` and `AuditFeed`.
+- **Origin:** the nomination record page shipped with its actions above the card and no tabs, after
+  the designer had already asked for every record page to follow the project page. The reports were first built
+  with a plain section header and no breadcrumb switcher; the designer asked why they did not follow the project
+  page, and for the project page's switcher to apply "across all instances where we do a deep dive into a deep
+  page" (1 Oct 2026). The Audit Log tab was a date column beside a badge and a bare name, on three record pages; the
+  designer asked for audit-log patterns from Mobbin and chose Vercel's activity feed (2 Oct 2026). The user record had
+  "Roles and permissions" and "Details" tabs; the designer: "shouldn't it be overview, role, permission?" (6 Oct 2026).
+  The Flora Taxonomy Report drew each sheet's parameters as a labelled grid above the toolbar: the table started 601px down a
+  1024px window and showed 6 rows (2 at 800px); the designer: "controls occupy almost 50% of the screen leaving only 50 for the
+  content. Content might be more important than controls", chose the Parameters popover from four options built in
+  `/proto/report-controls` (Mobbin: Whop, Mercury, Docusign, Navattic, Google Ads, Mixpanel), and asked for it on every report
+  (15 Oct 2026). The sheets of that report then showed their typed fields beside the table's search, and their lists and dates beside the
+  Filter; the designer: "doesn't make sense to have two different search bars ... I feel like parameters are doubling up" (15 Oct 2026).
+  The switcher gap came back: a notification's record page, and the taxon, voucher batch and vocabulary pages with it, still drew the section crumb as a
+  plain link ("Notification Management" with no up-down caret); the designer, with a screenshot: "missing chevron up and down treatment. Please make sure
+  breadcrumbs are consistent." (26 Oct 2026). It came back a third time on a dataset's page, inside the project page (a view, not a shell with `recordPage`, so 4.6b could not see it): "Datasets" was a
+  plain button between the project and the dataset's ID; the designer, with a screenshot: "edge case noted. The switcher should be on datasets as well?" (30 Oct 2026).
+- **Enforcement:** `REVIEW`; `tsc` for the removed `scopeControl`. `AUTO §4.6b` (a shell that defines `recordPage` and renders no `*Switcher`), added on the second
+  occurrence of the switcher gap (§0.8); `AUTO §4.6c` (a page that draws the trail with a crumb drawn by hand: a button in the
+  crumb's own styling, or a collection's name as a bare button or link), added on the third (§0.8). `AUTO §4.6d` (a project's address built by hand under `app/pages`, outside `project-routes.ts`: the upload page, the custom concepts link and the corrected-file link all went nowhere for a new project, 30 Oct 2026).
+
+### §4.7 Roles belong to the data owner's contacts; show only what is approved
+
+A project's data owner (shown as **Published by**) has one or more contacts, and every one of those
+contacts carries its own **role** (role or type of work). The role is part of that contact.
+
+1. The role MUST be shown with its contact (name, then "· role"), and edited with that contact.
+2. MUST NOT show a separate "your role", "registered by", "Registered by (role)" or similar field or
+   row, and MUST NOT add a "Project team" card, on project detail or in its edit flows. Project managers
+   have their own card and their own roles.
+3. MUST NOT add a field, row, card, section or label to a screen that the designer did not approve or
+   the source does not define, even when it seems helpful. A new label is a question (§0.4), not a
+   decision.
+
+- **Origin:** a "Project team" card with a "Registered by (role)" row appeared on project detail
+  Option 3 after the role had already been placed with the data owner's contact, a correction the
+  designer had made more than once.
+- **Open, not decided:** the Add Project registration asks "Your role" in Step 2 (Data Collection and Methodology),
+  not Step 1 (the designer, 6 Oct 2026); whether that question moves to the data owner's contact in registration is
+  for the designer.
+- **Enforcement:** `AUTO §4.7` (a "Registered by" label under `app/pages` fails), `REVIEW` for the rest.
+
+### §4.8 Editing in place on a detail page
+
+Where a detail page (a record, a project) is edited on its own cards rather than in a form, every edit
+behaves the same way, on every card and every page.
+
+1. **Entry:** a card's edit icon edits that card; a field's edit icon (on hover or focus) edits its card,
+   scrolled to and focused on that field; "Edit record" (or the page's equivalent) edits every card. A new
+   record opens the same way, every card in edit mode.
+2. **One treatment:** a card in edit mode has the brand border and brand-50 halo, and no label: it MUST NOT say
+   "Editing" (designer, 23 Oct 2026: the status confused people). The field rows use the same label-left layout as
+   when viewed.
+3. **More than one card at a time:** while a card is in edit mode, the other cards stay at full strength and keep
+   their edit icons; opening another adds it to the same edit. MUST NOT dim or lock the other cards.
+4. **Actions where the edit is.** Cancel and Save changes (or "Add <type>" for a new record) are one pair, on screen once.
+   - **A page that edits one card at a time (the project page's cards, designer, 30 Oct 2026):** the pair sits at the foot of the
+     card being edited, inside its own border, and stays at the bottom of the window while the card runs past it (a card with a
+     map is taller than a short window). "Unsaved changes" appears beside it once there are any; the card's own title is not
+     repeated ("Editing <title>").
+   - **A page that edits every card at once (a record, "Edit record"):** the pair sits in one sticky footer across the bottom of
+     the page, reading "Editing <cards>, unsaved changes", and covers every card in edit mode.
+   - MUST NOT draw both on one page, or put a one-card edit's pair in a page footer, where a person has to look for it.
+5. **Leaving:** Cancel or Exit with unsaved changes asks first. Save and Cancel return to the view the edit was
+   started from (a side panel stays a side panel, a full view stays a full view).
+6. **Visibility, per section:** where a record's concepts can be hidden, each card in edit mode has a quiet "Manage concepts"
+   control in its header (with the count shown, e.g. 6/10) that opens a checklist of that section's concepts; and
+   under the cards, "Add section" puts back a section the record has that is not on screen (hidden, or empty).
+   Identifiers and required concepts stay shown. (Until 23 Oct 2026 the right-hand column became a record-wide
+   "Concepts shown" checklist; the designer replaced it with this. The word is "concept", not "field", wherever a
+   record's data item is named to a person: the rule of 2026-10-23-40, applied to this control on the merge of
+   `mohan-wips`, 26 Oct 2026.)
+7. **Where the edit is:** the right-hand column keeps the record's summary while editing, with where the record
+   sits from the project down: each step's shape, full name and ID, not IDs alone.
+
+- **Origin:** Project details kept Cancel and Save inside the card while record editing had them in a page
+  footer; the designer caught the difference ("Consistency is the key"). Item 3 replaced "the other cards dim and
+  hide their edit icons" on 29 Sept 2026, by designer decision, after locking the other cards got in the way.
+  Items 2, 6 and 7 changed on 23 Oct 2026, by designer decision: the "Editing" label confused people, fields are
+  managed per section, and the hierarchy was not prominent and showed IDs only. Item 4 changed on 30 Oct 2026, by
+  designer decision, for the project page: the page footer put "Editing Geographic extent" at the far left of the window and
+  Cancel and Save changes at the far right, a long way from a card with a map in it (the designer, with a screenshot:
+  "easy to miss, bad UX", "add these back into each editing section, please and thank you"). Whether a record's edit
+  should move the same way is open for the designer (0.4).
+- **Enforcement:** `REVIEW`.

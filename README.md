@@ -39,6 +39,10 @@ A participant starts at the landing page (`/`), chooses Log in (any email and pa
 - `/` forwards to the landing page. A static host has no server redirect, so this happens in the browser (`app/page.tsx`).
 - **Two layouts chosen from the prototype's options:** the landing page is the original BioData home page (option 2 in the prototype), and Explore has the "Map only / Map and table" switch (option 2 in the prototype). There is no layout switcher: these are the only versions.
 
+## Context and contracts
+
+`CONTRACTS.md` (the binding rules), `CONTEXT.md` (the index), `context/` (the decision history, one file per decision), `contracts/` (the registers) and `.claude/rules` (the same rules, loaded by scope) came across from the prototype repo unchanged, with their scripts. `npm run check:contracts` passes. Many clauses are about parts of the prototype that are not in this edition (the docs, the labs, the Prototype tools bar, the other roles); they are kept as they were and not edited here. A change made in this repo from now on is a new file under `context/decisions/` (`npm run decision:new -- --title "..."`).
+
 ## Run it
 
 Needs Node.js 20 or later.

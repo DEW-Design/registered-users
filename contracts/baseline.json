@@ -1,0 +1,75 @@
+{
+  "note": "Existing debt per rule and file. May only shrink. Changing this file is an audited act (CONTRACTS.md 9.4).",
+  "counts": {
+    "2.1a": {
+      "app/(docs)/primitives/typography/page.tsx": 1,
+      "app/pages/_shared/home-dashboard.tsx": 4,
+      "app/pages/projects/page.tsx": 1,
+      "components/application/tabs/tabs.tsx": 1,
+      "components/base/avatar/avatar-label-group.tsx": 1,
+      "components/base/avatar/avatar.tsx": 1,
+      "components/base/buttons/button.tsx": 3,
+      "components/base/checkbox/checkbox.tsx": 2,
+      "components/base/input/input-date.tsx": 2,
+      "components/base/input/input-group.tsx": 2,
+      "components/base/input/input-number.tsx": 2,
+      "components/base/input/input-tags.tsx": 2,
+      "components/base/input/input.tsx": 2,
+      "components/base/input/pin-input.tsx": 2,
+      "components/base/radio-buttons/radio-buttons.tsx": 2,
+      "components/base/radio-groups/radio-group-avatar.tsx": 3,
+      "components/base/radio-groups/radio-group-checkbox.tsx": 3,
+      "components/base/radio-groups/radio-group-icon-card.tsx": 3,
+      "components/base/radio-groups/radio-group-icon-simple.tsx": 3,
+      "components/base/radio-groups/radio-group-payment-icon.tsx": 2,
+      "components/base/radio-groups/radio-group-radio-button.tsx": 3,
+      "components/base/select/multi-select.tsx": 2,
+      "components/base/select/select-item.tsx": 2,
+      "components/base/select/select-native.tsx": 2,
+      "components/base/select/select-shared.tsx": 2,
+      "components/base/toggle/toggle.tsx": 2
+    },
+    "2.1b": {
+      "app/(docs)/components/avatar/page.tsx": 1,
+      "app/(docs)/components/input/page.tsx": 4,
+      "app/(docs)/components/select/page.tsx": 3,
+      "app/(docs)/components/tooltip/page.tsx": 4,
+      "app/(docs)/primitives/colours/page.tsx": 72,
+      "app/(docs)/primitives/shadows/page.tsx": 7,
+      "app/(docs)/test-page/page.tsx": 16,
+      "app/(docs)/test-site-details/page.tsx": 17,
+      "app/pages/biodata-home/page.tsx": 35,
+      "app/pages/projects/page.tsx": 21,
+      "components/ContextualConfigPanel.tsx": 2,
+      "components/application/tree-view/tree-view-utils.ts": 1,
+      "components/base/avatar/base-components/avatar-online-indicator.tsx": 1,
+      "components/base/textarea/textarea.tsx": 2
+    },
+    "2.1d": {
+      "app/(docs)/components/avatar/page.tsx": 1,
+      "app/(docs)/components/select/page.tsx": 1,
+      "app/(docs)/primitives/shadows/page.tsx": 7,
+      "app/(docs)/test-page/page.tsx": 1,
+      "app/pages/biodata-home/page.tsx": 15,
+      "app/pages/projects/page.tsx": 5,
+      "app/pages/projectsv2/page.tsx": 1,
+      "components/ContextualConfigPanel.tsx": 2,
+      "components/application/tree-view/tree-view-utils.ts": 1,
+      "components/base/textarea/textarea.tsx": 2
+    },
+    "2.3a": {
+      "app/pages/_shared/map-search/search-data.ts": 17,
+      "app/pages/project-registration/data.ts": 2,
+      "components/application/table/table.tsx": 2,
+      "components/application/tree-view/tree-view.tsx": 3
+    },
+    "2.3b": {
+      "app/(docs)/test-page/page.tsx": 13,
+      "app/(docs)/test-site-details/page.tsx": 13,
+      "app/pages/_shared/home-dashboard.tsx": 1,
+      "components/application/table/table.tsx": 1,
+      "lib/nav.ts": 1
+    },
+    "2.3c": {}
+  }
+}

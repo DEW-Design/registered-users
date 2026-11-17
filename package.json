@@ -7,7 +7,14 @@
     "build": "node node_modules/next/dist/bin/next build",
     "start": "npx serve out",
     "lint": "eslint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "check:contracts": "node scripts/check-contracts.mjs",
+    "contracts:override": "node scripts/add-override.mjs",
+    "audit": "node scripts/audit.mjs",
+    "context:index": "node scripts/build-context-index.mjs",
+    "decision:new": "node scripts/new-decision.mjs",
+    "contracts:rules": "node scripts/build-contract-rules.mjs",
+    "test:rules-hook": "node scripts/rules-for-tools.test.mjs"
   },
   "dependencies": {
     "@highcharts/map-collection": "^2.3.3",

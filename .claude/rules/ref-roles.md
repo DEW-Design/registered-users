@@ -1,0 +1,102 @@
+---
+paths:
+  - "lib/user-role.ts"
+  - "lib/use-user-role.ts"
+  - "lib/use-feature-access.ts"
+  - "lib/use-role-href.ts"
+  - "config/role-access.config.ts"
+  - "lib/registered-user-nav.ts"
+  - "app/_prototype-tools/**"
+  - "app/pages/_shared/app-header.tsx"
+  - "app/pages/_shared/primary-rail.tsx"
+  - "app/pages/_shared/guest-*.tsx"
+---
+
+<!-- Hand-maintained: edit in place, current practice only. Rewritten 2026-09-29; the full earlier text, with its incident histories, is in context/archive/ref-roles-history.md. -->
+
+# Reference: user roles and the role-access matrix
+
+The seven roles, what each sees, how a role is chosen and previewed, and how a feature is gated. Rules live
+in CONTRACTS.md (persona consistency §3.4, three columns §3.7); this is the how-to behind them.
+
+## User roles
+
+Seven roles, highest to lowest privilege. The order of `USER_ROLES` in `lib/user-role.ts` is the hierarchy:
+
+| Role | Who | Org pill | Nav (`navForRole`) |
+| --- | --- | --- | --- |
+| `biodata-super-admin` | BioData Super Admin (DEW). Everything a BioData Admin has, plus Controlled Vocabulary and Voucher Management. Passes every feature check. | DEW | `biodataSuperAdminNav`: the admin tree plus Controlled Vocabulary and Voucher Management after DSA |
+| `biodata-admin` | DEW admin, admins the platform. Passes every feature check except the super admin's own (`SUPER_ADMIN_ONLY` in `config/role-access.config.ts`: today, `ctrlVocabManagement` and `voucherManagement`; `nominationRating`, rating a nomination in Nominations version 2, was Super Admin only until 12 Oct 2026 and now passes both admin roles). | DEW | `biodataAdminNav`: the registered tree plus User Management and DSA |
+| `biodata-user` | DEW staff | DEW | `registeredUserNav` |
+| `privileged-admin` | Admin of a partner organisation | ORG | `registeredUserNav` |
+| `privileged-user` | Member of a partner organisation (Birds SA and the like) | ORG | `registeredUserNav` |
+| `registered-user` | Signed in, no organisation | none | `registeredUserNav` |
+| `public-user` | Not signed in ("Signed out"). The default role. | none | `publicUserNav`: Home, Projects, Explore |
+
+- **DEW is an organisation, the one at the top.** That is why the `biodata-*` roles get the org pill too, and
+  it says "DEW" (`orgLabelForRole`); the `privileged-*` roles have no single known org in this build, so
+  theirs says "ORG". The pill is shown by `AppHeader` where `orgSwitcher` allows it.
+- **public-user** has no account: the header shows Log in and Sign up instead of the profile menu, and there is
+  no DLA, Sensitive Nominations, Reports or Template Finder section, not even as a hidden leaf. Home is
+  the Flora and Fauna dashboard with the sign-up card. Column 2 is the one place that explains
+  (`GuestAboutAside`, the §3.10 exception). Features reduce for this role; screens are never redesigned for it.
+- **Controlled Vocabulary is a BioData Super Admin feature only** (the designer, 30 Sept 2026; BRD REQ-18.1:
+  "BioData Admin users shall not have access"). **Voucher Management is the same** (the designer, 1 Oct 2026). Anywhere a screen asks "is this an admin", it calls
+  `isBiodataAdmin(role)` (`lib/user-role.ts`), which is true for both admin roles, so the super admin never loses
+  something an admin has; a feature only the super admin gets goes in `SUPER_ADMIN_ONLY`.
+- **The type stays seven.** Build for a role only when the designer asks. The designer's standing focus is
+  `registered-user` and `public-user`; on direct request, `biodata-admin` also has DSA, User Management, DLA
+  approval and nomination review. The `privileged-*` roles and `biodata-user` have matrix entries but no
+  screens of their own.
+
+## Choosing and previewing a role
+
+- **The URL is the only source of truth:** `?userRole=<slug>`. `useUserRole()` (`lib/use-user-role.ts`)
+  reads and validates it and falls back to `DEFAULT_USER_ROLE` (`public-user`). It uses `useSearchParams`, so
+  the role-dependent part of a page renders inside `<Suspense>` or the static build fails (see
+  `app/pages/template-finder/page.tsx`).
+- **Every internal link keeps the role:** wrap each `/pages/**` target (`href`, `router.push`) in
+  `useRoleHref()` (`lib/use-role-href.ts`), which appends `?userRole=` or `&userRole=`. A bare path silently
+  drops the viewer back to `public-user`; this was once broken across every shell.
+- **Previewing is a dev tool, not a feature:** the "Viewing as" tool on the Prototype tools bar
+  (`app/_prototype-tools/`, §3.8) rewrites `userRole`. If the chosen role can't see the current page (a
+  `wholePageGates` entry in `prototype-tools.tsx`), it goes to that role's Home instead of stopping on the
+  restriction message. Role names on the bar: BioData Super Admin, BioData Admin, BioData User, Privileged Admin, Privileged User,
+  Registered User, Public user. There is no separate floating role button; don't build one.
+
+## Role access matrix (`config/role-access.config.ts`)
+
+Per-feature visibility is decided in one place: `roleAccessMatrix`, a `FeatureKey -> UserRole[]` map the
+designer owns. It is data, separate from `design-system.config.ts` (which doc variant shows).
+
+- **Build for `biodata-admin` first, then gate down.** `hasFeatureAccess` always passes `biodata-super-admin`,
+  and `biodata-admin` for everything outside `SUPER_ADMIN_ONLY`; an entry lists which other roles also get the
+  feature. A feature with no entry is visible to everyone.
+- **Call site:** `useFeatureAccess(feature)` (`lib/use-feature-access.ts`), never an inline role check (§3.4).
+  Same `<Suspense>` need as `useUserRole`.
+- **Don't invent entries.** Add a key only when the designer says a feature is restricted, or when a decided
+  IA already restricts it (as `templateFinder` implements "no Template Finder for public-user").
+- **Two kinds of gate:**
+  - **A control:** hide it (`orgSwitcher`, `metricCardCustomization` hides the dashboard card menu for all
+    but `biodata-admin`, `dlaApproval`, `nominationReview`, `nominationAllView`: the All nominations view in column 2, for the BioData User and the
+    Privileged roles, limited to their organisation's; the BioData Admin's All is everyone's; `dlaAllView`: the All requests view on the DLA list, BioData Admin alone; every other role has My requests).
+  - **A whole page:** keep the shell and put the restriction in main (§3.7), and add the route to
+    `wholePageGates` (`dsaManagement`, `dlaAccess`, `userManagement`, `nominationAccess`, `datasetUpload`,
+    `templateFinder`, `reports`). Some reports inside Reports are gated on their own (a `feature` on the report in `reports-data.ts`): the Project Audit Log
+    Report (`projectAuditLog`, BioData Admin only), the three Specimens and restrictions reports (`specimenReports`, every role with
+    Reports except the Registered User) and the Flora and Fauna Taxonomy Reports (`taxonomyManagement`, BioData Admin and Super Admin only, as Taxonomy Management). The landing, the switcher, Create a report and My reports do not offer them, and opening the
+    address shows "This report is not available to your role" (`ReportPage`).
+- **A public user sees published projects only** (the designer, 30 Oct 2026). A project is published when it is Active or Completed; a Draft and a project Under review are not. One rule, `isProjectVisibleTo` (`project-list-data.ts`), read by the Projects list, the project switcher, the header search and the project's own address (a hidden one is "This project isn't available"). Explore and Home already filtered by the same statuses. Every signed-in role still sees all four; what a registered user sees of other people's drafts is for phase 2 of the consistency sweep to decide.
+- **Field notes are for members and reviewers:** the `fieldNotes` feature (every signed-in role). A role without it sees a record's values and the files attached to a field, but no flag, no flag marker and no comment (`useFieldNotes()` in `field-notes-store.ts` is the one place).
+- **The Data ingestion stress test is registered users and above:** the `ingestionStressTest` feature and a `wholePageGates` entry; a signed-out visitor sees the section's restriction (`RestrictedState`) with all three columns.
+- **Record access levels** live in one place, `app/pages/_shared/map-search/record-access.ts`: `biodata-admin`
+  (`restrictedData`) sees Level 1 to 4 in full; other signed-in roles see restricted records with the location
+  shown only as a block (see below) and can request a DLA; `public-user` sees Level 1 only.
+- **A restricted record is a block, never a point or a circle** (`generalisedBlock` in `map-search/geo.ts`; size
+  from `restrictedRadiusKm` in `search-data.ts`, the one place to change it). The map draws the square cell of the
+  grid that contains it: flat, a thin edge, no centre mark, no blur. Tables, exports and the record page withhold
+  the coordinates altogether (not rounded ones: any point in the block is a place to look). A search area matches
+  the record when it overlaps the block (`isRecordInAnyBoundary`), never by testing the real point, or a small area
+  could be moved about to find it. Copy says "a 5 km block", not "within about 5 km" (the real position is within
+  half a block of the centre, closer than that wording claims). Every screen that shows a record asks
+  there.

@@ -1,0 +1,693 @@
+#!/usr/bin/env node
+// Enforces CONTRACTS.md. Run: npm run check:contracts
+//
+// Two kinds of rule:
+//   hard    - must be zero (the shell contracts, the form pattern, the component inventory)
+//   ratchet - existing debt is recorded in contracts/baseline.json and may not GROW; new code must be
+//             clean. Lower a count by fixing code, then lock it in with --update-baseline.
+//
+// `--update-baseline` rewrites contracts/baseline.json and contracts/component-inventory.json. That is
+// itself an audited act (CONTRACTS.md section 9.4): the audit report flags any change to them.
+// `--json` prints machine-readable results.
+
+import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { dirname, join, relative, resolve, sep } from "node:path";
+import { fileURLToPath } from "node:url";
+import { checkIndex } from "./build-context-index.mjs";
+import { checkRules } from "./build-contract-rules.mjs";
+
+const ROOT = process.cwd();
+const rel = (f) => relative(ROOT, f).split(sep).join("/");
+
+// ---------------------------------------------------------------- shell + pattern rules (hard)
+const PAGES = join(ROOT, "app", "pages");
+const PAGE_EXEMPT = [["biodata-home"], ["auth"], ["projects", "page.tsx"], ["projectsv2", "page.tsx"]];
+
+// 3.10: column 2 (the contextual <aside>) holds navigation and actions only. Explanatory content in
+// it (steps, headings, alerts, accordions, task cards) belongs in main, above the content it explains.
+const asideBlocks = (s) => [...s.matchAll(/^[ \t]*<aside\b[\s\S]*?<\/aside>/gm)].map((m) => m[0]);
+const ASIDE_INFO = /<h[1-6]\b|<Progress\.|<Accordion\b|<AlertFullWidth\b|<AlertFloating\b|<TaskItem\b/;
+
+// 3.10, second half: a component rendered inside column 2 must not hold information either. The "What is a project?"
+// block sat in column 2 as a `<ProjectsGuide />` whose headings lived in its own file, so looking at the aside's own
+// markup found nothing (the nominations steps explainer was the first time, the project block the second, CONTRACTS 0.8).
+// Column 2 is the left-hand aside (`border-r`); the tags it renders are followed to the function that defines them.
+const leftAsides = (s) => asideBlocks(s).filter((b) => /^[ \t]*<aside\b[^>]*\bborder-r\b/.test(b));
+const importTarget = (file, spec) => {
+  const base = spec.startsWith("@/") ? join(ROOT, spec.slice(2)) : spec.startsWith(".") ? resolve(dirname(file), spec) : null;
+  return base ? [".tsx", ".ts", "/index.tsx"].map((ext) => base + ext).find((f) => existsSync(f)) : undefined;
+};
+function columnTwoComponentsHoldInformation(src, file) {
+  if (!file) return false;
+  return leftAsides(src).some((block) =>
+    [...new Set([...block.matchAll(/<([A-Z]\w+)/g)].map((m) => m[1]))].some((tag) => {
+      const spec = src.match(new RegExp(`import[^;]*\\b${tag}\\b[^;]*from "([^"]+)"`))?.[1];
+      const target = spec && importTarget(file, spec);
+      if (!target) return false;
+      const body = readFileSync(target, "utf8").match(new RegExp(`(?:export )?function ${tag}\\b[\\s\\S]*?\\n}\\n`))?.[0] ?? "";
+      return ASIDE_INFO.test(body);
+    }),
+  );
+}
+
+const hardRules = [
+  {
+    id: "3.10",
+    name: "column 2 is navigation and actions",
+    test: (s, file) => asideBlocks(s).some((b) => ASIDE_INFO.test(b)) || columnTwoComponentsHoldInformation(s, file),
+    // The one exception is the signed-out visitor's column 2 (public-user): what BioData SA is, and guides.
+    allow: ["_shared/guest-home.tsx"],
+    message: "Explanatory content (heading, steps, alert, accordion or task card) inside the column 2 <aside>, or in a component it renders. Column 2 is navigation and actions only; put information in main above the content, as an ExplainerCard (CONTRACTS.md 3.10). Only the public-user column 2 is exempt.",
+  },
+  {
+    // 3.11: column 2's items are the vertical tab lists (scope, area and view switchers); each tab carries an icon.
+    id: "3.11",
+    name: "column 2 items have icons",
+    test: (s) =>
+      [...s.matchAll(/<TabList\b[^>]*orientation="vertical"[^>]*>[\s\S]*?<\/TabList>/g)].some((list) =>
+        [...list[0].matchAll(/<Tab\b[\s\S]*?\/>/g)].some((tab) => !/\bicon=/.test(tab[0])),
+      ),
+    allow: [],
+    message: "A column 2 tab (a vertical TabList item) without an icon. Every navigation item in column 2 carries an icon left of its label: Tab icon={...} (CONTRACTS.md 3.11).",
+  },
+  {
+    // 3.13: an underline tab list is a row of sections; each tab carries an icon (a mapped list passes one per tab).
+    id: "3.13",
+    name: "underline tabs have icons",
+    test: (s) => [...s.matchAll(/<TabList\b[^>]*type="underline"[^>]*>[\s\S]*?<\/TabList>/g)].some((list) => !/\bicon=/.test(list[0])),
+    // Explore's results card is too narrow for icons (and is drawn without them); the record sections' titles come from the data.
+    allow: ["observations/observations-search.tsx", "project-list/[id]/project-details/project-details-view.tsx"],
+    message: "An underline tab list whose tabs have no icon. Every tab carries the icon of what it holds: Tab icon={...} (CONTRACTS.md 3.13).",
+  },
+  {
+    id: "2.11",
+    name: "a date field has a calendar",
+    test: (s) => /<InputDate\b(?!Picker)/.test(s),
+    allow: [],
+    message: 'A date field without a calendar (<InputDate>). Use <InputDatePicker> from "@/components/custom/date-picker/input-date-picker": type the date or pick it (CONTRACTS.md 2.11).',
+  },
+  { id: "3.1", name: "header", test: (s) => /<header[\s>]/.test(s), allow: ["_shared/app-header.tsx"], message: 'Hand-rolled <header>. Render <AppHeader /> from "@/app/pages/_shared/app-header".' },
+  { id: "3.2", name: "primary rail", test: (s) => /aria-label="Primary"/.test(s), allow: ["_shared/primary-rail.tsx", "_shared/mobile-nav.tsx"], message: 'Hand-rolled primary rail. Render <PrimaryRail /> from "@/app/pages/_shared/primary-rail".' },
+  { id: "3.3", name: "section icon map", test: (s) => /const sectionIcons\b/.test(s), allow: ["_shared/nav-icons.ts"], message: 'Local sectionIcons map. Import { sectionIcons } from "@/app/pages/_shared/nav-icons".' },
+  { id: "3.4", name: "account controls", test: (s) => /function (ProfileMenu|GuestAuthActions)\b/.test(s), allow: ["_shared/profile-menu.tsx", "_shared/guest-auth-actions.tsx"], message: "Local ProfileMenu/GuestAuthActions. They live in AppHeader." },
+  { id: "3.5", name: "legal links in the rail", test: (s) => /registeredUserFooterLinks\.map/.test(s), allow: ["_shared/primary-rail.tsx"], message: "Inline legal links. They are icons at the foot of <PrimaryRail /> (CONTRACTS.md 3.2)." },
+  {
+    id: "4.1",
+    name: "form pattern",
+    test: (s) => /<FormRow[\s>]/.test(s) && !/from "@\/app\/pages\/_shared\/form-page"/.test(s),
+    allow: ["_shared/form-row.tsx", "_shared/form-page.tsx", "project-registration/option-2/form-sections.tsx", "_shared/dataset-upload/acknowledgement-rows.tsx", "project-registration/with-dataset/dataset-step.tsx"], // these hold field rows that a FormPage renders: the Add Project form (form-sections), the upload form and option 2's Dataset step (acknowledgement-rows, dataset-step)
+    message: "Uses <FormRow> without <FormPage>. Every form renders FormPage (see /patterns/forms).",
+  },
+  {
+    id: "4.1b",
+    name: "form sections in column 2",
+    test: (s) => /from "@\/app\/pages\/_shared\/form-page"/.test(s) && /\b(TabList|Tabs)\b/.test(s),
+    allow: [],
+    message: "A FormPage screen uses tabs. Form sections live in column 2 as a FormSectionList (rendered through FormSidebar), never tabs or a stepper.",
+  },
+  {
+    // 3.14: every form has the Pre-fill sample content switch (the Prototype tools bar), so a walk-through never starts with typing.
+    id: "3.14",
+    name: "a form has the Pre-fill sample content switch",
+    test: (s) => /<FormPage[\s>]/.test(s) && !/\buseSampleContent\s*(?:<[^(]*>)?\s*\(/.test(s),
+    // The two review screens decide on what is already there rather than collect (3.14 "Not covered"), and the record drawer is not reached by any route (the live add-record form is record-full-view.tsx).
+    allow: ["project-detail/review-view.tsx", "project-detail/custom-concepts-review.tsx", "project-detail/record-form.tsx"],
+    message: "A form (<FormPage>) without the Pre-fill sample content switch. Call useSampleContent (app/_prototype-tools/sample-content.ts) with a sample that answers the whole form down its fullest branch, files included (CONTRACTS.md 3.14).",
+  },
+  {
+    id: "4.7",
+    name: "role belongs to the data owner's contact",
+    test: (s) => /\bRegistered by\b/i.test(s),
+    allow: [],
+    message: 'A "Registered by" label. A role belongs to each data owner contact and is shown with that contact; never as a separate "registered by" / "your role" field or a "Project team" card (CONTRACTS.md 4.7).',
+  },
+  {
+    id: "4.2b",
+    name: "table fits the viewport",
+    test: (s) => /<TableCard\.Root\b/.test(s) && !/\bbodyScrollable\b/.test(s),
+    // Tables embedded in a detail tab: the page is the scroll container there, and rows are few.
+    allow: ["_shared/dsa/dsa-detail.tsx", "_shared/user-management/um-detail.tsx", "_shared/nominations/nomination-protection.tsx", "project-registration/species-restriction.tsx"],
+    message: "A collection table without bodyScrollable. Every collection screen's table fits the viewport: header, search and pagination stay put and only the rows scroll (Table bodyScrollable + Table.Header sticky, see CONTRACTS.md 4.2).",
+  },
+  {
+    // 3.7b: a record page has no column 2. A shell that draws the Section sidebar and is told which record it shows must
+    // hide the sidebar for it (`recordPage`).
+    id: "3.7b",
+    name: "record page without column 2",
+    test: (s) => /<aside aria-label="Section"/.test(s) && /\b(recordId|breadcrumbCurrent|currentId)\b/.test(s) && !/\brecordPage\b/.test(s),
+    allow: ["observations/observations-search.tsx"], // Explore: a map screen, not a collection's record page (its own overrides are in 3.7)
+    message: "A shell that draws column 2 and takes a record prop (recordId, breadcrumbCurrent, currentId) without recordPage. A record page uses the whole width: hide the sidebar for it (CONTRACTS.md 3.7).",
+  },
+  {
+    // 4.6b: a record page's section crumb is a switcher (CONTRACTS 4.6 item 5). A shell that hides column 2 for a record
+    // (`recordPage`) must draw some collection switcher, a thin wrapper over BreadcrumbSwitcher, for it.
+    id: "4.6b",
+    name: "record page section crumb is a switcher",
+    test: (s) => /\bconst recordPage\b/.test(s) && !/<(?!\w*(?:Option|Version)Switcher)\w*Switcher\b/.test(s), // the layout and version tools on the Prototype bar are not a record switcher
+    allow: [],
+    message: "A shell that has a record page (recordPage) but draws no switcher for its section crumb. The crumb of a record page is that collection's switcher over BreadcrumbSwitcher (see DlaSwitcher), not a plain link (CONTRACTS.md 4.6 item 5).",
+  },
+  {
+    // 4.6c: the third time a record page's section crumb was drawn by hand (notifications, taxonomy, vouchers and vocabulary on 26 Oct 2026,
+    // then a dataset's page inside the project page on 30 Oct 2026, which 4.6b cannot see because it is not a shell with `recordPage`).
+    // A crumb in a page that draws the trail is a link (the header gives a link its 40px target) or, for a collection's own name, that
+    // collection's switcher over BreadcrumbSwitcher. Never a button in the crumb's own styling, and never a collection's name as a bare link.
+    id: "4.6c",
+    name: "breadcrumb crumbs are links or switchers, not drawn by hand",
+    test: (s) =>
+      /components\/scaffold\/breadcrumb"/.test(s) &&
+      (/<button\b(?:(?!<\/button>)[\s\S])*?text-tertiary hover:text-primary/.test(s) ||
+        /<(?:button|Link|a)\b(?:(?!<\/(?:button|Link|a)>)[\s\S])*?>\s*(?:Datasets|Projects|Requests|Agreements|Nominations|Users|Roles|Permissions|Reports|Notifications|Vouchers|Vocabularies|Taxa|Species|Records|Artefacts)\s*<\/(?:button|Link|a)>/.test(s)),
+    allow: ["_shared/dataset-upload/upload-shell.tsx"], // a form's crumb is the plain link back to the list (4.6: the new and edit forms keep it)
+    message: "A breadcrumb crumb drawn by hand: a <button> in the crumb's own styling, or a collection's name (Datasets, Projects, ...) as a bare button or link. A crumb is a <Link className=\"hit-area hover:text-primary\">; a collection's section crumb is that collection's switcher, a thin wrapper over BreadcrumbSwitcher (CONTRACTS.md 4.6 item 5; see DatasetSwitcher, DlaSwitcher).",
+  },
+  {
+    // 4.6d: a project's address is built by project-routes.ts. A project made in this browser has no /pages/project-list/<id>/... page in
+    // the static export (it is one fixed route with the id in the query), so a link built by hand to one is a dead link for every new project
+    // (30 Oct 2026: "Upload dataset" from a new project, its "Upload a corrected file" and the custom concepts link all went nowhere).
+    id: "4.6d",
+    name: "a project's address comes from project-routes",
+    test: (s) => /\/pages\/project-list\/\$\{/.test(s),
+    allow: ["_shared/project-routes.ts"],
+    message: "A project's address built by hand (`/pages/project-list/${id}/...`). Use projectDetailsPath, projectTabPath or uploadPath from @/app/pages/_shared/project-routes: a project made in this browser has no page there, and those helpers send it to its own fixed route (CONTRACTS.md 4.6).",
+  },
+  {
+    // 3.12c: a confirm that discards, deletes or removes is red. Eleven prompts (Discard your changes on the project page, the upload form and the taxonomy
+    // records, and "Leave this ..." in the four taxonomy changes) were the blue ConfirmationModal with a Trash01 on its button, while every form's discard
+    // prompt and every delete was the red DestructiveModal (the designer, 30 Oct 2026: "All destructive action buttons should have the red button, why is that blue?").
+    id: "3.12c",
+    name: "a destructive confirm is a DestructiveModal",
+    test: (s) => /<ConfirmationModal\b(?:(?!\/>)[\s\S])*?confirmIcon=\{(?:Trash01|XCircle|SlashCircle01|Archive)\}/.test(s),
+    allow: [],
+    message: "A ConfirmationModal whose confirm button is a destructive action (Trash01, XCircle, SlashCircle01 or Archive: discard, delete, remove, reject, cancel, archive). It is a <DestructiveModal>: the same props, the confirm button red (CONTRACTS.md 3.12).",
+  },
+  {
+    id: "4.2d",
+    name: "one filter",
+    // The three filters this replaced were a popover of every section, an "Add filter" popover and an "All Filters" side
+    // panel. A table has the contextual Filter menu (FilterMenu) and nothing else.
+    test: (s) => /(?:title="All Filters"|>\s*All Filters\b|>\s*Add filter\s*<)/.test(s),
+    allow: [],
+    message: 'A hand-built filter ("All Filters" panel or "Add filter" button). A table has the one Filter menu: <FilterMenu> with useAttributeFilter, useListFilter or useSelectionFilter (CONTRACTS.md 4.2d).',
+  },
+  {
+    id: "4.2c",
+    name: "one toolbar search width",
+    // A collection toolbar is where the Filter menu lives. Its search box is ToolbarSearch (384px),
+    // never a hand-rolled Input that grows to fill the row or picks its own width.
+    test: (s) => /<FilterMenu\b/.test(s) && /<Input\b[^>]*icon=\{Search(?:Md|Lg|Sm)\}/.test(s),
+    allow: ["_shared/map-search/species-results.tsx"], // The species results' full-width search (now only the dataset ingestion lab): the designer's call, open (CONTRACTS 4.2c)
+    message: "A toolbar with a Filter button whose search is a hand-rolled <Input>. Use <ToolbarSearch> (app/pages/_shared/toolbar-search.tsx): one 384px search width on every collection toolbar (CONTRACTS.md 4.2c).",
+  },
+  {
+    id: "4.2g",
+    name: "one gap under the header",
+    // Between a SectionHeader and the first toolbar search after it, some wrapping <div> must carry the
+    // 24px top padding every list uses (p-6). `px-6 pb-6` leaves the search flush against the divider.
+    test: (s) =>
+      [...s.matchAll(/<\/SectionHeader\.Root>/g)].some((m) => {
+        const rest = s.slice(m.index);
+        const at = rest.indexOf("<ToolbarSearch");
+        if (at < 0) return false;
+        const divs = [...rest.slice(0, at).matchAll(/<div\b[^>]*className="([^"]*)"/g)].map((d) => d[1]);
+        return !divs.some((c) => /(?:^|\s)(?:p|pt|py)-6(?:\s|$)/.test(c));
+      }),
+    allow: [],
+    message: "The list body under </SectionHeader.Root> has no top padding before the toolbar search, so the search sits flush against the header's divider. Wrap it in a div with p-6 (flex min-h-0 flex-1 flex-col gap-4 p-6), as every list does (CONTRACTS.md 4.2g).",
+  },
+  {
+    id: "4.2f",
+    name: "stable table columns",
+    // A collection table is one with bodyScrollable. Its columns must not reflow as the rows change, so it is a
+    // fixed layout with a width on every column (the automatic layout sizes each column to its widest cell).
+    test: (s) => {
+      for (const m of s.matchAll(/<Table(?![.\w])/g)) {
+        const tag = s.slice(m.index, m.index + 500);
+        if (/\bbodyScrollable\b/.test(tag) && !/layout="fixed"/.test(tag)) return true;
+      }
+      return false;
+    },
+    // The results table lets the person choose its columns (the dataset ingestion lab's species results); the ingestion report view is lab-only.
+    allow: ["_shared/map-search/results-table.tsx", "_shared/reports/ingestion-report.tsx"],
+    message: 'A collection table (Table bodyScrollable) without layout="fixed". Its columns must keep their width whatever rows show: fixed layout, a width on every Table.Head, a min-w on the table (CONTRACTS.md 4.2f).',
+  },
+  {
+    id: "2.16b",
+    name: "a hit area is the component's",
+    // A target is enlarged by the component (`hit-area`, app/globals.css), never by a `before:` or `after:` written where it is used: that one has no mouse and touch sizes, is not tested, and was the reason
+    // every other screen still had 28px icon buttons (CONTRACTS.md 2.16).
+    test: (s) => /\b(?:before|after):-(?:inset|top|bottom|left|right)(?:-[xy])?-/.test(s),
+    allow: [],
+    message: "A negative-inset before: or after: that enlarges a target. Use a component that carries the hit area (Button, ButtonUtility, CloseButton, Tab...), or add `hit-area` to the control (CONTRACTS.md 2.16).",
+  },
+  {
+    id: "4.2f",
+    name: "scrollbar gutter",
+    // A scrolling main that overflows in one state and not another moves its content by a scrollbar's width on a
+    // classic-scrollbar system. It reserves the space.
+    test: (s) => /<main\b[^>]*className="[^"]*\boverflow-y-auto\b(?![^"]*scrollbar-gutter)[^"]*"/.test(s),
+    allow: [],
+    message: "A scrolling <main> (overflow-y-auto) without [scrollbar-gutter:stable]. Reserve the scrollbar so the content does not move when it appears (CONTRACTS.md 4.2f).",
+  },
+];
+
+// ---------------------------------------------------------------- ratchet rules
+const SCAN_DIRS = ["app", "components", "lib", "config"];
+// components/foundations/payment-icons/**: third-party payment-brand logo SVGs (Visa, Mastercard,
+// PayPal, ...). Their hardcoded hex is each brand's own trademarked colour, required exact - not a
+// DEW colour choice, so it's not "invented" or "hardcoded instead of tokenised" in any sense CONTRACTS
+// 2.1 means. Out of scope for every colour rule, same tier as the /proto exemption below.
+const SCAN_SKIP = [/^app\/proto\//, /^app\/globals\.css$/, /^node_modules\//, /^components\/foundations\/payment-icons\//];
+const DEAD = /\b(?:text-md|bg-quaternary|bg-border-secondary|border-secondary_hover|border-l-brand-solid|border-error-subtle|ring-offset-bg-primary|divide-secondary)\b/;
+const isComment = (line) => /^\s*(\/\/|\/\*|\*|\{\/\*)/.test(line);
+
+// 2.1c/2.1d: colour is never invented. contracts/figma-colours.json is the real DS - Foundations
+// file's own Colors page, extracted via the Figma MCP - see CONTRACTS.md 2.1 and that file's own
+// "note". Flattened once into a lowercase hex set so a hardcoded literal can be checked against it.
+const FIGMA_COLOURS = readJson("contracts/figma-colours.json", null);
+const FIGMA_HEX_SET = FIGMA_COLOURS
+  ? new Set(
+      [
+        ...Object.values(FIGMA_COLOURS.base ?? {}),
+        ...Object.values(FIGMA_COLOURS.semantic ?? {}),
+        ...Object.values(FIGMA_COLOURS.primitives ?? {}).flatMap((p) => Object.values(p.steps ?? {})),
+      ].map((h) => h.toLowerCase()),
+    )
+  : null;
+
+function coloursInLine(line) {
+  const out = [];
+  for (const m of line.matchAll(/#([0-9a-fA-F]{6})\b/g)) out.push(`#${m[1].toLowerCase()}`);
+  for (const m of line.matchAll(/rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*(?:,[^)]+)?\)/g)) {
+    const [, r, g, b] = m;
+    out.push(`#${[r, g, b].map((x) => Math.min(255, Number(x)).toString(16).padStart(2, "0")).join("")}`);
+  }
+  return out;
+}
+
+const ratchetRules = [
+  { id: "2.1a", name: "dead utility class", test: (line) => DEAD.test(line) && !isComment(line) },
+  { id: "2.1b", name: "hard-coded colour", test: (line) => !isComment(line) && (/#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{8}\b/.test(line) || /\brgba?\(/.test(line)) },
+  {
+    id: "2.1d",
+    name: "invented colour",
+    test: (line) => {
+      if (isComment(line) || !FIGMA_HEX_SET) return false;
+      return coloursInLine(line).some((c) => !FIGMA_HEX_SET.has(c));
+    },
+  },
+  { id: "2.3a", name: "em-dash", test: (line) => /—/.test(line) },
+  { id: "2.3b", name: "arrow character", test: (line) => /[←-↓⇒]/.test(line) },
+  // 2.3c: no dot between pieces of text. The middle dot, as the character, as its escape in a string, or as an entity; comments are not copy.
+  { id: "2.3c", name: "middle-dot separator", test: (line) => !isComment(line) && /\u00b7|\\u00b7|&middot;/i.test(line) },
+];
+
+// 2.1c: app/globals.css's own --color-* primitives must match contracts/figma-colours.json exactly.
+// Hard, never ratcheted - a primitive is either the real Figma value or it's wrong; there is no
+// legitimate "existing debt" tier for the design system's own declared source of truth drifting from
+// its source. See CONTRACTS.md 2.1's own --color-gray-950 origin line.
+function checkPrimitiveDrift() {
+  const violations = [];
+  if (!FIGMA_COLOURS) return violations;
+  const cssPath = join(ROOT, "app", "globals.css");
+  if (!existsSync(cssPath)) return violations;
+  const css = readFileSync(cssPath, "utf8");
+  for (const [name, def] of Object.entries(FIGMA_COLOURS.primitives)) {
+    if (!def.cssVar) continue; // documented in Figma, not yet ingested - nothing to check
+    const escaped = def.cssVar.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    for (const [step, hex] of Object.entries(def.steps)) {
+      const m = css.match(new RegExp(`${escaped}${step}:\\s*(#[0-9a-fA-F]{6})`, "i"));
+      if (m && m[1].toLowerCase() !== hex.toLowerCase()) {
+        violations.push({
+          clause: "2.1c",
+          file: "app/globals.css",
+          message: `${def.cssVar}${step} is ${m[1]}, the DS - Foundations Figma file (${name}) gives ${hex}. Fix the primitive to match, don't leave it drifted.`,
+        });
+      }
+    }
+  }
+  return violations;
+}
+
+// ---------------------------------------------------------------- component inventory (hard, 1.4)
+const COMPONENT_TIERS = ["base", "application", "foundations", "marketing", "custom", "scaffold"];
+
+function* walk(dir) {
+  if (!existsSync(dir)) return;
+  for (const name of readdirSync(dir)) {
+    const full = join(dir, name);
+    if (statSync(full).isDirectory()) yield* walk(full);
+    else if (/\.(tsx?|css)$/.test(name)) yield full;
+  }
+}
+
+export function componentFiles() {
+  const out = [];
+  for (const tier of COMPONENT_TIERS) for (const f of walk(join(ROOT, "components", tier))) if (/\.tsx?$/.test(f)) out.push(rel(f));
+  return out.sort();
+}
+
+export function readJson(path, fallback) {
+  try {
+    return JSON.parse(readFileSync(join(ROOT, path), "utf8"));
+  } catch {
+    return fallback;
+  }
+}
+
+export function currentRatchetCounts() {
+  const counts = {};
+  for (const r of ratchetRules) counts[r.id] = {};
+  for (const dir of SCAN_DIRS) {
+    for (const file of walk(join(ROOT, dir))) {
+      const f = rel(file);
+      if (SCAN_SKIP.some((re) => re.test(f)) || !/\.tsx?$/.test(f)) continue;
+      const lines = readFileSync(file, "utf8").split("\n");
+      for (const r of ratchetRules) {
+        const n = lines.filter((l) => r.test(l)).length;
+        if (n) counts[r.id][f] = n;
+      }
+    }
+  }
+  return counts;
+}
+
+// 3.12: every action button carries an icon that names its action. An action button is a filled or outlined
+// `<Button>` with a text label: `color` primary, secondary (the default), tertiary or a destructive one. Link-style
+// buttons (`link-color`, `link-gray`, `link-destructive`) are links, and a button with only an aria-label (or only
+// an ellipsis) is icon-only; neither needs one. The stale unlinked drafts are exempt, like the shell rules.
+const ACTION_COLOURS = /^(primary|secondary|tertiary|primary-destructive|secondary-destructive)$/;
+function actionButtonsWithoutIcon(src) {
+  const found = [];
+  let i = 0;
+  while ((i = src.indexOf("<Button", i)) !== -1) {
+    if (!/[\s>/]/.test(src[i + 7] ?? " ")) {
+      i += 7;
+      continue;
+    }
+    let depth = 0;
+    let j = i + 7;
+    let quote = null;
+    for (; j < src.length; j++) {
+      const c = src[j];
+      if (quote) {
+        if (c === quote && src[j - 1] !== "\\") quote = null;
+        continue;
+      }
+      if (c === '"' || c === "'" || c === "`") quote = c;
+      else if (c === "{") depth++;
+      else if (c === "}") depth--;
+      else if (c === ">" && depth === 0 && src[j - 1] !== "=") break;
+    }
+    const tag = src.slice(i, j + 1);
+    const label = tag.endsWith("/>") ? "" : src.slice(j + 1, src.indexOf("</Button>", j)).replace(/\s+/g, " ").trim();
+    const color = tag.match(/color="([^"]+)"/)?.[1] ?? (/color=\{/.test(tag) ? "primary" : "secondary");
+    const iconOnly = label === "" || /^[.\u2026\s]*$/.test(label);
+    if (ACTION_COLOURS.test(color) && !iconOnly && !/icon(Leading|Trailing)=/.test(tag)) found.push(src.slice(0, i).split("\n").length);
+    i = j;
+  }
+  return found;
+}
+
+// 3.12b: one icon per action, everywhere. An action named by its label (a menu item or RecordAction's `label` with its
+// `icon`, a Button's text with its `iconLeading`) takes the icon the 3.12 table gives that action, whatever the screen.
+// Keyed by the label's first word; "Add" and "Cancel" are left out because the table gives them more than one icon by
+// what is added or cancelled (Add attachment, Add a link; Cancel, Cancel an agreement), and "Change" because a change
+// made with a control of its own names that control (Change radius, Sliders01). The marketing home is exempt: its
+// feature tiles name features, not actions ("Export for research").
+const ACTION_ICON = {
+  edit: "Edit05",
+  delete: "Trash01", discard: "Trash01",
+  download: "Download01", export: "Download01",
+  upload: "Upload01", replace: "Upload01",
+  save: "Save01",
+  rename: "PencilLine",
+  duplicate: "Copy01",
+  approve: "CheckCircle", accept: "CheckCircle", resolve: "CheckCircle",
+  reject: "XCircle",
+  archive: "Archive", restore: "FlipBackward",
+};
+// The other pencils are never an action's icon: edit is Edit05.
+const STRAY_EDIT_GLYPH = /\b(Edit0[1-46-9]|Pencil0\d)\b/;
+function actionIconMismatches(src) {
+  const found = [];
+  const check = (label, icon, at) => {
+    const want = ACTION_ICON[label.trim().split(/\s+/)[0]?.toLowerCase()];
+    if (want && icon !== want) found.push({ line: src.slice(0, at).split("\n").length, label: label.trim(), icon, want });
+  };
+  // label="X" ... icon={Y} (or the other way round) inside one tag or object literal
+  for (const m of src.matchAll(/label[=:]\s*\{?["'`]([^"'`$]+)["'`]\}?[^<>{}]{0,160}?\bicon[=:]\s*\{?([A-Z]\w+)/g)) check(m[1], m[2], m.index);
+  for (const m of src.matchAll(/\bicon[=:]\s*\{?([A-Z]\w+)\}?[^<>{}]{0,160}?\blabel[=:]\s*\{?["'`]([^"'`$]+)["'`]/g)) check(m[2], m[1], m.index);
+  // <Button ... iconLeading={Y} ...>X</Button>
+  for (const m of src.matchAll(/<Button\b[^>]*?\biconLeading=\{([A-Z]\w+)\}[^>]*>\s*([A-Za-z][^<{]*?)\s*<\/Button>/g)) check(m[2], m[1], m.index);
+  return found;
+}
+
+export function runChecks() {
+  const violations = [];
+  const improvements = [];
+
+  // 3.12b: one icon per action, on every screen, doc page and shared component
+  for (const dir of ["app/pages", "app/(docs)", "app/_prototype-tools", "components/application", "components/base", "components/custom"]) {
+    const root = join(ROOT, dir);
+    if (!existsSync(root)) continue;
+    for (const file of walk(root)) {
+      if (!/\.tsx?$/.test(file) || rel(file).startsWith("app/pages/biodata-home/")) continue;
+      const src = readFileSync(file, "utf8");
+      const stray = src.match(new RegExp(`import\\s*\\{[^}]*${STRAY_EDIT_GLYPH.source}[^}]*\\}\\s*from\\s*["']@untitledui/icons["']`));
+      if (stray) violations.push({ clause: "3.12b", file: rel(file), message: `${stray[1]} imported. Edit is Edit05 everywhere; no other pencil is an action's icon (CONTRACTS.md 3.12).` });
+      for (const x of actionIconMismatches(src))
+        violations.push({ clause: "3.12b", file: `${rel(file)}:${x.line}`, message: `"${x.label}" carries ${x.icon}; that action is ${x.want} on every screen (CONTRACTS.md 3.12, one icon per action).` });
+    }
+  }
+
+  // hard shell / pattern rules
+  for (const file of walk(PAGES)) {
+    const parts = relative(PAGES, file).split(sep);
+    if (PAGE_EXEMPT.some((e) => e.every((seg, i) => parts[i] === seg))) continue;
+    if (!/\.tsx?$/.test(file)) continue;
+    const r = parts.join("/");
+    const src = readFileSync(file, "utf8");
+    for (const rule of hardRules) {
+      if (rule.allow.includes(r)) continue;
+      if (rule.test(src, file)) violations.push({ clause: rule.id, file: `app/pages/${r}`, message: rule.message });
+    }
+  }
+
+  // 3.12: action buttons carry an icon (every screen, the auth flow and the home page included)
+  for (const file of walk(PAGES)) {
+    const parts = relative(PAGES, file).split(sep);
+    if ((parts[0] === "projects" || parts[0] === "projectsv2") && parts[1] === "page.tsx") continue;
+    if (!/\.tsx$/.test(file)) continue;
+    for (const line of actionButtonsWithoutIcon(readFileSync(file, "utf8")))
+      violations.push({ clause: "3.12", file: `app/pages/${parts.join("/")}:${line}`, message: "An action button (primary, secondary, tertiary or destructive, with a text label) without an icon. Every action button carries an icon that names the action: iconLeading, or iconTrailing for a forward arrow (CONTRACTS.md 3.12)." });
+  }
+  // ... and in the shared components that render buttons of their own (modals, alerts, the file field, multi-select):
+  // a modal's Cancel and its confirm button are action buttons too.
+  for (const dir of ["application", "base", "custom"]) {
+    const root = join(ROOT, "components", dir);
+    if (!existsSync(root)) continue;
+    for (const file of walk(root)) {
+      if (!/\.tsx$/.test(file)) continue;
+      for (const line of actionButtonsWithoutIcon(readFileSync(file, "utf8")))
+        violations.push({ clause: "3.12", file: `${rel(file)}:${line}`, message: "An action button (primary, secondary, tertiary or destructive, with a text label) without an icon in a shared component. Give it an icon prop, required where the action varies (CONTRACTS.md 3.12)." });
+    }
+  }
+
+  // ratchet rules
+  const baseline = readJson("contracts/baseline.json", { counts: {} }).counts;
+  const counts = currentRatchetCounts();
+  for (const r of ratchetRules) {
+    for (const [file, n] of Object.entries(counts[r.id])) {
+      const was = baseline[r.id]?.[file] ?? 0;
+      if (n > was) violations.push({ clause: r.id, file, message: `${r.name}: ${n} occurrence(s), baseline allows ${was}. New code must not add any.` });
+    }
+    for (const [file, was] of Object.entries(baseline[r.id] ?? {})) {
+      const n = counts[r.id][file] ?? 0;
+      if (n < was) improvements.push(`${r.id} ${file}: ${was} -> ${n}`);
+    }
+  }
+
+  // 2.1c: primitives must match the real Figma Colors page, hard, zero tolerance
+  violations.push(...checkPrimitiveDrift());
+
+  // component inventory
+  const inventory = new Set(readJson("contracts/component-inventory.json", { files: [] }).files);
+  const overrides = readJson("contracts/overrides.json", { overrides: [] }).overrides;
+  const overridden = new Map(overrides.map((o) => [o.component, o]));
+  for (const f of componentFiles()) {
+    if (inventory.has(f)) continue;
+    const o = overridden.get(f);
+    if (!o) violations.push({ clause: "1.4", file: f, message: "New component with no designer override in contracts/overrides.json. A new component is a designer decision (CONTRACTS.md 1.4)." });
+    else if (!o.designer || !o.reason || !o.approvedBy || !o.date) violations.push({ clause: "1.4", file: f, message: `Override ${o.id ?? "?"} is missing designer, date, reason or approvedBy.` });
+  }
+
+  // 1.4b: an override's reviewBy is a real deadline, checked against today every run - not just at
+  // creation. Once it passes, check:contracts fails until someone consciously renews it (a new
+  // reviewBy) or retires it (status: "retired"). CONTRACTS.md 9.2.
+  const today = new Date().toLocaleDateString("sv-SE");
+  for (const o of overrides) {
+    if (o.status !== "active") continue;
+    if (!o.reviewBy) violations.push({ clause: "1.4b", file: o.component, message: `Override ${o.id} has no reviewBy date. Every override needs one (CONTRACTS.md 1.4, 9.2).` });
+    else if (o.reviewBy < today) violations.push({ clause: "1.4b", file: o.component, message: `Override ${o.id}'s reviewBy (${o.reviewBy}) has passed. Renew it with a new reviewBy, or retire it - it MUST NOT just sit there overdue (CONTRACTS.md 9.2).` });
+  }
+
+  // 2.16a: the components that render a control smaller than 40px carry the hit area on their own root, so no screen has to ask for it.
+  const HIT_AREA_FILES = [
+    "components/base/buttons/button.tsx",
+    "components/base/buttons/button-utility.tsx",
+    "components/base/buttons/close-button.tsx",
+    "components/application/tabs/tabs.tsx",
+    "components/base/checkbox/checkbox.tsx",
+    "components/base/radio-buttons/radio-buttons.tsx",
+    "components/base/toggle/toggle.tsx",
+    "components/base/input/input.tsx",
+    "components/application/table/table.tsx",
+    "components/base/dropdown/dropdown.tsx",
+    "components/base/tooltip/tooltip.tsx",
+    "components/custom/date-picker/input-date-picker.tsx",
+  ];
+  for (const f of HIT_AREA_FILES) {
+    if (!existsSync(join(ROOT, f))) continue;
+    if (!/\bhit-area\b/.test(readFileSync(join(ROOT, f), "utf8"))) violations.push({ clause: "2.16a", file: f, message: "A component that renders a control smaller than 40px has lost its hit-area class. Every press target is 40px with a mouse and 44px on touch, built into the component (CONTRACTS.md 2.16)." });
+  }
+
+  // 2.16c: a ghost control's drawn box comes from one utility and its target from the hit area; the files that draw one keep both.
+  const GHOST_FILES = [
+    "components/base/buttons/button.tsx",
+    "app/pages/_shared/record-hero.tsx",
+    "app/pages/_shared/breadcrumb-switcher.tsx",
+    "app/pages/_shared/app-header.tsx",
+  ];
+  for (const f of GHOST_FILES) {
+    if (!existsSync(join(ROOT, f))) continue;
+    // Comments are stripped first: a comment that names `ghost-fill` is not the class.
+    const code = readFileSync(join(ROOT, f), "utf8").replace(/\/\*[\s\S]*?\*\/|^\s*\/\/.*$/gm, "");
+    if (!/\bghost-fill\b/.test(code) || !/\bhit-area\b/.test(code)) violations.push({ clause: "2.16c", file: f, message: "A ghost control has lost `ghost-fill` or its `hit-area`: it draws a 32px box (padding and negative margin from one utility, never set by hand) and keeps a 40px target (CONTRACTS.md 2.16)." });
+  }
+
+  // 1.10 behaviour is a component: the root layout renders components from components/** only. A behaviour built elsewhere and mounted from the layout is named here as open, not hidden; the designer decides its move (1.4).
+  const OPEN_1_10 = ["@/app/_scrollbars/drawn-scrollbars"];
+  const layout110 = readFileSync(join(ROOT, "app/layout.tsx"), "utf8").replace(/\/\*[\s\S]*?\*\/|^\s*\/\/.*$/gm, "");
+  for (const m of layout110.matchAll(/from\s+"(@\/app\/[^"]+)"/g)) {
+    if (!OPEN_1_10.includes(m[1])) violations.push({ clause: "1.10", file: "app/layout.tsx", message: `The root layout renders ${m[1]}, which is built under app/. A behaviour or element more than one screen has is a component and is built in components/** with the designer's override (CONTRACTS.md 1.10, 1.4).` });
+  }
+
+  // 2.11b a date is entered DD/MM/YYYY, always: both date fields fix the locale (an I18nProvider with DATE_ENTRY_LOCALE) and the locale is a day-first one, so a browser's own language never reorders the segments.
+  for (const f of ["components/custom/date-picker/input-date-picker.tsx", "components/base/input/input-date.tsx"]) {
+    const src = readFileSync(join(ROOT, f), "utf8");
+    if (!/<I18nProvider\s+locale=\{DATE_ENTRY_LOCALE\}/.test(src)) {
+      violations.push({ clause: "2.11b", file: f, message: "A date field that does not fix its locale (`<I18nProvider locale={DATE_ENTRY_LOCALE}>`): the segment order then follows the browser and an en-US browser draws MM/DD/YYYY. Dates are entered DD/MM/YYYY, always (CONTRACTS.md 2.11)." });
+    }
+  }
+  const dateLocale = existsSync(join(ROOT, "utils/date-entry-locale.ts")) ? readFileSync(join(ROOT, "utils/date-entry-locale.ts"), "utf8") : "";
+  if (!/DATE_ENTRY_LOCALE\s*=\s*"en-(AU|GB|NZ|IE|IN|ZA)"/.test(dateLocale)) {
+    violations.push({ clause: "2.11b", file: "utils/date-entry-locale.ts", message: "DATE_ENTRY_LOCALE is missing or is not a day-first locale (en-AU, en-GB). Dates are entered DD/MM/YYYY, always (CONTRACTS.md 2.11)." });
+  }
+
+  // 2.17 one scrollbar: the browser's bar is off in one global rule and one component draws the thumb for every scroller. Neither may go, and no scroller makes its own (comments stripped).
+  const css217 = readFileSync(join(ROOT, "app/globals.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+  if (!/\*\s*\{\s*scrollbar-width:\s*none/.test(css217) || !/\*::-webkit-scrollbar\s*\{\s*display:\s*none/.test(css217)) {
+    violations.push({ clause: "2.17", file: "app/globals.css", message: "The global rule that turns the browser's scrollbar off (`* { scrollbar-width: none }` and `*::-webkit-scrollbar { display: none }`) is gone: every scroller draws the one thumb instead (CONTRACTS.md 2.17)." });
+  }
+  if (!/<DrawnScrollbars\b/.test(readFileSync(join(ROOT, "app/layout.tsx"), "utf8")) || !existsSync(join(ROOT, "app/_scrollbars/drawn-scrollbars.tsx"))) {
+    violations.push({ clause: "2.17", file: "app/layout.tsx", message: "`<DrawnScrollbars />` is not mounted in the root layout (or `app/_scrollbars/drawn-scrollbars.tsx` is gone): with the browser's bar off, no scroller would show one (CONTRACTS.md 2.17)." });
+  }
+  const own217 = [...componentFiles(), ...[...walk(PAGES)].filter((f) => /\.tsx?$/.test(f)).map(rel)];
+  for (const f of own217) {
+    const code = readFileSync(join(ROOT, f), "utf8").replace(/\/\*[\s\S]*?\*\/|^\s*\/\/.*$/gm, "");
+    if (/scrollbar-width|::-webkit-scrollbar|\[&::-webkit-scrollbar\]|scrollbar-color|scrollbarWidth|overflow:\s*overlay/.test(code)) {
+      violations.push({ clause: "2.17", file: f, message: "A scrollbar drawn or switched at one scroller (`scrollbar-width`, `::-webkit-scrollbar`, `scrollbar-color`, `overflow: overlay`). Every scroller has the one drawn thumb; a box with its own cue opts out with `data-no-drawn-scrollbar` (CONTRACTS.md 2.17)." });
+    }
+  }
+
+  // 1.9a behaviour patterns: a multiple-selection listbox in a component must switch off react-aria's
+  // default of clearing the whole selection on Escape (Escape closes, it never changes the value).
+  for (const f of componentFiles()) {
+    const src = readFileSync(join(ROOT, f), "utf8");
+    for (const m of src.matchAll(/<(?:Aria)?ListBox\b/g)) {
+      const tag = src.slice(m.index, m.index + 900);
+      if (/selectionMode="multiple"/.test(tag) && !/escapeKeyBehavior=/.test(tag)) {
+        violations.push({ clause: "1.9a", file: f, message: 'Multiple-selection ListBox without escapeKeyBehavior="none": Escape would clear the selection (CONTRACTS.md 1.9).' });
+      }
+    }
+  }
+
+  // 1.9a, menus: a menu component can carry a multiple selection (a filter's ticks) whatever its caller passes, so a react-aria
+  // Menu in a component must switch off the clear-on-Escape default itself.
+  for (const f of componentFiles()) {
+    const src = readFileSync(join(ROOT, f), "utf8");
+    for (const m of src.matchAll(/<AriaMenu\b/g)) {
+      if (!/escapeKeyBehavior=/.test(src.slice(m.index, m.index + 900))) {
+        violations.push({ clause: "1.9a", file: f, message: 'A react-aria Menu without escapeKeyBehavior="none": Escape would clear a multiple selection (CONTRACTS.md 1.9).' });
+      }
+    }
+  }
+
+  // 5.4 labs never ship: the deployed build removes app/proto, so nothing outside it may import from it
+  // (the build would break) or link to it (the link would 404). A dev-only link goes through
+  // lib/lab-href.ts, which returns null in production.
+  const LAB_IMPORT = /from\s+["'](?:@\/app\/proto\/|(?:\.\.\/)+proto\/)/;
+  const LAB_LINK = /["'`]\/proto(?:\/|["'`?#])/;
+  for (const dir of ["app", "components", "lib", "config"]) {
+    for (const file of walk(join(ROOT, dir))) {
+      const r = rel(file);
+      if (r.startsWith("app/proto/") || r === "lib/lab-href.ts" || !/\.tsx?$/.test(r)) continue;
+      const lines = readFileSync(file, "utf8").split("\n");
+      lines.forEach((line, i) => {
+        if (isComment(line)) return;
+        if (LAB_IMPORT.test(line)) violations.push({ clause: "5.4", file: `${r}:${i + 1}`, message: "Imports from app/proto. Labs are left out of the deployed build, so production code must never depend on one; move what is shared into app/pages/_shared (CONTRACTS.md 5.4)." });
+        else if (LAB_LINK.test(line)) violations.push({ clause: "5.4", file: `${r}:${i + 1}`, message: "Links to a /proto lab. Labs aren't deployed, so the link would 404; use labHref() from lib/lab-href.ts, which hides it in production (CONTRACTS.md 5.4)." });
+      });
+    }
+  }
+
+  // 5.1b the decision index is generated from context/decisions/*.md and nothing dated is appended to
+  // CONTEXT.md; 5.5 the scoped rule files are generated from CONTRACTS.md and every clause has a scope.
+  const indexProblem = checkIndex();
+  if (indexProblem) violations.push({ clause: "5.1b", file: "context/decisions/INDEX.md", message: indexProblem });
+  for (const message of checkRules()) violations.push({ clause: "5.5", file: ".claude/rules", message });
+
+  // 5.1c no two decision files share a date and number (5.6: a merged-in file whose number is taken is
+  // renamed to the next free one). Days up to LEGACY_REPEATS_THROUGH had repeated numbers before this
+  // check existed and keep them: their names are quoted in the contracts, so they are not renumbered.
+  const LEGACY_REPEATS_THROUGH = "2026-10-01";
+  const byNumber = new Map();
+  for (const f of readdirSync(join(ROOT, "context", "decisions"))) {
+    const m = f.match(/^(\d{4}-\d{2}-\d{2})-(\d+)-.+\.md$/);
+    if (!m || m[1] <= LEGACY_REPEATS_THROUGH) continue;
+    const key = `${m[1]}-${m[2]}`;
+    byNumber.set(key, [...(byNumber.get(key) ?? []), f]);
+  }
+  for (const [key, files] of byNumber) {
+    if (files.length > 1) violations.push({ clause: "5.1c", file: "context/decisions", message: `${key} is used by ${files.length} files (${files.join(", ")}). Rename the later arrival to the next free number after the highest that day, content unchanged (CONTRACTS.md 5.6).` });
+  }
+
+  return { violations, improvements, counts };
+}
+
+function updateBaseline() {
+  const { counts } = runChecks();
+  writeFileSync(join(ROOT, "contracts", "baseline.json"), JSON.stringify({ note: "Existing debt per rule and file. May only shrink. Changing this file is an audited act (CONTRACTS.md 9.4).", counts }, null, 2) + "\n");
+  writeFileSync(join(ROOT, "contracts", "component-inventory.json"), JSON.stringify({ note: "Approved component files. A file not listed here needs an entry in contracts/overrides.json (CONTRACTS.md 1.4).", files: componentFiles() }, null, 2) + "\n");
+  console.log("Baseline and component inventory rewritten. This change will be flagged in the audit.");
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  if (process.argv.includes("--update-baseline")) {
+    updateBaseline();
+    process.exit(0);
+  }
+  const { violations, improvements } = runChecks();
+  if (process.argv.includes("--json")) {
+    console.log(JSON.stringify({ violations, improvements }, null, 2));
+    process.exit(violations.length ? 1 : 0);
+  }
+  if (improvements.length) console.log(`Improved since baseline (run with --update-baseline to lock in):\n${improvements.map((i) => "  + " + i).join("\n")}\n`);
+  if (violations.length) {
+    console.error(`Contract violations (${violations.length}):\n` + violations.map((v) => `  - §${v.clause} ${v.file}: ${v.message}`).join("\n"));
+    console.error("\nSee CONTRACTS.md. A violation blocks completion (section 0.6).");
+    process.exit(1);
+  }
+  console.log("Contracts: OK (shell, form pattern, tokens, copy, component inventory).");
+}
