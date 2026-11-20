@@ -101,7 +101,7 @@ export function ArtefactTable({ artefacts, onOpen }: { artefacts: Artefact[]; on
         <TableCard.Root>
           <Table layout="fixed" className="min-w-[1050px]"
             bodyScrollable
-            aria-label="Artefacts and attachments"
+            aria-label="Attachments"
             sortDescriptor={sort}
             onSortChange={(next) => {
               setSort(next);

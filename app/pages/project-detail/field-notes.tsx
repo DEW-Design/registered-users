@@ -8,7 +8,7 @@
 //     thread), the "single note" pattern of Airtable's field description and a spreadsheet cell note.
 //   - Questionable: an admin (BioData or Privileged) marks the value questionable, with the reason,
 //     and resolves it later, again with a reason. The last resolution is kept with the field.
-//   - Attachments: files and reference links. Artefacts and attachments belong to a property.
+//   - Attachments: files and reference links. Attachments belong to a property.
 //
 // Viewing: a field with notes is one button: clicking anywhere on it opens its notes, clicking again
 // closes them. Everything is read only there, except that an admin can resolve a questionable value

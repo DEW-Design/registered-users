@@ -17,7 +17,7 @@ import { CFB, read as readWorkbook, utils as sheetUtils, SSF } from "xlsx";
 import { dataLicenceOptions, type DataLicence } from "@/app/pages/_shared/dataset-upload/dataset-data";
 import { sectionFieldEntries } from "./field-visibility-store";
 import { takesNotes } from "./field-notes";
-import { kindForFile, type FieldFileKind, type FileMeta, type NotesMap } from "./field-notes-store";
+import { PROJECT_FIELD_KEY, kindForFile, type FieldFileKind, type FileMeta, type NotesMap } from "./field-notes-store";
 import { KIND_LABEL } from "./record-inspector";
 import type { SurveyRecord } from "./survey-data";
 
@@ -79,8 +79,8 @@ type ColumnId =
  *  (File name and Link address are one or the other, so they are shaded without one). */
 const COLUMNS: { id: ColumnId; header: string; hint: string; width: number; required?: boolean; oneOf?: boolean }[] = [
   { id: "project", header: "Project ID", hint: "Required. Filled in for you.", width: 14, required: true },
-  { id: "record", header: "Record ID", hint: "Required. The event, occurrence or observation. Pick from the list.", width: 18, required: true },
-  { id: "field", header: "Concept ID", hint: "Required. The concept it documents. Pick from the list, or see Records and concepts.", width: 30, required: true },
+  { id: "record", header: "Record ID", hint: "The event, occurrence or observation. Pick from the list. Leave this and Concept ID empty to attach to the project as a whole.", width: 18, required: true, oneOf: true },
+  { id: "field", header: "Concept ID", hint: "The concept it documents. Pick from the list, or see Records and concepts. Empty with Record ID, for the project.", width: 30, required: true, oneOf: true },
   { id: "file", header: "File name", hint: "Required for a file: its exact name in the zip, with its extension.", width: 30, required: true, oneOf: true },
   { id: "link", header: "Link address", hint: "Required for a web link, in place of a file: the full address, starting https://.", width: 34, required: true, oneOf: true },
   { id: "title", header: "Title", hint: "Optional. A fuller title. The file name is used if empty.", width: 30 },
@@ -183,6 +183,8 @@ const STYLES =
   `</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
 
 export interface TemplateProject {
+  /** The project's own id: where a file or link that sits on the project as a whole is kept. */
+  id?: string;
   code: string;
   name: string;
   publisher: string;
@@ -207,7 +209,7 @@ export function buildAttachmentTemplate(project: TemplateProject, records: Surve
     [],
     [{ v: "How to use it", s: S.bold }],
     [{ v: "1. On the Attachments sheet, add one row for each file or web link.", s: S.wrap }],
-    [{ v: "2. Say where it belongs: the Record ID (an event, occurrence or observation) and the Concept ID (the concept it documents). Both are dropdowns. The Records and concepts sheet lists every record in this project with its concepts and their IDs.", s: S.wrap }],
+    [{ v: "2. Say where it belongs: the Record ID (an event, occurrence or observation) and the Concept ID (the concept it documents). Both are dropdowns. The Records and concepts sheet lists every record in this project with its concepts and their IDs. Leave both empty for a file or link that belongs to the whole project.", s: S.wrap }],
     [{ v: "3. For a file, type its exact name in File name. For a web link, put the address in Link address instead.", s: S.wrap }],
     [{ v: "4. Add the details you know: title, description, date created, creator, licence. They are shown with the attachment.", s: S.wrap }],
     [{ v: "5. Save this template, then put it in one zip file with the files it names. The zip can hold folders.", s: S.wrap }],
@@ -370,6 +372,8 @@ export interface CheckedRow {
   row: number;
   recordCode: string;
   fieldId: string;
+  /** The file or link sits on the project as a whole: Record ID and Concept ID were both left empty. */
+  onProject?: boolean;
   /** Resolved when the record and field exist. */
   record?: SurveyRecord;
   field?: AttachableField;
@@ -493,14 +497,20 @@ export function checkUpload(files: UploadedFile[], project: TemplateProject, rec
     if (projectCode && projectCode.toLowerCase() !== project.code.toLowerCase())
       problems.push(`${projectCode} is another project. This one is ${project.code}.`);
 
+    // Neither a record nor a concept: the project as a whole.
+    const onProject = !recordCode && !fieldId;
     const record = recordCode ? byCode.get(recordCode.toLowerCase()) : undefined;
-    if (!recordCode) problems.push("Add the Record ID.");
-    else if (!record) problems.push(`No record ${recordCode} in this project.`);
+    if (!onProject) {
+      if (!recordCode) problems.push("Add the Record ID, or leave the Record ID and Concept ID empty to attach to the project.");
+      else if (!record) problems.push(`No record ${recordCode} in this project.`);
+    }
 
     const fields = record ? fieldsByRecord.get(record.id) ?? [] : [];
     const field = fields.find((f) => f.fieldId === fieldId.toLowerCase());
-    if (!fieldId) problems.push("Add the Concept ID.");
-    else if (record && !field) problems.push(`${record.code} (${record.type}) has no concept ${fieldId}.`);
+    if (!onProject) {
+      if (!fieldId) problems.push("Add the Concept ID.");
+      else if (record && !field) problems.push(`${record.code} (${record.type}) has no concept ${fieldId}.`);
+    }
 
     let file: UploadedFile | undefined;
     let kind: FieldFileKind | undefined;
@@ -538,17 +548,19 @@ export function checkUpload(files: UploadedFile[], project: TemplateProject, rec
     // zip can be added again without attaching everything twice.
     const name = fileName ? baseName(fileName) : url;
     let status: RowStatus = problems.length ? "problem" : "ready";
-    if (record && field && name) {
-      const dupKey = `${record.id}|${field.key}|${name.toLowerCase()}`;
+    const targetId = onProject ? project.id : record?.id;
+    const targetKey = onProject ? PROJECT_FIELD_KEY : field?.key;
+    if (targetId && targetKey && name) {
+      const dupKey = `${targetId}|${targetKey}|${name.toLowerCase()}`;
       const earlier = seen.get(dupKey);
-      const already = notes[record.id]?.[field.key]?.files.some((f) => (f.url ?? f.name).toLowerCase() === name.toLowerCase());
+      const already = notes[targetId]?.[targetKey]?.files.some((f) => (f.url ?? f.name).toLowerCase() === name.toLowerCase());
       if (earlier && status === "ready") {
         status = "problem";
         problems.push(`The same ${url ? "link" : "file"} is on row ${earlier} for this concept.`);
       } else if (already && status === "ready") status = "attached";
       if (!earlier) seen.set(dupKey, rowNumber);
     }
-    rows.push({ row: rowNumber, recordCode, fieldId, record, field, fileName, url, file, kind, meta, status, problems });
+    rows.push({ row: rowNumber, recordCode, fieldId, onProject, record, field, fileName, url, file, kind, meta, status, problems });
   });
 
   const unused = pool.filter((f) => !used.has(f.name.toLowerCase())).map((f) => f.name);

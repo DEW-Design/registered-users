@@ -584,6 +584,8 @@ export interface OccurrenceFields extends CommonFields {
   /** NSX code (field-schema.ts NSX_SPECIES). */
   nsx: string;
   status: string;
+  /** The institution rego # when the record has no voucher of its own (a Population, or an Individual without one); a voucher's own `rego` wins. */
+  rego?: string;
   voucher?: {
     type: string;
     number: string;
@@ -595,6 +597,13 @@ export interface OccurrenceFields extends CommonFields {
     determiners: string[];
     transferDate: string;
   };
+}
+
+/** A SAMPLE institution rego # (the designer, 20 Nov 2026: "SAM123, etc."): the South Australian Museum's SAM for fauna, the State Herbarium's AD for flora, and a number made from the record's own id so it
+ *  is the same on every visit. Sample identifiers for the demo, not catalogue numbers (0.3); the field is free text. */
+export function sampleRego(fauna: boolean, seed: string): string {
+  const n = Number(seed.replace(/\D/g, "")) || 0;
+  return `${fauna ? "SAM" : "AD"}${100 + (n % 900)}`;
 }
 
 const list = (items: string[]) => (items.length ? items.join(" | ") : NP);
@@ -630,7 +639,7 @@ export function occurrenceSections(o: OccurrenceFields): MetaSection[] {
               { label: "Voucher number", term: "catalogNumber", value: v?.number ?? NP, type: "voucher" as const },
               { label: "Voucher images", value: json(v?.images ?? []), type: "images" as const },
               { label: "Institution name", term: "institutionCode", value: v?.institution ?? NP, type: "select" as const },
-              { label: "Institution rego #", value: v?.rego ?? NP, type: "text" as const },
+              { label: "Institution rego #", value: v?.rego ?? o.rego ?? NP, type: "text" as const },
               { label: "Determination date", term: "dateIdentified", value: v?.determinationDate ?? NP, type: "date" as const },
               { label: "Determination date accuracy", value: v?.determinationAccuracy ?? NP, type: "vocab" as const },
               { label: "Determiners", term: "identifiedBy", value: list(v?.determiners ?? []), type: "people" as const },
@@ -641,7 +650,7 @@ export function occurrenceSections(o: OccurrenceFields): MetaSection[] {
       : []),
     // A Population has no voucher of its own, only the institution rego #, a free-text field (designer, 20 Nov 2026).
     ...(o.type === "Population"
-      ? [{ id: "voucher", title: "Voucher", rows: [{ label: "Institution rego #", value: NP, type: "text" as const }] }]
+      ? [{ id: "voucher", title: "Voucher", rows: [{ label: "Institution rego #", value: o.rego ?? NP, type: "text" as const }] }]
       : []),
     recordLocation(o),
     { ...CUSTOM },
@@ -850,6 +859,7 @@ function occurrence(o: Omit<OccurrenceFields, "code" | "name" | "description" | 
     location: o.locationNote ? undefined : { method: "coordinates", boundary: { id: `pt-${o.id}`, kind: "circle", center: [o.lat, o.lon], radiusKm: 0.01 } },
     sections: occurrenceSections({
       ...o,
+      rego: o.rego ?? sampleRego(o.taxonomicType !== "Flora", o.code),
       name: o.common,
       description: o.description ?? NP,
       startDate: o.date,
@@ -1039,7 +1049,7 @@ const occurrences: SurveyRecord[] = [
       number: "24518",
       images: ["Hair sample tube.jpg", "Label close-up.jpg"],
       institution: "South Australian Museum",
-      rego: "Mammals",
+      rego: "SAM123",
       determinationDate: "2025-10-20",
       determinationAccuracy: "D",
       determiners: ["Phoenix Baker", "Lana Steiner"],

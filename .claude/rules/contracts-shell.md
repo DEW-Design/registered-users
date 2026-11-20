@@ -157,7 +157,7 @@ carry an icon to the left of its label, as column 2's items do (§3.11): the ico
 scans by shape as well as by word and the same section has the same icon on every screen.
 
 - **Which icon.** The one the app already uses for the same thing (§2.4): Overview `Grid01`, Locations `MarkerPin04`,
-  Species `Feather`, Survey records and Data Collection Scope `Database01`, Artefacts and attachments `Paperclip`,
+  Species `Feather`, Survey records and Data Collection Scope `Database01`, Attachments `Paperclip`,
   Project and Projects `Folder`, Permit and Agreement `FileCheck02`, Audit Log `ClockRewind`, Privacy and
   Restrictions `Lock01`, What to protect `Shield01`, Sensitive species risk `ShieldTick`, Data Sharing `Share07`, Comments `MessageSquare01`, URI/DOI `Link01`,
   Roles `UserCheck01`, Permissions `Key01`, Users `Users01`, Details `File06`, Favourites `Star01`, Uploads and Datasets

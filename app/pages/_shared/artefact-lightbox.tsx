@@ -1,11 +1,12 @@
 "use client";
 
-import type { FC, ReactNode } from "react";
-import { ChevronLeft, ChevronRight, Download01, Image01, FileAttachment02, VideoRecorder, FileCheck02, Link02 } from "@untitledui/icons";
+import { useState, type FC, type ReactNode } from "react";
+import { ChevronDown, ChevronLeft, ChevronRight, Download01, Image01, FileAttachment02, VideoRecorder, FileCheck02, Link02 } from "@untitledui/icons";
 import { Badge, CountBadge } from "@/components/base/badges/badges";
 import { Button } from "@/components/base/buttons/button";
 import { CloseButton } from "@/components/base/buttons/close-button";
 import { ModalOverlay, Modal, Dialog as ModalDialog } from "@/components/application/modals/modal";
+import { ScrollFade } from "@/app/pages/_shared/map-search/scroll-fade";
 import { cx } from "@/utils/cx";
 
 // The real artefact preview/download modal - first built at /proto/project-detail, rolled into
@@ -146,6 +147,9 @@ export function ArtefactCarousel({ artefacts, onOpen }: { artefacts: Artefact[];
 // detail of that other viewer's own styling, not something to copy). Only image artefacts get a
 // real preview; non-image types show their file-type icon large, same honest "no invented
 // lookalike" rule as the carousel tiles.
+/** How many of the attached resources the viewer lists before "Show N more". */
+const RESOURCES_SHOWN = 5;
+
 export function ArtefactLightbox({
   artefacts,
   index,
@@ -157,8 +161,13 @@ export function ArtefactLightbox({
   onClose: () => void;
   onNavigate: (index: number) => void;
 }) {
+  // The resource list shows the first few and then "Show N more" (the product's pattern for the rest of a list, with its ChevronDown); the open one is always shown.
+  const [shown, setShown] = useState(RESOURCES_SHOWN);
+  if (index === null && shown !== RESOURCES_SHOWN) setShown(RESOURCES_SHOWN);
   const artefact = index !== null ? artefacts[index] : null;
   if (!artefact || index === null) return null;
+  const visible = Math.max(shown, index + 1);
+  const hidden = artefacts.length - visible;
   const meta = artefactTypeMeta[artefact.type];
 
   return (
@@ -197,12 +206,11 @@ export function ArtefactLightbox({
                 <p className="flex items-center gap-2 text-sm font-medium text-primary">
                   Attached Resources <CountBadge count={artefacts.length} color="gray" />
                 </p>
-                {/* max-h + overflow - project-detail's own 4-item list never needed this, but the
-                    map search results page's Artefacts and Attachments tab can carry many more
-                    resources at once, so this list scrolls internally rather than growing the
-                    modal past a sane height. */}
-                <div className="flex max-h-64 flex-col gap-1.5 overflow-y-auto">
-                  {artefacts.map((item, i) => {
+                {/* The list is capped (a long one scrolls, with its fade) so the modal never outgrows the window, but it no longer starts cut: it shows the first few, and a
+                    button says how many are left (the designer, 20 Nov 2026, from a screenshot: "bring in the pattern for '2 more'"). */}
+                <ScrollFade axis="y" fade={32} className="max-h-[26rem]">
+                <div className="flex flex-col gap-1.5">
+                  {artefacts.slice(0, visible).map((item, i) => {
                     const itemMeta = artefactTypeMeta[item.type];
                     const active = i === index;
                     return (
@@ -222,13 +230,22 @@ export function ArtefactLightbox({
                     );
                   })}
                 </div>
+                </ScrollFade>
+                {hidden > 0 && (
+                  <Button color="secondary" size="sm" className="w-max" iconLeading={ChevronDown} onPress={() => setShown(artefacts.length)}>
+                    Show {hidden} more
+                  </Button>
+                )}
               </div>
             </div>
             {/* Metadata panel - exact field set/order from Figma's "MetaSection" (node
                 I2486:63512;1892:26966): Title/Created/Creator/Artefact Object Id/Description/
                 Format/Identifier/License/Publisher/Rights Holder/Type/BioDataID. */}
             <div className="flex flex-col gap-4 border-secondary lg:border-l lg:pl-6">
-              <div className="flex flex-col gap-3 overflow-y-auto lg:max-h-[26rem]">
+              {/* The list takes the room the window has (the dialog's header, padding and the Download button taken off), not a fixed 26rem that cut it with free space under it (the
+                  designer, 20 Nov 2026, from a recording); where the window is too short it scrolls, with a fade at the foot saying there is more. */}
+              <ScrollFade axis="y" fade={32} className="lg:max-h-[calc(100dvh-16rem)]">
+              <div className="flex flex-col gap-3">
                 <MetaField label="Title">{artefact.metaTitle}</MetaField>
                 <MetaField label="Created">{artefact.created}</MetaField>
                 <MetaField label="Creator">{artefact.creator}</MetaField>
@@ -246,6 +263,7 @@ export function ArtefactLightbox({
                 <MetaField label="Type">{artefact.dcType}</MetaField>
                 <MetaField label="BioDataID">{artefact.bioDataId}</MetaField>
               </div>
+              </ScrollFade>
               <Button color="primary" iconLeading={Download01} className="mt-auto w-full">
                 Download
               </Button>

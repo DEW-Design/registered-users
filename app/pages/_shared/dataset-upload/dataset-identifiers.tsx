@@ -14,8 +14,8 @@ export function DatasetIdentifiers({ answers, update }: { answers: Pick<Acknowle
       <Input
         label="URI / DOI number"
         placeholder="10.5281/zenodo.1234567"
-        // The line about an existing identifier is a tooltip on the field, not a line under it (the designer, 19 Nov 2026).
-        tooltip="Enter an existing identifier if known; otherwise, a unique ID will be generated."
+        // The line about an existing identifier is a tooltip on the field, not a line under it (the designer, 19 Nov 2026). It stops there: it no longer adds that a unique ID is generated otherwise (20 Nov 2026).
+        tooltip="Enter an existing identifier if known."
         value={answers.uriDoi}
         onChange={(uriDoi) => update({ uriDoi })}
       />

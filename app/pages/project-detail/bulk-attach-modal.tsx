@@ -5,6 +5,10 @@
 // and "Add web link" (record-quick-actions.tsx), which add one at a time from a record, so it is the same modal and the
 // files land the same way: on a field, audio and video waiting for an admin's review.
 //
+// One file needs no template (designer, 20 Nov 2026: "for single ones, let me just do, make it easy", then "reuse the bulk upload, no
+// need to create two tabs"): the same drop area takes a single file too, and once one is added, the record and the concept of it the file
+// documents are asked under it (attach-fields.tsx, as a record's own "Add attachment" asks them). A zip or the template is the many-files path below.
+//
 // Three steps, on one screen: download the template, fill it, add the zip. Once added, every row is checked and shown
 // with where it goes and whether it is ready, already attached (skipped) or to fix, problems first. The ready rows are
 // attached; the rest are left for the person to fix and add again. Borrowed: the drop area from Upload dataset
@@ -18,15 +22,17 @@ import { FormModal } from "@/components/application/modals/modal";
 import { toast } from "@/components/application/toast/toast";
 import { UploadDropzone } from "@/app/pages/_shared/dataset-upload/upload-dropzone";
 import { useSampleContent } from "@/app/_prototype-tools/sample-content";
-import { formatFileSize } from "@/app/pages/_shared/dataset-upload/dataset-data";
+import { fileRulesFor, formatFileSize } from "@/app/pages/_shared/dataset-upload/dataset-data";
 import { EmbeddedTable } from "@/app/pages/_shared/embedded-table";
 import { NumberedSteps } from "@/app/pages/_shared/numbered-steps";
 import { useUserRole } from "@/lib/use-user-role";
 import { useEditStore } from "./edit-store";
 import { useCurrentUserName } from "./field-notes";
-import { fieldNotesActions, reviewForNewFile, useFieldNotes } from "./field-notes-store";
+import { PROJECT_FIELD_KEY, fieldNotesActions, kindForFile, reviewForNewFile, useFieldNotes } from "./field-notes-store";
+import { AttachmentDetails, ConceptSelect, RecordSelect, emptyAttachmentDetails, metaOfDetails, type AttachmentDetailsDraft } from "./attach-fields";
 import { sampleAttachmentFiles } from "./bulk-attach-sample";
 import {
+  attachableFields,
   buildAttachmentTemplate,
   checkUpload,
   expandUpload,
@@ -55,8 +61,18 @@ export function BulkAttachModal({ isOpen, onClose }: { isOpen: boolean; onClose:
   const [reading, setReading] = useState(false);
   const [readError, setReadError] = useState<string | null>(null);
   const [tried, setTried] = useState(false);
+  // One file, added in the same drop area: the record and the concept it documents are asked under it.
+  const [oneRecordId, setOneRecordId] = useState<string | null>(null);
+  const [oneFieldKey, setOneFieldKey] = useState<string | null>(null);
+  const [oneFile, setOneFile] = useState<File | null>(null);
+  const [oneKey, setOneKey] = useState(0);
+  const [details, setDetails] = useState<AttachmentDetailsDraft>(emptyAttachmentDetails);
+  // The project as a whole is a place a file can sit (no concept to choose).
+  const onProject = oneRecordId === meta.id;
+  const oneRecord = useMemo(() => records.find((r) => r.id === oneRecordId) ?? null, [records, oneRecordId]);
+  const oneFields = useMemo(() => (oneRecord ? attachableFields(oneRecord) : []), [oneRecord]);
   const projectName = project.details.shortTitle;
-  const target = useMemo(() => ({ code: meta.code, name: projectName, publisher: meta.publisher }), [meta.code, meta.publisher, projectName]);
+  const target = useMemo(() => ({ id: meta.id, code: meta.code, name: projectName, publisher: meta.publisher }), [meta.id, meta.code, meta.publisher, projectName]);
 
   // Checked against the notes as they are now, so a row attached since is shown as already attached.
   const check = useMemo(() => (upload ? checkUpload(upload.files, target, records, notes) : null), [upload, records, notes, target]);
@@ -74,8 +90,16 @@ export function BulkAttachModal({ isOpen, onClose }: { isOpen: boolean; onClose:
     setReadError(null);
     setTried(false);
   };
+  const resetOne = () => {
+    setOneRecordId(null);
+    setOneFieldKey(null);
+    setOneFile(null);
+    setDetails(emptyAttachmentDetails);
+    setOneKey((k) => k + 1);
+  };
   const close = () => {
     reset();
+    resetOne();
     onClose();
   };
 
@@ -93,6 +117,20 @@ export function BulkAttachModal({ isOpen, onClose }: { isOpen: boolean; onClose:
 
   const add = async (dropped: File[]) => {
     if (dropped.length === 0) return;
+    // One file that is not a zip or the template: no template needed, just where it goes.
+    const isOne = dropped.length === 1 && !/\.(zip|xlsx|xls)$/i.test(dropped[0].name);
+    if (isOne) {
+      if (!kindForFile(dropped[0].name)) {
+        setUpload(null);
+        setReadError(`${dropped[0].name} isn't a supported type. Use an image, PDF, spreadsheet, audio or video file.`);
+        return;
+      }
+      setUpload(null);
+      setReadError(null);
+      setOneFile(dropped[0]);
+      return;
+    }
+    setOneFile(null);
     setReading(true);
     setReadError(null);
     try {
@@ -115,6 +153,7 @@ export function BulkAttachModal({ isOpen, onClose }: { isOpen: boolean; onClose:
     value: { on: sampleOn, upload },
     onChange: (next) => {
       setSampleOn(next.on);
+      if (!next.on) resetOne();
       setUpload(next.upload);
       setReadError(null);
       setTried(false);
@@ -137,7 +176,22 @@ export function BulkAttachModal({ isOpen, onClose }: { isOpen: boolean; onClose:
     };
   }, [isOpen, sampleOn]);
 
+  const submitOne = () => {
+    setTried(true);
+    if (!oneFile || !oneRecordId || (!onProject && (!oneRecord || !oneFieldKey))) return;
+    const kind = kindForFile(oneFile.name);
+    if (!kind) {
+      toast.error("That file type isn't supported", { description: "Use an image, PDF, spreadsheet, audio or video file." });
+      return;
+    }
+    const label = onProject ? projectName : (oneFields.find((f) => f.key === oneFieldKey)?.label ?? "the concept");
+    fieldNotesActions.attach(onProject ? meta.id : oneRecordId, onProject ? PROJECT_FIELD_KEY : (oneFieldKey as string), { name: oneFile.name, sizeBytes: oneFile.size, kind }, me, reviewForNewFile(kind, role), metaOfDetails(details));
+    toast.success(`${oneFile.name} attached to ${label}`, { description: "Changes are kept in this browser. This preview has no backend." });
+    close();
+  };
+
   const submit = () => {
+    if (oneFile) return submitOne();
     setTried(true);
     if (!check || check.error) return;
     if (ready.length === 0) {
@@ -146,13 +200,16 @@ export function BulkAttachModal({ isOpen, onClose }: { isOpen: boolean; onClose:
     }
     let waiting = 0;
     for (const r of ready) {
-      if (!r.record || !r.field) continue;
+      // On the project as a whole, or on a field of a record.
+      const recordId = r.onProject ? meta.id : r.record?.id;
+      const fieldKey = r.onProject ? PROJECT_FIELD_KEY : r.field?.key;
+      if (!recordId || !fieldKey) continue;
       if (r.kind === "link") {
-        fieldNotesActions.addLink(r.record.id, r.field.key, { url: r.url, name: r.meta.title || r.url.replace(/^https?:\/\//, ""), meta: r.meta }, me);
+        fieldNotesActions.addLink(recordId, fieldKey, { url: r.url, name: r.meta.title || r.url.replace(/^https?:\/\//, ""), meta: r.meta }, me);
       } else if (r.file && r.kind) {
         const review = reviewForNewFile(r.kind, role);
         if (review) waiting += 1;
-        fieldNotesActions.attach(r.record.id, r.field.key, { name: r.file.name, sizeBytes: r.file.size, kind: r.kind }, me, review, r.meta);
+        fieldNotesActions.attach(recordId, fieldKey, { name: r.file.name, sizeBytes: r.file.size, kind: r.kind }, me, review, r.meta);
       }
     }
     const left = count("problem");
@@ -169,7 +226,12 @@ export function BulkAttachModal({ isOpen, onClose }: { isOpen: boolean; onClose:
   };
 
   const where = (r: CheckedRow) =>
-    r.record && r.field ? (
+    r.onProject ? (
+      <span className="flex min-w-0 flex-col">
+        <span className="truncate text-sm font-medium text-primary">{target.code} {target.name}</span>
+        <span className="truncate text-sm text-tertiary">Whole project</span>
+      </span>
+    ) : r.record && r.field ? (
       <span className="flex min-w-0 flex-col">
         <span className="truncate text-sm font-medium text-primary" title={`${r.record.code} ${r.record.name}`}>
           {r.record.code} {r.record.name}
@@ -189,12 +251,13 @@ export function BulkAttachModal({ isOpen, onClose }: { isOpen: boolean; onClose:
       onOpenChange={(open) => !open && close()}
       size="lg"
       title="Upload attachments"
-      description={`Attach many files and web links to ${target.name}'s records at once, with this project's template.`}
-      submitLabel={ready.length ? `Attach ${[readyFiles ? plural(readyFiles, "file", "files") : "", readyLinks ? plural(readyLinks, "link", "links") : ""].filter(Boolean).join(" and ")}` : "Attach"}
+      description={oneFile ? `Choose where this file goes in ${target.name}.` : "Add one file, or many files and links with this project's template."}
+      submitLabel={oneFile ? "Attach file" : ready.length ? `Attach ${[readyFiles ? plural(readyFiles, "file", "files") : "", readyLinks ? plural(readyLinks, "link", "links") : ""].filter(Boolean).join(" and ")}` : "Attach"}
       submitIcon={Upload01}
       isSubmitLoading={reading}
       onSubmit={submit}
     >
+      {!oneFile && (
       <NumberedSteps
         steps={[
           <span key="template" className="flex flex-col items-start gap-2">
@@ -207,6 +270,7 @@ export function BulkAttachModal({ isOpen, onClose }: { isOpen: boolean; onClose:
           "Zip the files with the filled-in template and add the zip here. For web links only, add the template on its own.",
         ]}
       />
+      )}
 
       {upload ? (
         <div className="flex items-center gap-3 rounded-xl border border-secondary bg-primary p-4">
@@ -222,17 +286,43 @@ export function BulkAttachModal({ isOpen, onClose }: { isOpen: boolean; onClose:
           </div>
           <Button color="tertiary" size="sm" iconLeading={Trash01} aria-label={`Remove ${upload.names.join(", ")}`} onPress={reset} />
         </div>
+      ) : oneFile ? (
+        <>
+          <div className="flex items-center gap-3 rounded-xl border border-secondary bg-primary p-4">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-secondary text-fg-quaternary">
+              <File05 className="size-5" />
+            </span>
+            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+              <p className="m-0 truncate text-sm font-medium text-secondary">{oneFile.name}</p>
+              <p className="m-0 text-sm text-tertiary tabular-nums">{formatFileSize(oneFile.size)}</p>
+            </div>
+            <Button color="tertiary" size="sm" iconLeading={Trash01} aria-label={`Remove ${oneFile.name}`} onPress={resetOne} />
+          </div>
+          <RecordSelect
+            records={records.filter((r) => attachableFields(r).length > 0)}
+            project={{ id: meta.id, code: meta.code, name: projectName }}
+            value={oneRecordId}
+            onChange={(id) => {
+              setOneRecordId(id);
+              setOneFieldKey(null);
+            }}
+            isInvalid={tried && !oneRecordId}
+            resetKey={oneKey}
+          />
+          {oneRecord && !onProject && <ConceptSelect fields={oneFields} value={oneFieldKey} onChange={setOneFieldKey} isInvalid={tried && !oneFieldKey} resetKey={`${oneRecord.id}-${oneKey}`} />}
+          <AttachmentDetails value={details} onChange={setDetails} publisher={meta.publisher} />
+        </>
       ) : (
         <div className="flex flex-col gap-1.5">
           <UploadDropzone
             onAdd={add}
-            isInvalid={(tried && !upload) || !!readError}
-            acceptedFileTypes={[".zip", ".xlsx", ".xls"]}
-            formats="A ZIP of the template and its files, or the template alone for web links"
+            isInvalid={(tried && !upload && !oneFile) || !!readError}
+            acceptedFileTypes={[".zip", ...fileRulesFor("everything").extensions]}
+            formats="One file, a ZIP of the template and its files, or the template alone for links"
           />
           {reading && <p className="m-0 text-sm text-tertiary">Reading the zip…</p>}
-          {(readError || (tried && !upload)) && (
-            <p className="m-0 text-sm text-error-primary">{readError ?? "Add the zip with your filled-in template and its files."}</p>
+          {(readError || (tried && !upload && !oneFile)) && (
+            <p className="m-0 text-sm text-error-primary">{readError ?? "Add a file, or a ZIP with your filled-in template and its files."}</p>
           )}
         </div>
       )}

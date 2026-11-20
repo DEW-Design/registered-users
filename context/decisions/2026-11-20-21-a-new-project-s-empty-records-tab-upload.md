@@ -1,0 +1,6 @@
+# 2026-11-20 - A new project's empty records tab: Upload a dataset is primary, Add records secondary
+
+- **Nov 20 2026: on a project with no records (one just created), "Upload a dataset" is the primary button and "Add records" the secondary.** The designer: "for when a new project is created, can we please have 'Upload a dataset' as primary button and 'Add records' as secondary?" Before, "Add record" was primary and "Upload dataset" secondary (the designer's 16 Oct 2026 arrangement, which this replaces).
+  - **Changed.** In the empty state of the Project records tab (`records-explorer.tsx`): `UploadDatasetButton` takes the label "Upload a dataset" and the primary colour, first; the `AddRecordMenu` reads "Add records" and is secondary. A role that cannot edit still sees only the primary Upload, as before.
+  - **Not changed.** The "Project created!" screen has one primary action, "Go to project", and a list of next steps; it has no Upload or Add buttons, so there was nothing to reorder there. The Datasets tab's and the Species tab's empty states keep their own Upload buttons.
+  - **Verified live** (BioData Admin, a project created through Add Project): the empty state reads "Upload a dataset" (filled brand) then "Add records" (white, with its menu chevron); zero console errors. `tsc`, `eslint` and `check:contracts` clean. Not committed.

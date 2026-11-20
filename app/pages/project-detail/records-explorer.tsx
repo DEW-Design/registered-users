@@ -485,8 +485,8 @@ export function RecordsExplorer({
   );
 
   // A project with no records yet (a project just created): one empty state in place of the toolbar, the tree and the
-  // panel, with the two ways to start: upload a dataset, or add a record (the project's own "Add inside" menu, grouped as
-  // Events, Occurrences and Observations).
+  // panel, with the two ways to start: upload a dataset (the primary button) or add records (secondary; the project's own "Add inside" menu,
+  // grouped as Events, Occurrences and Observations). The designer, 20 Nov 2026: Upload a dataset is primary and Add records secondary.
   if (records.length === 0)
     return (
       <div className="flex min-h-[560px] flex-col rounded-xl border border-secondary bg-primary">
@@ -499,14 +499,14 @@ export function RecordsExplorer({
               : "Records appear here once a dataset is uploaded to this project."
           }
         >
-          <UploadDatasetButton projectId={meta.id} color={canEdit ? "secondary" : "primary"} size="md" />
+          <UploadDatasetButton projectId={meta.id} label="Upload a dataset" color="primary" size="md" />
           {canEdit && (
             <AddRecordMenu
               options={childOptions(null, [])}
               onAdd={(o) => startAdd(null, o, "empty")}
-              label="Add record"
+              label="Add records"
               size="md"
-              color="primary"
+              color="secondary"
             />
           )}
         </ListEmptyState>

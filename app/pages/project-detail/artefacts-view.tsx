@@ -1,6 +1,6 @@
 "use client";
 
-// VERSION 3: the Artefacts and attachments tab. Only what is attached to a record's fields in Survey
+// VERSION 3: the Attachments tab (it was "Artefacts and attachments" until 20 Nov 2026). Only what is attached to a record's fields in Survey
 // records shows here (field-notes-store.ts is the source). Two views of the same list, switched with the
 // same control as the records' Tree / Table switch: Cards (the file tiles) and Table (one row per file,
 // sortable, paginated). Search and a Type filter sit in the standard collection toolbar (CONTRACTS
@@ -37,7 +37,7 @@ import { RejectModal } from "@/app/pages/_shared/agreement-modals";
 import { isBiodataAdmin } from "@/lib/user-role";
 import { useUserRole } from "@/lib/use-user-role";
 import { useCurrentUserName } from "./field-notes";
-import { fieldNotesActions, type FieldFile } from "./field-notes-store";
+import { PROJECT_FIELD_KEY, fieldNotesActions, type FieldFile } from "./field-notes-store";
 import type { ProjectMeta } from "./project-seed";
 import type { SurveyRecord } from "./survey-data";
 import { type FilterSection, useListFilter } from "@/app/pages/_shared/list-filter";
@@ -54,10 +54,12 @@ export type FieldArtefact = Artefact & { recordId: string; fieldKey: string; add
 /** A file attached to a record's field, shaped for the artefact viewer. What the bulk upload template gave (`file.meta`) wins over the defaults. */
 export function fieldArtefact(
   { recordId, key, file }: { recordId: string; key: string; file: FieldFile },
-  rec: SurveyRecord,
+  rec: Pick<SurveyRecord, "name" | "code"> & { type: string },
   meta: ProjectMeta,
 ): FieldArtefact {
   const field = key.slice(key.indexOf(":") + 1);
+  // On the project as a whole: no field to name.
+  const onProject = key === PROJECT_FIELD_KEY;
   const m = file.meta ?? {};
   return {
     fieldKey: key,
@@ -67,12 +69,12 @@ export function fieldArtefact(
     title: file.name,
     type: file.kind,
     size: file.size || "Link",
-    recordLabel: `${rec.name}, ${field}`,
+    recordLabel: onProject ? rec.name : `${rec.name}, ${field}`,
     metaTitle: m.title ?? file.name,
     created: m.created ?? file.date,
     creator: m.creator ?? file.addedBy,
     objectId: `${meta.objectPrefix}:${rec.code}:${file.id.toUpperCase()}`,
-    description: `${m.description ? `${m.description.replace(/([^.!?])$/, "$1.")} ` : ""}Attached to "${field}" on ${rec.type} ${rec.code}, ${rec.name}.${file.review?.status === "rejected" ? ` Rejected by ${file.review.by}: ${file.review.reason}` : ""}`,
+    description: `${m.description ? `${m.description.replace(/([^.!?])$/, "$1.")} ` : ""}${onProject ? `Attached to the project ${rec.code}, ${rec.name}.` : `Attached to "${field}" on ${rec.type} ${rec.code}, ${rec.name}.`}${file.review?.status === "rejected" ? ` Rejected by ${file.review.by}: ${file.review.reason}` : ""}`,
     review: file.review,
     format: { image: "image/jpeg", pdf: "application/pdf", spreadsheet: "application/vnd.ms-excel", video: "video/mp4", link: "text/uri-list" }[file.kind],
     identifierUrl: file.url ?? "https://data.environment.sa.gov.au",
@@ -80,7 +82,7 @@ export function fieldArtefact(
     publisher: m.publisher ?? meta.publisher,
     rightsHolder: m.rightsHolder ?? m.publisher ?? meta.publisher,
     dcType: { image: "StillImage", pdf: "Text", spreadsheet: "Dataset", video: "MovingImage", link: "InteractiveResource" }[file.kind],
-    bioDataId: `${meta.code.replace("-", "")}-${rec.code}`,
+    bioDataId: onProject ? meta.code.replace("-", "") : `${meta.code.replace("-", "")}-${rec.code}`,
   };
 }
 
@@ -250,7 +252,7 @@ export function ArtefactsView({
                   onClick={() => onOpenRecord(a.recordId, a.fieldKey)}
                   iconTrailing={ArrowNarrowRight}
                 >
-                  Go to record
+                  {a.fieldKey === PROJECT_FIELD_KEY ? "Go to project" : "Go to record"}
                 </Button>
                 <span className="ml-auto flex items-center">{reviewButtons(a)}</span>
               </div>
@@ -260,7 +262,7 @@ export function ArtefactsView({
       ) : (
         <TableCard.Root className="flex max-h-[calc(100dvh-16rem)] min-h-48 flex-col">
           <Table layout="fixed" className="min-w-[1100px]"
-            aria-label="Artefacts and attachments"
+            aria-label="Attachments"
             bodyScrollable
             sortDescriptor={sort}
             onSortChange={(next) => {
@@ -331,7 +333,7 @@ export function ArtefactsView({
                           onClick={() => onOpenRecord(a.recordId, a.fieldKey)}
                           iconTrailing={ArrowNarrowRight}
                         >
-                          Go to record
+                          {a.fieldKey === PROJECT_FIELD_KEY ? "Go to project" : "Go to record"}
                         </Button>
                         <span className="ml-auto flex items-center">{reviewButtons(a)}</span>
                       </span>

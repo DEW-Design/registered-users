@@ -781,7 +781,7 @@ function RestrictionsSection({ state, onChange, showErrors }: SectionProps) {
                   label="Please explain any other sensitivities that should be considered"
                   isRequired
                   rows={4}
-                  placeholder="Why does this project need protection?"
+                  placeholder="Tell us the risk(s) of releasing your data or any privacy concerns you might have"
                   value={r.otherRestrictions}
                   onChange={(otherRestrictions) => patchRestrictions({ otherRestrictions })}
                   isInvalid={otherMissing}

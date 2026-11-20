@@ -776,3 +776,10 @@ Not imported into every session on purpose: read or grep it when a task needs hi
 - [2026-11-20] The event nesting sheet becomes the rule for what can go where - `2026-11-20-17-the-event-nesting-sheet-becomes-the-rule-for.md`
 - [2026-11-20] GitHub Pages deploy can serve from the root of an organisation site - `2026-11-20-18-github-pages-deploy-can-serve-from-the-root.md`
 - [2026-11-20] Institution rego # is free text, not a drop-down - `2026-11-20-19-institution-rego-is-free-text-not-a-drop.md`
+- [2026-11-20] Sample institution rego ids in Explore's table: SAM123 and AD for flora - `2026-11-20-20-sample-institution-rego-ids-in-explore-s-table.md`
+- [2026-11-20] A new project's empty records tab: Upload a dataset is primary, Add records secondary - `2026-11-20-21-a-new-project-s-empty-records-tab-upload.md`
+- [2026-11-20] Add Project's other sensitivities question has new placeholder text - `2026-11-20-22-add-project-s-other-sensitivities-question-has-new.md`
+- [2026-11-20] Single attachments need no template, and the Attachments tab is renamed - `2026-11-20-23-single-attachments-need-no-template-and-the-attachments.md`
+- [2026-11-20] Attachments can sit on the project, carry their details, and the viewer stops cutting its lists - `2026-11-20-24-attachments-can-sit-on-the-project-carry-their.md`
+- [2026-11-20] Upload attachments copy cleaned up: hints say only a default - `2026-11-20-25-upload-attachments-copy-cleaned-up-hints-say-only.md`
+- [2026-11-20] URI and DOI tooltip drops its second clause - `2026-11-20-26-uri-and-doi-tooltip-drops-its-second-clause.md`

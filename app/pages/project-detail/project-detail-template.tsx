@@ -19,7 +19,7 @@
 //  - Species: every species recorded in the project, with where and when. (Hidden for now, 19 Nov 2026: its tab and content are commented out below.)
 //  - Datasets (30 Oct 2026): every upload to this project, the one in progress with its pre-flight validation, and each dataset's own page
 //    (`?view=datasets&dataset=<id>`, datasets-view.tsx), whose Back link returns here (`?tab=datasets`).
-//  - Artefacts and attachments: every file attached to a record, each linked back to its record.
+//  - Attachments: every file attached to a record, each linked back to its record.
 //
 // The Overview tab (called Project until 26 Oct 2026) opens with the project's own cards. It had a "Project at a glance" section above them (a Datasets card over a records card);
 // the designer removed it as a double-up of the tabs' counts and the header.
@@ -56,7 +56,7 @@ import { BulkAttachModal } from "./bulk-attach-modal";
 import { DatasetScreen, DatasetSwitcher, DatasetsTab, useProjectDatasetCount } from "./datasets-view";
 import { ReviewScreen, useLiveEntries, useReviewItems } from "./review-view";
 import { useCanReview } from "./field-notes";
-import { allFiles, recordFieldKeys, useFieldNotes } from "./field-notes-store";
+import { PROJECT_FIELD_KEY, allFiles, recordFieldKeys, useFieldNotes } from "./field-notes-store";
 import { useFeatureAccess } from "@/lib/use-feature-access";
 import { useUserRole } from "@/lib/use-user-role";
 import { useRoleHref } from "@/lib/use-role-href";
@@ -237,18 +237,20 @@ function ProjectDetail({ basePath, notice }: ProjectDetailTemplateProps) {
     setDetailTab(reviewFrom);
     router.push(roleHref(basePath));
   };
-  // Artefacts and attachments belong to a property: every file attached to a field, from the
+  // Attachments belong to a property: every file attached to a field, from the
   // persisted field-notes store, shaped for the shared artefact viewer.
   const notes = useFieldNotes();
   const artefacts = useMemo(
     () =>
       allFiles(notes).flatMap(({ recordId, key, file }) => {
+        // On the project as a whole: the project stands in for the record.
+        if (recordId === meta.id && key === PROJECT_FIELD_KEY) return [fieldArtefact({ recordId, key, file }, { name: project.details.shortTitle, type: "Project", code: meta.code }, meta)];
         const rec = recordById(recordId);
         // Only files on a field the record still has.
         if (!rec || !recordFieldKeys(rec).has(key)) return [];
         return [fieldArtefact({ recordId, key, file }, rec, meta)];
       }),
-    [notes, recordById, meta],
+    [notes, recordById, meta, project.details.shortTitle],
   );
   const projectTitle = project.details.shortTitle;
   const activeSectionNode =
@@ -271,6 +273,8 @@ function ProjectDetail({ basePath, notice }: ProjectDetailTemplateProps) {
   // A counter, not a timestamp, so opening the same field twice still counts as a new jump.
   const [focusSeq, setFocusSeq] = useState(0);
   const openRecord = (id: string, fieldKey?: string) => {
+    // An attachment on the project as a whole goes to the project's own tab.
+    if (id === meta.id) return setDetailTab("project");
     setRecordFilter({});
     setSelectedId(id);
     setDetailTab("records");
@@ -469,7 +473,7 @@ function ProjectDetail({ basePath, notice }: ProjectDetailTemplateProps) {
                       {canSeeDatasets && <Tab id="datasets" label="Datasets" icon={UploadCloud02} badge={datasetCount} />}
                       <Tab
                         id="artefacts"
-                        label="Artefacts and attachments"
+                        label="Attachments"
                         icon={Paperclip}
                         badge={artefacts.length}
                       />

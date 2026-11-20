@@ -11,13 +11,12 @@
 // the header above keeps only the path and full screen (designer, 25 Oct 2026: no two controls for one action, and
 // icon-only "+" and pencil were not clear, so both are labelled).
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { Autocomplete, Input as AriaInput, SearchField, SubmenuTrigger } from "react-aria-components";
 import { ChevronDown, Copy01, DotsVertical, Edit05, LayoutAlt04, Link01, Paperclip, Plus, SearchLg, Trash01, Upload01 } from "@untitledui/icons";
 import { Button } from "@/components/base/buttons/button";
 import { Dropdown } from "@/components/base/dropdown/dropdown";
 import { Input } from "@/components/base/input/input";
-import { MultiSelect } from "@/components/base/select/multi-select";
 import { Tooltip, TooltipTrigger } from "@/components/base/tooltip/tooltip";
 import { FormModal } from "@/components/application/modals/modal";
 import { toast } from "@/components/application/toast/toast";
@@ -28,9 +27,10 @@ import { sampleFile } from "@/app/_prototype-tools/sample-files";
 import { useEditStore } from "./edit-store";
 import { childOptions, copyOf, type ChildOption } from "./record-rules";
 import { KIND_PLURAL } from "./record-inspector";
-import { takesNotes, useCurrentUserName } from "./field-notes";
+import { useCurrentUserName } from "./field-notes";
 import { fieldNotesActions, kindForFile, reviewForNewFile } from "./field-notes-store";
-import { sectionFieldEntries } from "./field-visibility-store";
+import { attachableFields } from "./bulk-attachments";
+import { AttachmentDetails, ConceptSelect, FileChooser, emptyAttachmentDetails, metaOfDetails, type AttachmentDetailsDraft } from "./attach-fields";
 import type { MetaSection, RecordKind, SurveyRecord } from "./survey-data";
 
 const KIND_ORDER: RecordKind[] = ["event", "occurrence", "observation"];
@@ -144,11 +144,11 @@ function AddMenu({
       ? [
           {
             id: "files",
-            label: "Artefacts and attachments",
+            label: "Attachments",
             kind: null,
             entries: [
-              { id: "file", label: "Add attachment", group: "Artefacts and attachments" },
-              { id: "link", label: "Add web link", group: "Artefacts and attachments" },
+              { id: "file", label: "Add attachment", group: "Attachments" },
+              { id: "link", label: "Add web link", group: "Attachments" },
             ] as Entry[],
           },
         ]
@@ -285,24 +285,17 @@ function AddMenu({
 function AttachModal({ record, mode, onClose }: { record: SurveyRecord; mode: "file" | "link"; onClose: () => void }) {
   const me = useCurrentUserName();
   const role = useUserRole();
-  const fields = useMemo(
-    () =>
-      record.sections.flatMap((s) =>
-        sectionFieldEntries(s)
-          .filter((f) => takesNotes(f.label))
-          .map((f) => ({ id: f.key, label: f.label, supportingText: s.title })),
-      ),
-    [record],
-  );
+  const fields = useMemo(() => attachableFields(record), [record]);
   // No field chosen to start: which one a file documents is the person's call, not the first in the list.
   const [fieldKey, setFieldKey] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
+  const [details, setDetails] = useState<AttachmentDetailsDraft>(emptyAttachmentDetails);
+  const { meta } = useEditStore();
   const [url, setUrl] = useState("");
   const [title, setTitle] = useState("");
   const [tried, setTried] = useState(false);
-  const fileInput = useRef<HTMLInputElement>(null);
   const urlOk = /^https?:\/\/\S+\.\S+/.test(url.trim());
-  const fieldLabel = fields.find((f) => f.id === fieldKey)?.label ?? "the concept";
+  const fieldLabel = fields.find((f) => f.key === fieldKey)?.label ?? "the concept";
 
   // The Pre-fill sample content switch (Prototype tools): the first concept it can document, then a file, or a link to the BDBSA overview (the
   // address is the one in ref-domain.md, a real page). The sample's file comes out again when the switch goes off; the person's own stays.
@@ -314,7 +307,7 @@ function AttachModal({ record, mode, onClose }: { record: SurveyRecord; mode: "f
       setTitle(next.title);
     },
     sample: () => ({
-      fieldKey: fields[0]?.id ?? null,
+      fieldKey: fields[0]?.key ?? null,
       url: mode === "link" ? "https://www.environment.sa.gov.au/topics/science/information-and-data/biological-databases-of-south-australia" : "",
       title: mode === "link" ? "BDBSA overview" : "",
     }),
@@ -339,7 +332,7 @@ function AttachModal({ record, mode, onClose }: { record: SurveyRecord; mode: "f
         toast.error("That file type isn't supported", { description: "Use an image, PDF, spreadsheet, audio or video file." });
         return;
       }
-      fieldNotesActions.attach(record.id, fieldKey, { name: file.name, sizeBytes: file.size, kind }, me, reviewForNewFile(kind, role));
+      fieldNotesActions.attach(record.id, fieldKey, { name: file.name, sizeBytes: file.size, kind }, me, reviewForNewFile(kind, role), metaOfDetails(details));
       toast.success(`${file.name} attached to ${fieldLabel}`, { description: "Changes are kept in this browser. This preview has no backend." });
     } else {
       if (!urlOk) return;
@@ -359,48 +352,12 @@ function AttachModal({ record, mode, onClose }: { record: SurveyRecord; mode: "f
       submitIcon={mode === "file" ? Upload01 : Link01}
       onSubmit={submit}
     >
-      <MultiSelect
-        key={sampleKey}
-        label="Attach to"
-        isRequired
-        selectionMode="single"
-        placeholder="Choose a concept"
-        isInvalid={tried && !fieldKey}
-        hint={tried && !fieldKey ? "Choose the concept this documents." : undefined}
-        items={fields}
-        selectedKeys={new Set(fieldKey ? [fieldKey] : [])}
-        onSelectionChange={(keys) => {
-          const next = keys === "all" ? undefined : Array.from(keys)[0];
-          if (next) setFieldKey(String(next));
-        }}
-      >
-        {(item) => <MultiSelect.Item {...item} />}
-      </MultiSelect>
+      <ConceptSelect fields={fields} value={fieldKey} onChange={setFieldKey} isInvalid={tried && !fieldKey} resetKey={sampleKey} />
       {mode === "file" ? (
-        <div className="flex flex-col gap-1.5">
-          <p className="text-sm font-medium text-secondary">
-            File <span className="text-brand-tertiary">*</span>
-          </p>
-          <div className="flex items-center gap-3">
-            <Button color="secondary" size="sm" iconLeading={Upload01} onClick={() => fileInput.current?.click()}>
-              {file ? "Choose another file" : "Choose file"}
-            </Button>
-            <span className="min-w-0 truncate text-sm text-tertiary">{file ? file.name : "No file chosen"}</span>
-          </div>
-          {tried && !file && <p className="text-sm text-error-primary">Choose a file to attach.</p>}
-          <input
-            ref={fileInput}
-            type="file"
-            className="sr-only"
-            tabIndex={-1}
-            aria-label="Choose a file to attach"
-            accept="image/*,.pdf,.xls,.xlsx,.csv,audio/*,video/*"
-            onChange={(e) => {
-              setFile(e.target.files?.[0] ?? null);
-              e.target.value = "";
-            }}
-          />
-        </div>
+        <>
+          <FileChooser file={file} onChange={setFile} isInvalid={tried} />
+          <AttachmentDetails value={details} onChange={setDetails} publisher={meta.publisher} />
+        </>
       ) : (
         <>
           <Input

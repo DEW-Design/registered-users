@@ -9,8 +9,8 @@
 // - a flag: the value is questionable, with the reason, who raised it and when (one open flag at a
 //   time; resolving it removes it);
 // - one comment: the field's note, added once and then edited (never a growing thread);
-// - files: artefacts and attachments. Artefacts and attachments belong to a property, not to the
-//   record as a whole, so this store is also the source of the "Artefacts and attachments" tab.
+// - files: attachments. Attachments belong to a property, not to the
+//   record as a whole, so this store is also the source of the "Attachments" tab.
 //
 // Seeded with example notes written for this prototype (the placeholder cast), and with the four
 // existing artefacts re-attached to the property each one documents. The files are metadata only:
@@ -629,6 +629,9 @@ export function hasNotes(n: FieldNotes | undefined): n is FieldNotes {
     (!!n.flag || !!n.resolved || n.comments.length > 0 || n.files.length > 0)
   );
 }
+
+/** The key of an attachment that sits on the project as a whole, not on a field of a record: its record is the project (the designer, 20 Nov 2026: "an attachment can be sitting just on a project level too"). */
+export const PROJECT_FIELD_KEY = "project:Project";
 
 /**
  * The field keys a record has right now (`section:label`). Notes are only ever shown or counted for
