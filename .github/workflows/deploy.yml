@@ -1,7 +1,9 @@
 # Builds the BioData SA testing edition as a static site and publishes it to GitHub Pages.
 #
 # - Runs on every push to main, and by hand from the Actions tab (workflow_dispatch).
-# - The site is served from https://<owner>.github.io/<repo>/, so it is built with BASE_PATH=/<repo> (next.config.ts reads it).
+# - A project repository is served from https://<owner>.github.io/<repo>/, so it is built with BASE_PATH=/<repo> (next.config.ts reads it).
+#   A repository named <owner>.github.io (a user or organisation site, e.g. biodatasa/biodatasa.github.io) is served from the root of
+#   https://<owner>.github.io/, so it is built with no base path.
 # - `app/proto` (the labs) is removed before the build: labs never ship (CONTRACTS 5.4).
 # - `npm run check:contracts` runs first, so a build that breaks a contract is not published (CONTRACTS 0.6).
 #
@@ -46,10 +48,21 @@ jobs:
       - name: Leave the labs out of the build
         run: rm -rf app/proto
 
+      # Done in the shell: an expression like `cond && '' || x` cannot give an empty string, because '' is false.
+      - name: Work out the base path
+        id: base
+        env:
+          REPO: ${{ github.event.repository.name }}
+        run: |
+          case "$REPO" in
+            *.github.io) echo "path=" >> "$GITHUB_OUTPUT" ;;
+            *) echo "path=/$REPO" >> "$GITHUB_OUTPUT" ;;
+          esac
+
       - name: Build
         run: npm run build
         env:
-          BASE_PATH: /${{ github.event.repository.name }}
+          BASE_PATH: ${{ steps.base.outputs.path }}
 
       # GitHub Pages runs no Jekyll here, but the marker keeps `_next/` served if that ever changes.
       - name: Mark the site as plain static files

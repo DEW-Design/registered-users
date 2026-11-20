@@ -18,7 +18,6 @@ import {
   type SearchObservation,
   type SearchOccurrence,
 } from "@/app/pages/_shared/map-search/search-data";
-import { REGO_FOR_GROUP } from "@/app/pages/_shared/reports/specimen-records";
 import { projectEvents, projectObservations, projectOccurrences } from "@/app/pages/_shared/project-scope";
 import { createdProjectForm, type CreatedProject } from "@/app/pages/_shared/created-projects-store";
 import type { UserRole } from "@/lib/user-role";
@@ -184,7 +183,6 @@ function occurrenceRecord(o: SearchOccurrence & { type: "Individual" | "Populati
       seq: NP,
       taxonomicType: NP,
       nsx: speciesValue(o.species),
-      rego: o.group ? REGO_FOR_GROUP[o.group] : undefined,
       status: o.status,
       startDate: o.date,
       endDate: NP,

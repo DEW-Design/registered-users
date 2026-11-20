@@ -17,7 +17,6 @@ export const SELECT_OPTIONS: Record<string, string[]> = {
   "Occurrence status": ["Present", "Absent", "Present but not counted"],
   "Voucher type": ["Specimen", "Tissue sample", "Hair sample", "Photograph", "Sound recording"],
   "Institution name": ["South Australian Museum", "State Herbarium of South Australia"],
-  "Institution rego #": ["Mammals", "Birds", "Herpetology", "Invertebrates", "Vascular plants"],
   // Observation: species
   Line: ["1", "2", "3", "4", "5"],
   Activity: ["Foraging", "Resting", "Calling", "Nesting", "Moving", "Digging", "Dead"],

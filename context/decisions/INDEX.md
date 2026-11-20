@@ -774,3 +774,5 @@ Not imported into every session on purpose: read or grep it when a task needs hi
 - [2026-11-20] A compact species card for Explore's Map and table view - `2026-11-20-15-a-compact-species-card-for-explore-s-map.md`
 - [2026-11-20] A row in Explore's table opens its species card, and an edge-case pass over the split view - `2026-11-20-16-a-row-in-explore-s-table-opens-its.md`
 - [2026-11-20] The event nesting sheet becomes the rule for what can go where - `2026-11-20-17-the-event-nesting-sheet-becomes-the-rule-for.md`
+- [2026-11-20] GitHub Pages deploy can serve from the root of an organisation site - `2026-11-20-18-github-pages-deploy-can-serve-from-the-root.md`
+- [2026-11-20] Institution rego # is free text, not a drop-down - `2026-11-20-19-institution-rego-is-free-text-not-a-drop.md`

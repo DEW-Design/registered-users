@@ -93,7 +93,7 @@ const NUMBERS: Record<string, string> = {
 };
 
 const NO = new Set(["Gravid?", "Is annual herb?", "Planted/Released"]);
-const PICK: Record<string, string> = { Sex: "F", "Taxonomic type": SPECIES.kingdom, "Institution rego #": "Mammals" };
+const PICK: Record<string, string> = { Sex: "F", "Taxonomic type": SPECIES.kingdom };
 
 const DATE_TERMS = new Set(["eventDate", "measurementDeterminedDate"]);
 
@@ -104,6 +104,8 @@ function answer(row: MetaRow, ctx: { key: string; start: CalendarDate }): string
   const { label } = row;
   const type = fieldTypeOf(row);
   if (type === "system" || type === "derived" || type === "score" || type === "measurements") return null;
+  // A registration number has no honest sample (a number that looks real is an invented identifier, 0.3): left empty.
+  if (label === "Institution rego #") return null;
   const options = SELECTS[label];
   if (options) return options[0];
   if (PICK[label]) return PICK[label];

@@ -11,8 +11,7 @@
 //     24518, registered under "Mammals") is used as it stands;
 //   - every other voucher number is DERIVED, deterministically, in the style the data already uses (the
 //     institution's prefix and a number). They are sample identifiers, not real catalogue numbers;
-//   - the registration ("Institution rego #") is the register the species' group belongs to, from the
-//     options list in field-options.ts;
+//   - the registration ("Institution rego #", a free-text field in the product) is, here, the register the species' group belongs to: a sample value;
 //   - an NSX code is never invented: a species field-schema.ts does not list has none.
 
 import {
@@ -72,8 +71,8 @@ const TAXA: Record<string, Taxon> = {
   "Trichosurus vulpecula": { group: "Mammal", class: "Mammalia", order: "Diprotodontia", family: "Phalangeridae" },
 };
 
-/** The register a group of species is held in (the options in field-options.ts "Institution rego #"). */
-export const REGO_FOR_GROUP: Record<SpeciesGroup, string> = {
+/** The register a group of species is held in: a sample value for these reports, as the voucher numbers are. The Institution rego # field itself is free text. */
+const REGO_FOR_GROUP: Record<SpeciesGroup, string> = {
   Mammal: "Mammals",
   Bird: "Birds",
   Reptile: "Herpetology",
