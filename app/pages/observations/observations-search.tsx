@@ -9,13 +9,14 @@ import { Tabs } from "react-aria-components";
 import { TabList, Tab } from "@/components/application/tabs/tabs";
 import { AreaLayerChips, type AreaKind } from "@/app/pages/_shared/map-search/area-layers";
 import { ScrollFade } from "@/app/pages/_shared/map-search/scroll-fade";
-import { OTHER_RECORD_COLOR, SPECIES_GROUP_COLOR, SPECIES_GROUP_ICON, SPECIES_GROUP_ORDER } from "@/app/pages/_shared/map-search/species-group-icons";
+import { LIFE_FORM_COLOR, LIFE_FORM_ORDER, lifeFormOf, OTHER_RECORD_COLOR, SPECIES_GROUP_ICON, type LifeForm } from "@/app/pages/_shared/map-search/species-group-icons";
 import { MapLegend, type LegendItem } from "@/app/pages/_shared/map-search/map-legend";
 import { MAP_SURFACE_EDGE } from "@/app/pages/_shared/map-search/map-surface";
 import type { SAMapMarker } from "@/app/pages/_shared/map-search/sa-map";
+import type { DrawLayerHandle, DrawLayerState } from "@/components/custom/draw-map/draw-layer";
 import { MapZoomButtons } from "@/app/pages/_shared/map-search/map-zoom-buttons";
 import type { Map as LeafletMap } from "leaflet";
-import { ArrowNarrowRight, Circle, Download01, Feather, File07, FileDownload01, FileLock01, Folder, Map01, Map02, MarkerPin02, Pentagon, Plus, Printer, RefreshCcw01, SearchLg, Upload01, UserPlus01, XClose, Table as TableIcon } from "@untitledui/icons";
+import { ArrowNarrowLeft, ArrowNarrowRight, Circle, Download01, Feather, File07, FileDownload01, FileLock01, Folder, Map01, Map02, MarkerPin02, Pentagon, Plus, Printer, RefreshCcw01, SearchLg, Upload01, UserPlus01, XClose, Table as TableIcon } from "@untitledui/icons";
 import { Button } from "@/components/base/buttons/button";
 import { Dropdown } from "@/components/base/dropdown/dropdown";
 import { Badge } from "@/components/base/badges/badges";
@@ -47,6 +48,7 @@ import {
 import { EXPORT_HEADERS, exportRowFor } from "@/app/pages/_shared/map-search/species-results";
 import { downloadCsv, downloadExcel, printAsPdf } from "@/app/pages/_shared/map-search/export-utils";
 import { type DetailRecord } from "@/app/pages/_shared/map-search/record-detail";
+import { ListEmptyState } from "@/app/pages/_shared/list-empty-state";
 import { RecordPeekCard } from "@/app/pages/_shared/map-search/record-peek-card";
 import { ResultCard } from "@/app/pages/_shared/map-search/result-card";
 import { ChunkHeading } from "@/app/pages/_shared/map-search/chunk-heading";
@@ -63,11 +65,12 @@ import { navForRole, keyHref, type NavNode } from "@/lib/registered-user-nav";
 import { cx } from "@/utils/cx";
 import { MAP_CONTROLS_Z_INDEX } from "@/lib/layers";
 import { SplitHandle } from "@/components/custom/split-handle/split-handle";
+import { ReportExportButton } from "@/app/pages/_shared/reports/report-export-button";
 import { FullscreenToggle } from "@/app/pages/project-detail/record-panel";
 import { DataReport } from "@/app/pages/_shared/reports/report-table";
 import { reportBundleFor } from "@/app/pages/_shared/reports/report-records";
 import { speciesRowsFor, type SpeciesRow } from "@/app/pages/_shared/reports/species-detail-report-data";
-import { speciesDetailAttributes, speciesDetailColumns, speciesRowId, speciesSearchText } from "@/app/pages/_shared/reports/species-detail-report";
+import { EXPLORE_HIDDEN_COLUMNS, exploreSpeciesAttributes, exploreSpeciesColumns, speciesRowId, speciesSearchText } from "@/app/pages/_shared/reports/species-detail-report";
 
 // The map search interface built for the sidebar's Observations item, per direct request: a real,
 // interactive map of South Australia (Leaflet + OpenStreetMap tiles, not a fabricated grid) that
@@ -119,8 +122,17 @@ function matchesKeyword(haystack: string, keyword: string): boolean {
 // Ranked, so the eye has an order (designer, 23 Oct 2026: "bring in some hierarchy"): what is happening first (the title, 14/600 primary, with the tool's icon in the colour the shape is drawn in on the map), how to do it
 // under it (12/400 tertiary, the supporting-line layer of a result row), and the way out last and quietest (Tertiary: no fill until pointed at). Title and hint are two lines of 20px and 16px, the height of the Cancel button
 // and of the icon tile beside them (36px), so the row has one height and 8px of room all round. Corners are concentric all the way in: the bar's 16px, less the 8px between its edge and the icon tile and the button, is the 8px both have (2.13).
-function DrawStatusBar({ tool, onCancel, className }: { tool: "circle" | "polygon"; onCancel: () => void; className?: string }) {
-  const Icon = tool === "circle" ? Circle : Pentagon;
+function DrawStatusBar({ state, onCancel, onUndo, className }: { state: DrawLayerState; onCancel: () => void; onUndo: () => void; className?: string }) {
+  const kind = state.tool === "circle" ? "circle" : "polygon";
+  const Icon = kind === "circle" ? Circle : Pentagon;
+  const hint =
+    kind === "circle"
+      ? "Press for the centre and drag out to the size you want."
+      : state.points === 0
+        ? "Click the map to place the first corner."
+        : state.points < 3
+          ? "Keep clicking to place each corner."
+          : "Click the first corner, double-click or press Enter to finish.";
   return (
     <div
       role="status"
@@ -134,12 +146,19 @@ function DrawStatusBar({ tool, onCancel, className }: { tool: "circle" | "polygo
         <Icon className="size-5" />
       </span>
       <div className="min-w-0 flex-1">
-        <p className="m-0 text-sm font-semibold text-primary">{tool === "circle" ? "Drawing a circle" : "Drawing a polygon"}</p>
-        <p className="m-0 text-xs text-balance text-tertiary">{tool === "circle" ? "Click and drag on the map to set the centre and radius." : "Click to place each point, then double-click to finish."}</p>
+        <p className="m-0 text-sm font-semibold text-primary">{kind === "circle" ? "Adding a circle" : "Adding a polygon"}</p>
+        <p className="m-0 text-xs text-balance text-tertiary">{hint}</p>
       </div>
-      <Button color="tertiary" size="sm" iconLeading={XClose} className="shrink-0" onPress={onCancel}>
-        Cancel
-      </Button>
+      <div className="flex shrink-0 items-center gap-2">
+        {kind === "polygon" && state.points > 0 && (
+          <Button color="secondary" size="sm" iconLeading={ArrowNarrowLeft} onPress={onUndo}>
+            Undo
+          </Button>
+        )}
+        <Button color="tertiary" size="sm" iconLeading={XClose} onPress={onCancel}>
+          Cancel
+        </Button>
+      </div>
     </div>
   );
 }
@@ -263,7 +282,13 @@ function ObservationsSearch({ variant }: { variant: ExploreVariant }) {
   // below, so changing the radius or the selection recomputes just those, never touching a
   // manually drawn shape or entered point.
   const [manualBoundaries, setManualBoundaries] = useState<Boundary[]>(() => restored?.manualBoundaries ?? (urlQuery ? [wholeStateBoundary()] : []));
-  const [activeDrawTool, setActiveDrawTool] = useState<"circle" | "polygon" | null>(null);
+  // Shapes are drawn with the product's drawing tools (`DrawLayer`, as the project's geographic extent is): a polygon by corners, a circle pressed out. A finished shape is an area at
+  // once: Explore is draw, search, export, with no step to check it in between (the designer, 19 Nov 2026). The layer keeps the drawing itself; this screen is told what it needs for
+  // its own bar and gives it commands.
+  const drawRef = useRef<DrawLayerHandle>(null);
+  const [drawState, setDrawState] = useState<DrawLayerState>({ tool: null, points: 0 });
+  const activeDrawTool = drawState.tool;
+  const setActiveDrawTool = (tool: "circle" | "polygon" | null) => (tool ? drawRef.current?.start(tool) : drawRef.current?.cancel());
   const [keyword, setKeyword] = useState(restored?.keyword ?? urlQuery ?? "");
   const [entityTab, setEntityTab] = useState<EntityTab>("projects");
   // Species mode vs. the Projects view. Explore always opens on Species (species first, per the designer): it does not inherit the tab from the saved search.
@@ -494,6 +519,8 @@ function ObservationsSearch({ variant }: { variant: ExploreVariant }) {
     [impliedWholeState, explicitBoundaries],
   );
 
+  const mapBoundaries = useMemo(() => boundaries.filter((b) => b.source !== WHOLE_STATE_SOURCE), [boundaries]);
+
   const removeBoundary = (target: Boundary) => {
     if (target.source?.startsWith("park:")) {
       const removedParkId = target.source.slice("park:".length);
@@ -647,7 +674,7 @@ function ObservationsSearch({ variant }: { variant: ExploreVariant }) {
   // and the heading stopped counting them on 11 Nov 2026 (it is now Species plus Projects), so those three lists are gone.
 
 
-  // Same real behaviour the top-level DLA banner's own "Go to DLA"/"Sign up for access" CTA
+  // Same real behaviour the top-level DLA banner's own "Apply for a data licence"/"Sign up for access" CTA
   // already uses (see the AlertFullWidth below) - pulled out so Species mode's own DLA notice and
   // export gating (species-results.tsx) can reuse it rather than reimplementing the branch.
   const requestDlaAccess = () => {
@@ -793,17 +820,26 @@ function ObservationsSearch({ variant }: { variant: ExploreVariant }) {
   // restricted records are left out; other signed-in roles that restricted locations are only
   // approximate. BioData Admin sees all data, so gets no notice.
   const seesAllData = hasFeatureAccess("restrictedData", role);
-  const accessNoticeTitle = isPublicUser ? "You're viewing public data" : "Some locations are approximate";
-  const accessNoticeBody = isPublicUser
-    ? "Sensitive records are not shown. Sign up and request a Data Licencing Agreement (DLA) to see them."
-    : "Sensitive species are shown only to an approximate area. Request a Data Licencing Agreement (DLA) for full access.";
+  const accessNoticeTitle = isPublicUser ? "You're viewing public data" : "Some locations are restricted";
+  // The restricted data policy is a link with nowhere to go yet (the designer, 20 Nov 2026: "no actual link in there for now"): the policy's address is not known, so none is made up.
+  const accessNoticeBody = isPublicUser ? (
+    "Sensitive records are not shown. Sign up and request a Data Licencing Agreement (DLA) to see them."
+  ) : (
+    <>
+      In line with the{" "}
+      <a href="#" onClick={(e) => e.preventDefault()} className="font-medium text-primary underline underline-offset-2 outline-focus-ring hover:text-secondary focus-visible:outline-2">
+        restricted data policy
+      </a>
+      , some locations are truncated or withheld. Please request a data licence for full access.
+    </>
+  );
 
   const dlaBanner =
     !dlaBannerDismissed && !seesAllData ? (
       <PageBanner
         title={accessNoticeTitle}
         description={accessNoticeBody}
-        actionLabel={isPublicUser ? "Sign up for access" : "Go to DLA"}
+        actionLabel={isPublicUser ? "Sign up for access" : "Apply for a data licence"}
         actionIcon={isPublicUser ? UserPlus01 : ArrowNarrowRight}
         actionIconPosition={isPublicUser ? "leading" : "trailing"}
         onAction={requestDlaAccess}
@@ -816,19 +852,28 @@ function ObservationsSearch({ variant }: { variant: ExploreVariant }) {
   // view / table view to switch between. There is no Search button: the results follow the search
   // area and keyword as they change.
 
+  // The table's rows (below, with the split): read here too, so a species picked in the table can be kept on the map while a search still lists it.
+  const publishedProjects = useMemo(() => searchEvents.filter((e) => e.type === "Project" && (e.status === "Active" || e.status === "Completed")), []);
+  const tableRows = useMemo<SpeciesRow[]>(() => {
+    if (!hasTableToggle) return [];
+    const searching = boundaries.length > 0;
+    const projectsInView = searching ? filteredProjects : publishedProjects;
+    const rows = projectsInView.flatMap((p) => speciesRowsFor(reportBundleFor(p, role)));
+    return searching ? rows.filter((r) => isRecordInAnyBoundary(r.lat, r.lon, r.blockKm ?? null, boundaries)) : rows;
+  }, [hasTableToggle, boundaries, filteredProjects, publishedProjects, role]);
   // One dot per record in what the panel is showing, so a row in the table and a point on the map
   // are the same record: clicking a dot opens that record, like clicking its row.
-  // One dot per plotted record, coloured by species group (the same groups and order as the Species
-  // tiles) on the Species, Occurrences, Observations and Artefacts tabs; an artefact takes its
-  // record's group. A record with no species group (Non-biotic, Community) is "Other", grey.
+  // One dot per plotted record, coloured flora or fauna (a Plant is flora, every other species group
+  // is fauna) on the Species, Occurrences, Observations and Artefacts tabs; an artefact takes its
+  // record's colour. A record with no species group (Non-biotic, Community) is "Other", grey.
   // Projects and events stay brand, one colour, so they get no key. `legendKey` feeds the key on
   // the map (only what is plotted is listed).
-  type ExploreMarker = SAMapMarker & { legendKey?: SpeciesGroup | "Other" };
+  type ExploreMarker = SAMapMarker & { legendKey?: LifeForm | "Other" };
   const mapMarkers = useMemo<ExploreMarker[]>(() => {
     const pt = (id: string, lat: number, lon: number, label: string): ExploreMarker => ({ id, position: [lat, lon], label });
     const groupStyle = (group: SpeciesGroup | undefined) => ({
-      legendKey: group ?? ("Other" as const),
-      color: group ? SPECIES_GROUP_COLOR[group] : OTHER_RECORD_COLOR,
+      legendKey: group ? lifeFormOf(group) : ("Other" as const),
+      color: group ? LIFE_FORM_COLOR[lifeFormOf(group)] : OTHER_RECORD_COLOR,
     });
     // A restricted (Level 2) record is never pinned: it is drawn as the square block of the grid that
     // contains it (the same block the record page shows), flat and with no centre mark, so the map
@@ -840,22 +885,30 @@ function ObservationsSearch({ variant }: { variant: ExploreVariant }) {
     };
     const recordPt = (o: SearchOccurrence) => fuzzyPt(`occurrence:${o.id}`, o.lat, o.lon, o.commonName, generalisedKm(o, role), o.group);
     // The Species tab lists species only, so it plots only records that are a species.
-    if (viewMode === "species") return filteredOccurrences.filter((o) => o.family && o.group).map(recordPt);
+    if (viewMode === "species") {
+      const found = filteredOccurrences.filter((o) => o.family && o.group);
+      // A species picked in the table is on the map even where the search did not find it (nothing searched, or a row the search left out of the map), so its card has a dot to belong to.
+      // It goes when a search has left its row out of the table (the same words the table's search matches), as a card never outlives its record's place in the list.
+      const q = keyword.trim().toLowerCase();
+      const pickedRow = selectedRecord?.kind === "occurrence" ? tableRows.find((r) => r.id.endsWith(`:occurrence:${selectedRecord.occurrence.id}`)) : undefined;
+      const stillListed = !q || (pickedRow ? speciesSearchText(pickedRow).some((v) => v?.toLowerCase().includes(q)) : false);
+      const picked = hasTableToggle && resultsView === "map-and-table" && selectedRecord?.kind === "occurrence" && stillListed ? selectedRecord.occurrence : null;
+      return (picked && !found.some((o) => o.id === picked.id) ? [...found, picked] : found).map(recordPt);
+    }
     return filteredProjects.map((e) => pt(`event:${e.id}`, e.lat, e.lon, e.name));
-  }, [viewMode, filteredProjects, filteredOccurrences, role]);
+  }, [viewMode, filteredProjects, filteredOccurrences, role, hasTableToggle, resultsView, selectedRecord, keyword, tableRows]);
 
-  // The key to the dots: each species group in view (in the Species tiles' order), then "Other",
-  // then the block when a restricted record is plotted. Empty for projects and events.
+  // The key to the dots: flora and fauna, whichever are in view, then "Other". A restricted record's block has no entry of its own (the designer, 20 Nov 2026): it is the same colour as
+  // its flora or fauna. Empty for projects and events.
   const legendItems = useMemo<LegendItem[]>(() => {
     if (!mapMarkers.some((m) => m.legendKey)) return [];
     const present = new Set(mapMarkers.map((m) => m.legendKey));
-    const items: LegendItem[] = SPECIES_GROUP_ORDER.filter((g) => present.has(g)).map((g) => ({ id: g, label: g, color: SPECIES_GROUP_COLOR[g] }));
+    const items: LegendItem[] = LIFE_FORM_ORDER.filter((g) => present.has(g)).map((g) => ({ id: g, label: g, color: LIFE_FORM_COLOR[g] }));
     if (present.has("Other")) items.push({ id: "other", label: "Other record", color: OTHER_RECORD_COLOR });
-    if (mapMarkers.some((m) => m.fuzzyBlock)) items.push({ id: "restricted", label: "Restricted (block)", color: OTHER_RECORD_COLOR, fuzzy: true });
     return items;
   }, [mapMarkers]);
 
-  // A dot opens what its card opens: the record's summary card (with "Show in project").
+  // A dot opens what its card opens: the record's summary card.
   const onMarkerClick = (markerId: string) => {
     const [kind, ...rest] = markerId.split(":");
     const id = rest.join(":");
@@ -1000,11 +1053,18 @@ function ObservationsSearch({ variant }: { variant: ExploreVariant }) {
       {panelTabsEl}
       <MapResultList total={cardItems.length} shown={listLimit} onShowMore={() => setListLimit((n) => n + LIST_STEP)} scrollRef={listRef}>
         {cardItems.length === 0 ? (
-          <p className="px-3 py-6 text-sm text-balance text-tertiary">Nothing of this kind here. Try a larger area, a different word or another tab.</p>
+          // The empty state every list in the product uses (`ListEmptyState`, compact: an icon, a heading and one line saying what to do), not a bare sentence.
+          <ListEmptyState
+            compact
+            icon={panelView === "species" ? Feather : Folder}
+            title={panelView === "species" ? "No species records found" : "No projects found"}
+            description="Try a different word, a larger area or the other tab."
+          />
         ) : (
           <>
             {/* The list opens with the name of what it holds and the one thing to do with all of it, as Map visualise's does (its category and its column of badges): the same row in every tab. The count is on the tab. */}
-            <ChunkHeading label={panelTabs.find((t) => t.id === panelView)?.label ?? ""} trailing={exportControl} roomy />
+            {/* The Species tab lists occurrence records, one species for each, so its heading says so (the designer, 20 Nov 2026); the tab keeps its short name. */}
+            <ChunkHeading label={panelView === "species" ? "Species occurrence records" : (panelTabs.find((t) => t.id === panelView)?.label ?? "")} trailing={exportControl} roomy />
             {cardItems.slice(0, listLimit).map((c) => (
               <ResultCard
                 key={c.id}
@@ -1059,8 +1119,8 @@ function ObservationsSearch({ variant }: { variant: ExploreVariant }) {
       </Button>
       <Dropdown.Popover placement="bottom right" className="w-56">
         <Dropdown.Menu aria-label="Add a search area" onAction={(key) => startAdding(String(key))}>
-          <Dropdown.Item id="circle" label="Draw a circle" icon={Circle} />
-          <Dropdown.Item id="polygon" label="Draw a polygon" icon={Pentagon} />
+          <Dropdown.Item id="circle" label="Add a circle" icon={Circle} />
+          <Dropdown.Item id="polygon" label="Add a polygon" icon={Pentagon} />
           <Dropdown.Separator />
           <Dropdown.Item id="coordinates" label="Enter coordinates" icon={MarkerPin02} />
           <Dropdown.Item id="location" label="Choose national parks" icon={Map02} />
@@ -1102,7 +1162,28 @@ function ObservationsSearch({ variant }: { variant: ExploreVariant }) {
   // hint (the design system's `HintText` under the field, which also describes the field to a screen reader), so it is one thing with the field, in the type the product's field hints have. It goes once there is a
   // word, an area or a form open: from then on the heading counts the results and the chips say where.
   const showGrowHint = !addingMethod && !hasAreas && explicitLayers.length === 0 && !keyword.trim();
+  // The view switch is a pair of toggles at the right of the search field, in the card (the designer, 20 Nov 2026: "Adding map | table as toggles next to the search bar might be better UX"; it
+  // was a pill in the map's bottom-left corner). It is where the search is, in the same place in both views (the card stays), and the map's corners are left to the zoom buttons and the key.
+  // The design system's segmented tabs (`button-border`) with the icon alone: the card is 440px wide and the field needs about 225px for its icon and placeholder, so two words do not fit; each
+  // carries its name as its accessible name and its tooltip. Map01 for the map (Map02 is "Choose national parks" in Add area, 2.4) and a table for the table.
+  const viewSwitch = hasTableToggle ? (
+    <Tabs
+      selectedKey={resultsView}
+      onSelectionChange={(key) => {
+        setResultsView(key as "map-only" | "map-and-table");
+        setTableFullscreen(false);
+      }}
+      className="shrink-0"
+    >
+      {/* The two toggles touch (4px apart): their targets are as drawn, 36 by 32, so they never overlap (2.16; the group caps the extension, `--hit-min`). */}
+      <TabList aria-label="Results view" type="button-border" size="sm" className="[--hit-min:32px]">
+        <Tab id="map-only" label="Map only" icon={Map01} iconOnly />
+        <Tab id="map-and-table" label="Map and table" icon={TableIcon} iconOnly />
+      </TabList>
+    </Tabs>
+  ) : null;
   const growSearchField = (
+    <div className="flex items-start gap-2">
     <Input
       icon={SearchLg}
       aria-label="Search species or keyword"
@@ -1112,13 +1193,16 @@ function ObservationsSearch({ variant }: { variant: ExploreVariant }) {
       onChange={setKeyword}
       onClear={() => setKeyword("")}
       clearLabel="Clear search"
+      className="min-w-0 flex-1"
     />
+    {viewSwitch}
+    </div>
   );
 
   // The top of the search card: the title, New search and Add area, an add-area step when one is open, and the search field.
   const cardTop = (
     <>
-        <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-2 gap-y-1 px-4 pt-4 pb-3">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-2 gap-y-1 px-4 pt-4 pb-2">
           {/* The card's title layer is Map visualise's: the eyebrow (12/600, uppercase) over the title (18/600). */}
           <div className="min-w-0">
             <p className="m-0 text-xs font-semibold tracking-wide text-quaternary uppercase">Explore</p>
@@ -1135,7 +1219,7 @@ function ObservationsSearch({ variant }: { variant: ExploreVariant }) {
         </div>
         {/* Capped by the window, not by the card: the card is as tall as its content, so a percentage of it (it was 50%) cut the form to half of itself, "Add point" and the file hint with it. */}
         {addAreaPanel && <div className="max-h-[50vh] shrink-0 overflow-y-auto">{addAreaPanel}</div>}
-        <div className={cx("flex shrink-0 flex-col gap-2 px-4 pb-3", addAreaPanel ? "pt-3" : "pt-1")}>
+        <div className={cx("flex shrink-0 flex-col gap-2 px-4 pb-3", addAreaPanel ? "pt-3" : "pt-0")}>
           {growSearchField}
         </div>
     </>
@@ -1147,10 +1231,14 @@ function ObservationsSearch({ variant }: { variant: ExploreVariant }) {
   const floatMap = (padTopLeft: [number, number], padBottomRight: [number, number]) => (
     <div className="absolute inset-0">
       <SAMap
-        boundaries={boundaries}
+        // "All of South Australia" (a search with a word and no area) filters the results but is not drawn: a 1,000 km circle and a pin over the state read as an area the person drew (the
+        // business, 20 Nov 2026: "they do not want the circle to show up by default"). It does not steer the map's fit either, so the map stays as it was.
+        boundaries={mapBoundaries}
         onBoundaryAdd={addManualBoundary}
         activeDrawTool={activeDrawTool}
         onDrawToolChange={setActiveDrawTool}
+        drawRef={drawRef}
+        onDrawState={setDrawState}
         fitPaddingTopLeft={padTopLeft}
         fitPaddingBottomRight={padBottomRight}
         markers={mapMarkers}
@@ -1185,25 +1273,6 @@ function ObservationsSearch({ variant }: { variant: ExploreVariant }) {
 
   // ── 1. Grows in place ──
   const split = hasTableToggle && resultsView === "map-and-table";
-  // Option 2's floating switch, at the top of the right-hand column, above the zoom buttons: in the same flex layout as every other panel on the map, so it never covers one
-  // (2.8), and in the same place in both views. The design system's segmented tabs (`button-border`), on the map's surface edge and shadow so it reads over any tiles; each
-  // option carries the icon of what it shows (Map01: Map02 is "Choose national parks" in Add area, 2.4).
-  const viewSwitch = hasTableToggle ? (
-    <div className={cx("pointer-events-auto shrink-0 rounded-[10px] shadow-lg", MAP_SURFACE_EDGE)}>
-      <Tabs
-        selectedKey={resultsView}
-        onSelectionChange={(key) => {
-          setResultsView(key as "map-only" | "map-and-table");
-          setTableFullscreen(false);
-        }}
-      >
-        <TabList aria-label="Results view" type="button-border" size="sm">
-          <Tab id="map-only" label="Map only" icon={Map01} />
-          <Tab id="map-and-table" label="Map and table" icon={TableIcon} />
-        </TabList>
-      </Tabs>
-    </div>
-  ) : null;
   const mapStage = (
     <>
       {floatMap([448, 48], [48, 48])}
@@ -1255,34 +1324,37 @@ function ObservationsSearch({ variant }: { variant: ExploreVariant }) {
       </section>
       </div>
           <div className="flex min-h-0 flex-col items-end gap-3 @min-[648px]:ml-auto @min-[648px]:w-[320px] @min-[648px]:shrink-0">
-            {viewSwitch}
-            <MapZoomButtons map={mapInstance} className="pointer-events-auto shrink-0" />
-            {/* A picked record shows as a short summary card, not a slide-in panel; its "Show in
-                project" opens the record on its project's page. Artefacts open in the viewer, a
+            {/* A picked record shows as a short summary card, not a slide-in panel. A project's card has "Open project"; a species record is read in the card. Artefacts open in the viewer, a
                 modal. */}
             {peekVisible && selectedRecord && (
               <RecordPeekCard
                 record={selectedRecord}
+                compact={split}
                 onClose={() => setSelectedRecord(null)}
                 className="pointer-events-auto min-h-0 w-full max-w-none shrink motion-safe:animate-in motion-safe:fade-in motion-safe:duration-150"
               />
             )}
           </div>
         </div>
-        {/* The key has its own row along the bottom of the map, below both columns, so it can sit on
-            one line instead of wrapping inside the search card's 400px column (per the designer). On
-            a narrow map it becomes a two-column grid; when the panels stack there is no room for both
-            the key and an open summary card, so the key steps aside until the card is closed. */}
-        {/* The draw bar is on the map's own centre line (designer, 23 Oct 2026: "why is this not centre aligned?"), not in what is left beside the key. Where the map is 1500px wide the key (at most 456px from the
-            left) and the bar (about 512px, centred) cannot meet, so the bar sits on the key's baseline; where it is narrower the bar goes under the key, still centred, and never over it (2.8). */}
+        {/* The bottom row of the map. Its left corner is the key (it has its own row below both columns, so it can sit on one line instead of wrapping inside the search card's 440px column;
+            on a narrow map it becomes a two-column grid, and when the panels stack there is no room for both the key and an open summary card, so the key steps aside until the card is
+            closed) with the view switch under it, in the corner; its right corner is the zoom buttons. */}
+        {/* The draw bar is on the map's own centre line (designer, 23 Oct 2026: "why is this not centre aligned?"), not in what is left beside the key. Where the map is 1500px wide the
+            left column (at most 456px from the left) and the bar (about 512px, centred) cannot meet, so the bar sits on the row's baseline; where it is narrower the bar goes under the
+            row, still centred, and never over it (2.8). */}
         <div className="relative flex w-full shrink-0 flex-col items-start gap-3">
-          {legendItems.length > 0 && (
-            <div className={cx("max-w-full shrink-0 @min-[648px]:max-w-[440px]", peekVisible && "@max-[647px]:hidden")}>
-              <MapLegend title="Species group" items={legendItems} />
+          <div className="flex w-full items-end justify-between gap-3">
+            <div className="flex min-w-0 flex-col items-start gap-3">
+              {legendItems.length > 0 && (
+                <div className={cx("min-w-0 max-w-full shrink-0 @min-[648px]:max-w-[440px]", peekVisible && "@max-[647px]:hidden")}>
+                  <MapLegend title="Species group" items={legendItems} />
+                </div>
+              )}
             </div>
-          )}
+            <MapZoomButtons map={mapInstance} className="pointer-events-auto shrink-0" />
+          </div>
           {activeDrawTool && (
-            <DrawStatusBar tool={activeDrawTool} onCancel={cancelAdding} className="self-center @min-[1500px]:absolute @min-[1500px]:bottom-0 @min-[1500px]:left-1/2 @min-[1500px]:-translate-x-1/2" />
+            <DrawStatusBar state={drawState} onCancel={cancelAdding} onUndo={() => drawRef.current?.undo()} className="self-center @min-[1500px]:absolute @min-[1500px]:bottom-0 @min-[1500px]:left-1/2 @min-[1500px]:-translate-x-1/2" />
           )}
         </div>
         </div>
@@ -1296,15 +1368,7 @@ function ObservationsSearch({ variant }: { variant: ExploreVariant }) {
   // found, kept to the search areas: so the table holds the records the map plots, in the report's words (2.15). With no search yet, it is every species record the role may
   // see in South Australia (the map has nothing to plot then; a table has nothing to lose by showing the whole state). The keyword is the search card's field, passed to the
   // report as its search, so the screen has one search box, not two. A restricted record is kept to the areas by its block, as on the map, and no column shows a location.
-  const publishedProjects = useMemo(() => searchEvents.filter((e) => e.type === "Project" && (e.status === "Active" || e.status === "Completed")), []);
-  const tableRows = useMemo<SpeciesRow[]>(() => {
-    if (!hasTableToggle) return [];
-    const searching = boundaries.length > 0;
-    const projectsInView = searching ? filteredProjects : publishedProjects;
-    const rows = projectsInView.flatMap((p) => speciesRowsFor(reportBundleFor(p, role)));
-    return searching ? rows.filter((r) => isRecordInAnyBoundary(r.lat, r.lon, r.blockKm ?? null, boundaries)) : rows;
-  }, [hasTableToggle, boundaries, filteredProjects, publishedProjects, role]);
-  const tableAttributes = useMemo(() => speciesDetailAttributes(tableRows), [tableRows]);
+  const tableAttributes = useMemo(() => exploreSpeciesAttributes(tableRows), [tableRows]);
   // The split: the map keeps at least 240px and the table at least 280px (its toolbar, its header and a few rows); the map starts at half the height. The handle is the project
   // page's (drag, the arrow keys, a double click puts it back), and the table's full screen is the project page's details-panel control (`FullscreenToggle`): a way to read many
   // columns and rows, and back. The map is not given its own full screen: that is "Map only", one control per outcome (3.12).
@@ -1320,6 +1384,14 @@ function ObservationsSearch({ variant }: { variant: ExploreVariant }) {
   };
   // A table row lights its dot on the map: a row's id is its project's id, then the record's own id, which is the dot's id on the map.
   const markerIdOfRow = (row: SpeciesRow) => row.id.slice(row.projectId.length + 1);
+  // The Explore occurrence a row stands for (its dot's record), or none.
+  const occurrenceOfRow = (row: SpeciesRow) => searchOccurrences.find((o) => `occurrence:${o.id}` === markerIdOfRow(row));
+  const openTableRow = (row: SpeciesRow) => {
+    const occurrence = occurrenceOfRow(row);
+    if (occurrence) selectRecord({ kind: "occurrence", occurrence });
+  };
+  // The row of the open card: the same record can be in more than one project's rows, so it is the row whose project is the record's.
+  const tableRowIdOf = (occurrenceId: string) => tableRows.find((r) => markerIdOfRow(r) === `occurrence:${occurrenceId}`)?.id;
 
   const tableExplore = floatFrame(
     <div ref={splitRef} className="absolute inset-0 flex flex-col bg-secondary">
@@ -1347,9 +1419,12 @@ function ObservationsSearch({ variant }: { variant: ExploreVariant }) {
           icon={Feather}
           rows={tableRows}
           rowId={speciesRowId}
-          columns={speciesDetailColumns}
+          columns={exploreSpeciesColumns}
+          hiddenColumns={EXPLORE_HIDDEN_COLUMNS}
           attributes={tableAttributes}
           search={keyword}
+          onSearchChange={setKeyword}
+          exportButton
           searchText={speciesSearchText}
           searchLabel="Search the report"
           searchPlaceholder="Search by species, NSX code, project or sighting"
@@ -1359,9 +1434,14 @@ function ObservationsSearch({ variant }: { variant: ExploreVariant }) {
           initialSort={{ column: "common", direction: "ascending" }}
           exportName="explore-species-records"
           // A guest is asked to sign up before exporting, as the map's Export data does.
-          actions={isPublicUser ? exportControl : undefined}
+          actions={isPublicUser ? <ReportExportButton actions={[]} onBlocked={() => setExportSignUpOpen(true)} blockedHint="Create a free account to export results" /> : undefined}
           toolbarEnd={<FullscreenToggle isFullscreen={tableFullscreen} onToggle={() => setTableFullscreen((v) => !v)} />}
           onRowHover={(row) => setHoveredMarkerId(row ? markerIdOfRow(row) : null)}
+          // A row opens its species card and the map moves to its dot, as the dot does (the designer, 20 Nov 2026). Not in the table's full screen, where there is no map, and not for a
+          // row with no record in Explore's dataset (the Adelaide Hills project's own survey records).
+          onRowAction={tableFullscreen ? undefined : (row) => openTableRow(row)}
+          rowActionable={(row) => !!occurrenceOfRow(row)}
+          activeRowId={selectedRecord?.kind === "occurrence" ? tableRowIdOf(selectedRecord.occurrence.id) : undefined}
         />
       </section>
     </div>,

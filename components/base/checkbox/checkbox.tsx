@@ -36,7 +36,7 @@ export const CheckboxBase = ({ className, isSelected, isDisabled, isIndeterminat
                     isIndeterminate && "opacity-100",
                 )}
             >
-                <path d="M2.91675 7H11.0834" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M2.91675 7H11.0834" stroke="currentColor" strokeWidth="1.5" vectorEffect="non-scaling-stroke" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
 
             <svg
@@ -49,7 +49,7 @@ export const CheckboxBase = ({ className, isSelected, isDisabled, isIndeterminat
                     isSelected && !isIndeterminate && "opacity-100",
                 )}
             >
-                <path d="M11.6666 3.5L5.24992 9.91667L2.33325 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M11.6666 3.5L5.24992 9.91667L2.33325 7" stroke="currentColor" strokeWidth="1.5" vectorEffect="non-scaling-stroke" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
         </div>
     );

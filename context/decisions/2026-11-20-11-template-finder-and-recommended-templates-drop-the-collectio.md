@@ -1,0 +1,6 @@
+# 2026-11-20 - Template Finder and recommended templates drop the collection method and species type columns
+
+- **Nov 20 2026: the Template Finder's table and the upload form's Recommended templates table have two columns, Template and Download.** The designer, with a screenshot: "need to remove these two columns on template finder and template recommendations on the dataset upload screens."
+  - `template-list.tsx` (the Template Finder) and `recommended-templates.tsx` (the upload form) lose the Collection method and Species type columns; Template takes 76% and Download 24% in both, and the minimum widths come down (560px and 480px). The two columns had sorted the Finder's list, so their sort keys went with them.
+  - **Kept:** the Filter menu and column 2's places still filter by Collection method and Species type (`filterSectionsFor`, `TemplateNav`), as the request named columns only. A filter on a value the table no longer shows is open for the designer (Say less, 0.4).
+  - **Verified live** (registered user): the Template Finder's header row reads Template, Download with 8 rows; the Adelaide Hills upload form's Recommended templates table reads Template, Download; zero console errors. `tsc`, `eslint` on both files and `check:contracts` clean. Not committed.

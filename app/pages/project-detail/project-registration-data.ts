@@ -5,7 +5,7 @@
 // actually collects, not just the handful of fields option-2's first pass showed. Every field here
 // uses that wizard's own real state shapes (ProjectDetailsState/DataCollectionState/
 // RestrictionsState from project-registration/types.ts) and real option vocabularies
-// (ROLE_OF_WORK_OPTIONS/FOCUS_AREA_OPTIONS/PERMIT_TYPE_OPTIONS/COLLECTION_METHOD_OPTIONS/
+// (ROLE_OF_WORK_OPTIONS/COLLECTION_METHOD_OPTIONS/
 // EMBARGO_TYPE_OPTIONS/SPECIES_CONCEPTS/REGISTRATION_SPECIES from project-registration/data.ts,
 // imported directly rather than duplicated) - so this page is honestly showing "what registration
 // produces," not a second, disconnected content model.
@@ -77,18 +77,18 @@ const geographicExtentBoundary: Boundary = { id: "adelaide-hills-registration-ex
 
 export const registrationDataCollection: DataCollectionState = {
   geographicExtent: { method: "map", boundary: geographicExtentBoundary },
-  focusAreas: ["biological", "habitat-vegetation"],
-  focusAreaOther: "",
   // Real species already tied to this project in search-data.ts (never invented) - the same
   // Southern Brown Bandicoot already named as a targeted species for this exact project in
   // project-detail's own Data Collection Scope section.
   targetedSpeciesIds: ["Isoodon obesulus", "Macropus giganteus", "Tachyglossus aculeatus"],
   surveyType: "biological",
-  collectionMethod: "systematic",
-  methodDetails: "Quarterly transect and quadrat surveys across reserve sites, supplemented by camera traps and incidental records logged by Landcare volunteers.",
-  permits: [{ id: 1, type: "scientific-research", number: "SA-2025-0142" }],
-  uriDoi: "",
-  limitationsAndBiases: "Surveys conducted only in accessible reserve areas; nocturnal species may be under-detected.",
+  // Incidental records from the Landcare volunteers beside the systematic surveys, which follow the Bush Assessment Method. The methodology is a list, as Add Project
+  // asks it, each with its own note; `methodDetails` and `limitationsAndBiases` are what the page reads and are written from it (`methodologySummary`). The permit number
+  // this registration held, SA-2025-0142, is on the dataset it was collected under (sample-datasets.ts).
+  collectionMethods: ["incidental", "systematic"],
+  methodologies: [{ rid: 1, id: "Bush Assessment Method (BAM)", note: "Surveys conducted only in accessible reserve areas; nocturnal species may be under-detected." }],
+  methodDetails: "Bush Assessment Method (BAM)",
+  limitationsAndBiases: "Bush Assessment Method (BAM): Surveys conducted only in accessible reserve areas; nocturnal species may be under-detected.",
 };
 
 export const registrationRestrictions: RestrictionsState = {

@@ -365,6 +365,8 @@ function DatasetDetail({ row, datasetId, backHref, recordsHref }: { row: Dataset
             <RecordRow label="Data licence">{licenceLabel(d.licence)}</RecordRow>
             <RecordRow label="First Nations consideration">{firstNationsLabel(d.firstNations)}</RecordRow>
             {d.iiaReference && <RecordRow label="IIA reference">{d.iiaReference}</RecordRow>}
+            {d.permitNumber && <RecordRow label="Permit number">{d.permitNumber}</RecordRow>}
+            {d.uriDoi && <RecordRow label="URI / DOI number">{d.uriDoi}</RecordRow>}
           </div>
         </TabPanel>
 

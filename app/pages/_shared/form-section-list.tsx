@@ -39,6 +39,8 @@ export function FormSectionList({
   heading,
   groups,
   closing,
+  closingDivider = true,
+  showProgress = true,
   onSelect,
   progress,
 }: {
@@ -46,6 +48,11 @@ export function FormSectionList({
   groups: FormSectionGroup[];
   /** A last section set apart by a rule, usually "Review and create". */
   closing?: FormSectionItem;
+  /** The rule above the closing section. On by default; Add Project turns it off, where the closing step is a step like the rest: it is then the last step of the
+   *  last group, numbered and joined to the one before it by the same line (the designer, 19 Nov 2026: "connect steppers 5 and 6. Review is also a step"). */
+  closingDivider?: boolean;
+  /** The bar and the "n of N sections complete" line above the list. On by default; Add Project turns it off (the designer, 17 Nov 2026). */
+  showProgress?: boolean;
   onSelect: (id: string) => void;
   progress: { done: number; total: number };
 }) {
@@ -60,21 +67,27 @@ export function FormSectionList({
       onClick: () => onSelect(item.id),
     }));
 
+  // A closing section with no rule above it is the last step of the last group, so the line runs through to it.
+  const joined = !!closing && !closingDivider && groups.length > 0;
+  const listed = joined ? groups.map((g, i) => (i === groups.length - 1 ? { ...g, sections: [...g.sections, closing] } : g)) : groups;
+
   // Numbers keep counting across groups (1, 2, 3 ... then the closing step), not restart per group.
-  const numberedBefore = (groupIndex: number) => groups.slice(0, groupIndex).reduce((n, g) => n + g.sections.length, 0);
+  const numberedBefore = (groupIndex: number) => listed.slice(0, groupIndex).reduce((n, g) => n + g.sections.length, 0);
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3">
         <p className="text-xs font-semibold tracking-wide text-quaternary uppercase">{heading}</p>
-        <div className="flex flex-col gap-2 px-1">
-          <ProgressBarBase value={progress.done} max={Math.max(1, progress.total)} />
-          <p className="text-xs text-tertiary">
-            {progress.done} of {progress.total} sections complete
-          </p>
-        </div>
+        {showProgress && (
+          <div className="flex flex-col gap-2 px-1">
+            <ProgressBarBase value={progress.done} max={Math.max(1, progress.total)} />
+            <p className="text-xs text-tertiary">
+              {progress.done} of {progress.total} sections complete
+            </p>
+          </div>
+        )}
       </div>
-      {groups.map((group, i) => (
+      {listed.map((group, i) => (
         <div key={group.step ?? i} className="flex flex-col gap-3 px-1">
           {group.title && (
             <p className="text-xs font-semibold tracking-wide text-tertiary uppercase">{group.title}</p>
@@ -82,9 +95,9 @@ export function FormSectionList({
           <Progress.IconsWithText items={toSteps(group.sections)} type="number" orientation="vertical" size="sm" startAt={numberedBefore(i) + 1} />
         </div>
       ))}
-      {closing && (
-        <div className="border-t border-secondary px-1 pt-4">
-          <Progress.IconsWithText items={toSteps([closing])} type="number" orientation="vertical" size="sm" connector={false} startAt={numberedBefore(groups.length) + 1} />
+      {closing && !joined && (
+        <div className={closingDivider ? "border-t border-secondary px-1 pt-4" : "px-1"}>
+          <Progress.IconsWithText items={toSteps([closing])} type="number" orientation="vertical" size="sm" connector={false} startAt={numberedBefore(listed.length) + 1} />
         </div>
       )}
     </div>

@@ -1,0 +1,8 @@
+# 2026-11-19 - The Current tag on the audit feed matches the status tags
+
+- **Nov 19 2026: Fixed in the product (`app/pages/_shared/audit-feed.tsx`).** The designer, on a screenshot of a dataset's audit log: "Tag treatment for 'CURRENT' inconsistent with other tags. PLEASE FIX." The Current chip beside the newest move was a `Badge` of type `modern` (white, grey border, a small corner radius), while every status tag beside it is a `pill-color` badge (tinted fill, fully round). It is now `<Badge size="sm" color="brand">`, the same badge as the status tags.
+  - **Measured (19 Nov 2026, Chromium headless, Adelaide Hills dataset DS-2025-00018, Audit Log, Show all changes).** Current: 24px high, radius 9999px, 12px weight 600, uppercase, 8px by 6px padding, no border, brand fill `rgb(237, 247, 249)` with `rgb(13, 87, 110)` text. Under review, Processing and Pre-flight validation (warning) and File uploaded (grey): 24px, 9999px, 12px weight 600, uppercase, 8px by 6px, no border. Same shape, size, weight and padding; only the colour tells them apart. Zero console errors; `tsc`, `eslint --max-warnings=0` and `check:contracts` clean.
+  - **Agent call.** Brand blue, not grey: a grey Current beside a File uploaded (grey) would read as two statuses. Reversible: the one `color` prop.
+  - **Siblings.** The same feed is used by the DLA, DSA and nomination records and the dataset page, so all of them change together (checked: no other `type="modern"` Badge in `app/pages`). Only the dataset page was opened.
+  - **Not checked.** The DLA, DSA and nomination audit feeds; a record whose newest move is a grey status (Current is brand beside it).
+  - **Touches:** contracts 1.3 (one component, every screen), 2.9; `2026-10-02` (the feed's design, Mobbin research).

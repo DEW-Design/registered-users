@@ -23,6 +23,7 @@
 | `context/archive/context-intro.md` | The original introduction of this file | never (archive) |
 | `context/reports/` | Measured reports: `2026-09-29-rule-loading-benchmark.md`, rule loading before and after (re-run with `npm run bench:rules`, `npm run test:rules-hook`) | never (read when needed) |
 | `context/decisions/` | The dated history, one file per decision; `INDEX.md` lists them | never (read or grep when a task needs history) |
+| `context/parent-sync.md` | This repo only: the checklist of every change made here that the prototype repo should also get, with a Ported column | never (add a row with every change made here) |
 
 ## Where a section went
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState, type Ref } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "leaflet-draw/dist/leaflet.draw.css";
@@ -11,6 +11,16 @@ import { assetPath } from "@/lib/base-path";
 import { cx } from "@/utils/cx";
 import { MAP_CONTROLS_Z_INDEX } from "@/lib/layers";
 import { MapZoomButtons } from "./map-zoom-buttons";
+import { DrawLayer, type DrawLayerHandle, type DrawLayerState } from "@/components/custom/draw-map/draw-layer";
+
+const noop = () => {};
+
+// How the map moves to somewhere (a fit to the areas, "zoom to this area", a clicked record's dot). It slides: Leaflet's `flyTo` and `flyToBounds` zoom out and back in along an arc, even
+// to move across the same view, which reads as a lurch (the designer, 19 Nov 2026: "I hate the map flyby... it's a very unpleasant movement", also when a species is clicked). A pan is a
+// pan, and a fit is the same fit with the same easing; a move too long for Leaflet to animate (more than four zoom levels) is a cut, not an arc. Not at all where the person has asked
+// for reduced motion.
+const MOVE_SECONDS = 0.4;
+const canAnimate = () => typeof window === "undefined" || !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 // A real, working map of South Australia - OpenStreetMap tiles via Leaflet, not a fabricated grid
 // or a static image. Kept in app/pages/_shared (not components/custom) to match the precedent
@@ -222,12 +232,12 @@ function FlyToBoundaries({
         const br = L.point(Math.min(paddingBottomRight[0], capX), Math.min(paddingBottomRight[1], capY));
         // The first fit of a map is a jump, not a flight: the map mounts at the state-wide zoom, and a flight from there to a
         // small area scales the drawn shapes up by tens of times for 0.6s (an SVG tens of thousands of pixels wide, which the
-        // browser rasterises in pieces: a circle cut off along straight edges while a dialog opens). Later changes still fly.
+        // browser rasterises in pieces: a circle cut off along straight edges while a dialog opens). Later changes slide.
         if (!fitted.current) {
             fitted.current = true;
             map.fitBounds(bounds, { paddingTopLeft: tl, paddingBottomRight: br, animate: false });
         } else {
-            map.flyToBounds(bounds, { paddingTopLeft: tl, paddingBottomRight: br, duration: 0.6 });
+            map.fitBounds(bounds, { paddingTopLeft: tl, paddingBottomRight: br, animate: canAnimate(), duration: MOVE_SECONDS });
         }
         // Re-fit when the covered area changes (the card widens for Table, the sheet snaps), so the
         // areas always land in the part of the map the user can actually see.
@@ -263,7 +273,7 @@ function FlyToRequest({
         // Same 50% cap as FlyToBoundaries above, same reason.
         const tl = L.point(Math.min(paddingTopLeft[0], size.x * 0.5), Math.min(paddingTopLeft[1], size.y * 0.5));
         const br = L.point(Math.min(paddingBottomRight[0], size.x * 0.5), Math.min(paddingBottomRight[1], size.y * 0.5));
-        map.flyToBounds(bounds, { paddingTopLeft: tl, paddingBottomRight: br, duration: 0.6 });
+        map.fitBounds(bounds, { paddingTopLeft: tl, paddingBottomRight: br, animate: canAnimate(), duration: MOVE_SECONDS });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [key, map]);
 
@@ -274,7 +284,7 @@ function FlyToRequest({
  *  `request.key` changes, per direct feedback ("if I click on a species or a record, the dot needs
  *  to be centred always"): a dot sitting under the results panel, or crammed at the map's raw edge
  *  next to the peek card, isn't actually visible even though it's technically "on screen". Deliberately
- *  pan-only, not `flyToBounds` - the zoom level is left exactly as the user set it; only the centre
+ *  pan-only, not a fit - the zoom level is left exactly as the user set it; only the centre
  *  moves. Uses the same padding-offset maths Leaflet's own `_getBoundsCenterZoom` uses internally
  *  (see `FlyToBoundaries` above) but applies it directly at the map's *current* zoom instead of
  *  computing a new one, so a record click can never itself trigger a zoom change. */
@@ -298,7 +308,7 @@ function PanToRecord({
         const br = L.point(Math.min(paddingBottomRight[0], size.x * 0.5), Math.min(paddingBottomRight[1], size.y * 0.5));
         const paddingOffset = br.subtract(tl).divideBy(2);
         const center = map.unproject(map.project(request.point, zoom).add(paddingOffset), zoom);
-        map.flyTo(center, zoom, { duration: 0.5 });
+        map.panTo(center, { animate: canAnimate(), duration: MOVE_SECONDS });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [key, map]);
 
@@ -382,6 +392,11 @@ function boundaryStyle(id: string, highlighted?: Set<string>) {
 }
 
 export interface SAMapProps {
+    /** Draw with the product's drawing tools (a polygon by corners, a circle pressed out, the numbers beside the pointer) in place of leaflet-draw. Given, the tools are driven
+     *  through this handle and `onDrawState`, and a finished shape arrives at `onBoundaryAdd` at once. Opt-in: every other map keeps its tools. */
+    drawRef?: Ref<DrawLayerHandle>;
+    /** What the drawing layer is doing, for the screen's own bar. Only with `drawRef`. */
+    onDrawState?: (state: DrawLayerState) => void;
     boundaries: Boundary[];
     onBoundaryAdd: (boundary: Boundary) => void;
     activeDrawTool: "circle" | "polygon" | null;
@@ -449,6 +464,8 @@ function markerFill(marker: SAMapMarker, highlighted: boolean): string {
 }
 
 export default function SAMap({
+    drawRef,
+    onDrawState,
     boundaries,
     onBoundaryAdd,
     activeDrawTool,
@@ -480,7 +497,7 @@ export default function SAMap({
             ? undefined
             : { mouseover: () => onBoundaryHover?.(id), mouseout: () => onBoundaryHover?.(null), click: () => onBoundaryClick?.(id) };
     return (
-        <div className={className}>
+        <div className={cx(drawRef && "draw-map", className)}>
             <MapContainer
                 center={SA_CENTER}
                 zoom={6}
@@ -503,7 +520,7 @@ export default function SAMap({
                 <ScaleControl position="bottomleft" imperial={false} />
                 {showZoomControls && <ZoomControls position={zoomPosition} />}
                 <MapReady onMapReady={onMapReady} />
-                <DrawBridge activeDrawTool={activeDrawTool} onDrawToolChange={onDrawToolChange} onBoundaryAdd={onBoundaryAdd} />
+                {drawRef ? <DrawLayer handleRef={drawRef} onState={onDrawState ?? noop} onAdd={onBoundaryAdd} /> : <DrawBridge activeDrawTool={activeDrawTool} onDrawToolChange={onDrawToolChange} onBoundaryAdd={onBoundaryAdd} />}
                 <FlyToBoundaries boundaries={outlines.length ? [...boundaries, ...outlines] : boundaries} paddingTopLeft={fitPaddingTopLeft} paddingBottomRight={fitPaddingBottomRight} />
                 <FlyToRequest request={fitRequest} paddingTopLeft={fitPaddingTopLeft} paddingBottomRight={fitPaddingBottomRight} />
                 <PanToRecord request={panRequest} paddingTopLeft={fitPaddingTopLeft} paddingBottomRight={fitPaddingBottomRight} />

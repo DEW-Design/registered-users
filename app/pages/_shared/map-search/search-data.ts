@@ -297,6 +297,8 @@ export interface SearchOccurrence {
     family?: string;
     group?: SpeciesGroup;
     licenceLevel?: LicenceLevel;
+    /** The side of the block a Level 2 record is shown as, 1 or 10 km; left out, the default (`DEFAULT_RESTRICTED_BLOCK_KM`). */
+    restrictedBlockKm?: RestrictedBlockKm;
 }
 
 export const searchOccurrences: SearchOccurrence[] = [
@@ -334,6 +336,28 @@ export const searchOccurrences: SearchOccurrence[] = [
     // Scope section - a genuine continuity, not a coincidence.
     { id: "occ-22", species: "Isoodon obesulus", commonName: "Southern Brown Bandicoot", type: "Individual", parentEventId: "block-adelaide-1", date: "2026-07-14", lastSurveyed: "2026-07-21", status: "Present", region: "Adelaide Hills", lat: -35.03, lon: 138.73, count: 1, family: "Peramelidae", group: "Mammal", licenceLevel: "Level 1" },
     { id: "occ-23", species: "Malurus cyaneus", commonName: "Superb Fairywren", type: "Individual", parentEventId: "ramble-adelaide-1", date: "2026-07-20", lastSurveyed: "2026-07-27", status: "Present", region: "Adelaide Hills", lat: -35.02, lon: 138.73, count: 1, family: "Maluridae", group: "Bird", licenceLevel: "Level 1" },
+
+    // More sightings of widespread species, so a species search shows one spread across the state (a kangaroo is found in most of South Australia, an echidna almost everywhere):
+    // the Western and Red Kangaroo, the Emu, the Short-beaked Echidna, the Superb Fairywren and the Southern Brown Bandicoot, each at a site of another project in the species'
+    // range. Each parents an existing event (no new project or site) and carries its observation below, as every occurrence does. All Level 1. Sample data, with the placeholder
+    // observers (20 Nov 2026). Only the projects that are published (Active or Completed: Adelaide Hills, Kangaroo Island, Naracoorte, Lake Eyre, Mount Remarkable) are used: the
+    // Coorong, Flinders and Nullarbor projects are not searched, so a record there would never show.
+    { id: "occ-24", species: "Macropus giganteus", commonName: "Western Grey Kangaroo", type: "Population", parentEventId: "site-remarkable-1", date: "2026-08-10", lastSurveyed: "2026-08-17", status: "Present", region: "Mount Remarkable", lat: -32.77, lon: 138.12, count: 9, family: "Macropodidae", group: "Mammal", licenceLevel: "Level 1" },
+    { id: "occ-25", species: "Macropus giganteus", commonName: "Western Grey Kangaroo", type: "Population", parentEventId: "site-naracoorte-1", date: "2026-08-20", lastSurveyed: "2026-08-27", status: "Present", region: "Naracoorte", lat: -36.99, lon: 140.81, count: 6, family: "Macropodidae", group: "Mammal", licenceLevel: "Level 1" },
+    { id: "occ-26", species: "Macropus giganteus", commonName: "Western Grey Kangaroo", type: "Population", parentEventId: "site-ki-1", date: "2026-05-16", lastSurveyed: "2026-05-23", status: "Present", region: "Kangaroo Island", lat: -35.97, lon: 136.73, count: 15, family: "Macropodidae", group: "Mammal", licenceLevel: "Level 1" },
+    { id: "occ-27", species: "Macropus giganteus", commonName: "Western Grey Kangaroo", type: "Population", parentEventId: "site-adelaide-2", date: "2026-03-12", lastSurveyed: "2026-03-19", status: "Present", region: "Adelaide Hills", lat: -35.01, lon: 138.66, count: 7, family: "Macropodidae", group: "Mammal", licenceLevel: "Level 1" },
+    { id: "occ-28", species: "Macropus rufus", commonName: "Red Kangaroo", type: "Population", parentEventId: "ramble-lake-eyre-1", date: "2026-07-05", lastSurveyed: "2026-07-12", status: "Present", region: "Lake Eyre", lat: -28.9, lon: 137.3, count: 26, family: "Macropodidae", group: "Mammal", licenceLevel: "Level 1" },
+    { id: "occ-29", species: "Macropus rufus", commonName: "Red Kangaroo", type: "Population", parentEventId: "site-remarkable-1", date: "2026-08-11", lastSurveyed: "2026-08-18", status: "Present", region: "Mount Remarkable", lat: -32.82, lon: 138.17, count: 12, family: "Macropodidae", group: "Mammal", licenceLevel: "Level 1" },
+    { id: "occ-30", species: "Dromaius novaehollandiae", commonName: "Emu", type: "Individual", parentEventId: "ramble-lake-eyre-1", date: "2026-07-05", lastSurveyed: "2026-07-12", status: "Present", region: "Lake Eyre", lat: -28.87, lon: 137.34, count: 1, family: "Dromaiidae", group: "Bird", licenceLevel: "Level 1" },
+    { id: "occ-31", species: "Dromaius novaehollandiae", commonName: "Emu", type: "Individual", parentEventId: "site-remarkable-1", date: "2026-08-12", lastSurveyed: "2026-08-19", status: "Present", region: "Mount Remarkable", lat: -32.8, lon: 138.15, count: 1, family: "Dromaiidae", group: "Bird", licenceLevel: "Level 1" },
+    { id: "occ-32", species: "Dromaius novaehollandiae", commonName: "Emu", type: "Individual", parentEventId: "site-naracoorte-1", date: "2026-08-20", lastSurveyed: "2026-08-27", status: "Present", region: "Naracoorte", lat: -36.95, lon: 140.78, count: 1, family: "Dromaiidae", group: "Bird", licenceLevel: "Level 1" },
+    { id: "occ-33", species: "Tachyglossus aculeatus", commonName: "Short-beaked Echidna", type: "Individual", parentEventId: "site-ki-1", date: "2026-05-17", lastSurveyed: "2026-05-24", status: "Present", region: "Kangaroo Island", lat: -35.95, lon: 136.7, count: 1, family: "Tachyglossidae", group: "Mammal", licenceLevel: "Level 1" },
+    { id: "occ-34", species: "Tachyglossus aculeatus", commonName: "Short-beaked Echidna", type: "Individual", parentEventId: "site-naracoorte-1", date: "2026-08-21", lastSurveyed: "2026-08-28", status: "Present", region: "Naracoorte", lat: -36.96, lon: 140.8, count: 1, family: "Tachyglossidae", group: "Mammal", licenceLevel: "Level 1" },
+    { id: "occ-35", species: "Tachyglossus aculeatus", commonName: "Short-beaked Echidna", type: "Individual", parentEventId: "site-remarkable-1", date: "2026-08-13", lastSurveyed: "2026-08-20", status: "Present", region: "Mount Remarkable", lat: -32.78, lon: 138.14, count: 1, family: "Tachyglossidae", group: "Mammal", licenceLevel: "Level 1" },
+    { id: "occ-36", species: "Malurus cyaneus", commonName: "Superb Fairywren", type: "Individual", parentEventId: "site-naracoorte-1", date: "2026-08-22", lastSurveyed: "2026-08-29", status: "Present", region: "Naracoorte", lat: -36.97, lon: 140.77, count: 1, family: "Maluridae", group: "Bird", licenceLevel: "Level 1" },
+    { id: "occ-37", species: "Malurus cyaneus", commonName: "Superb Fairywren", type: "Population", parentEventId: "site-ki-1", date: "2026-05-19", lastSurveyed: "2026-05-26", status: "Present", region: "Kangaroo Island", lat: -35.92, lon: 136.71, count: 4, family: "Maluridae", group: "Bird", licenceLevel: "Level 1" },
+    { id: "occ-38", species: "Malurus cyaneus", commonName: "Superb Fairywren", type: "Population", parentEventId: "site-remarkable-1", date: "2026-08-14", lastSurveyed: "2026-08-21", status: "Present", region: "Mount Remarkable", lat: -32.78, lon: 138.11, count: 6, family: "Maluridae", group: "Bird", licenceLevel: "Level 1" },
+    { id: "occ-39", species: "Isoodon obesulus", commonName: "Southern Brown Bandicoot", type: "Individual", parentEventId: "site-ki-1", date: "2026-05-20", lastSurveyed: "2026-05-27", status: "Present", region: "Kangaroo Island", lat: -35.96, lon: 136.75, count: 1, family: "Peramelidae", group: "Mammal", licenceLevel: "Level 1" },
 ];
 
 export interface SearchObservation {
@@ -390,6 +414,24 @@ export const searchObservations: SearchObservation[] = [
     // Matching occ-22/occ-23 above.
     { id: "obs-22", occurrenceId: "occ-22", commonName: "Southern Brown Bandicoot", species: "Isoodon obesulus", type: "Individual", observerInitials: "MD", observerName: "Maya Dewitt", parentEventId: "block-adelaide-1", date: "2026-07-14", region: "Adelaide Hills", lat: -35.03, lon: 138.73, family: "Peramelidae", group: "Mammal", licenceLevel: "Level 1" },
     { id: "obs-23", occurrenceId: "occ-23", commonName: "Superb Fairywren", species: "Malurus cyaneus", type: "Individual", observerInitials: "OW", observerName: "Olivia Wyatt", parentEventId: "ramble-adelaide-1", date: "2026-07-20", region: "Adelaide Hills", lat: -35.02, lon: 138.73, family: "Maluridae", group: "Bird", licenceLevel: "Level 1" },
+
+    // The observations of the added sightings above, one each.
+    { id: "obs-24", occurrenceId: "occ-24", commonName: "Western Grey Kangaroo", species: "Macropus giganteus", type: "Population", observerInitials: "PB", observerName: "Phoenix Baker", parentEventId: "site-remarkable-1", date: "2026-08-10", region: "Mount Remarkable", lat: -32.77, lon: 138.12, family: "Macropodidae", group: "Mammal", licenceLevel: "Level 1" },
+    { id: "obs-25", occurrenceId: "occ-25", commonName: "Western Grey Kangaroo", species: "Macropus giganteus", type: "Population", observerInitials: "LS", observerName: "Lana Steiner", parentEventId: "site-naracoorte-1", date: "2026-08-20", region: "Naracoorte", lat: -36.99, lon: 140.81, family: "Macropodidae", group: "Mammal", licenceLevel: "Level 1" },
+    { id: "obs-26", occurrenceId: "occ-26", commonName: "Western Grey Kangaroo", species: "Macropus giganteus", type: "Population", observerInitials: "OW", observerName: "Olivia Wyatt", parentEventId: "site-ki-1", date: "2026-05-16", region: "Kangaroo Island", lat: -35.97, lon: 136.73, family: "Macropodidae", group: "Mammal", licenceLevel: "Level 1" },
+    { id: "obs-27", occurrenceId: "occ-27", commonName: "Western Grey Kangaroo", species: "Macropus giganteus", type: "Population", observerInitials: "OW", observerName: "Olivia Wyatt", parentEventId: "site-adelaide-2", date: "2026-03-12", region: "Adelaide Hills", lat: -35.01, lon: 138.66, family: "Macropodidae", group: "Mammal", licenceLevel: "Level 1" },
+    { id: "obs-28", occurrenceId: "occ-28", commonName: "Red Kangaroo", species: "Macropus rufus", type: "Population", observerInitials: "LS", observerName: "Lana Steiner", parentEventId: "ramble-lake-eyre-1", date: "2026-07-05", region: "Lake Eyre", lat: -28.9, lon: 137.3, family: "Macropodidae", group: "Mammal", licenceLevel: "Level 1" },
+    { id: "obs-29", occurrenceId: "occ-29", commonName: "Red Kangaroo", species: "Macropus rufus", type: "Population", observerInitials: "MD", observerName: "Maya Dewitt", parentEventId: "site-remarkable-1", date: "2026-08-11", region: "Mount Remarkable", lat: -32.82, lon: 138.17, family: "Macropodidae", group: "Mammal", licenceLevel: "Level 1" },
+    { id: "obs-30", occurrenceId: "occ-30", commonName: "Emu", species: "Dromaius novaehollandiae", type: "Individual", observerInitials: "LS", observerName: "Lana Steiner", parentEventId: "ramble-lake-eyre-1", date: "2026-07-05", region: "Lake Eyre", lat: -28.87, lon: 137.34, family: "Dromaiidae", group: "Bird", licenceLevel: "Level 1" },
+    { id: "obs-31", occurrenceId: "occ-31", commonName: "Emu", species: "Dromaius novaehollandiae", type: "Individual", observerInitials: "MD", observerName: "Maya Dewitt", parentEventId: "site-remarkable-1", date: "2026-08-12", region: "Mount Remarkable", lat: -32.8, lon: 138.15, family: "Dromaiidae", group: "Bird", licenceLevel: "Level 1" },
+    { id: "obs-32", occurrenceId: "occ-32", commonName: "Emu", species: "Dromaius novaehollandiae", type: "Individual", observerInitials: "LS", observerName: "Lana Steiner", parentEventId: "site-naracoorte-1", date: "2026-08-20", region: "Naracoorte", lat: -36.95, lon: 140.78, family: "Dromaiidae", group: "Bird", licenceLevel: "Level 1" },
+    { id: "obs-33", occurrenceId: "occ-33", commonName: "Short-beaked Echidna", species: "Tachyglossus aculeatus", type: "Individual", observerInitials: "OW", observerName: "Olivia Wyatt", parentEventId: "site-ki-1", date: "2026-05-17", region: "Kangaroo Island", lat: -35.95, lon: 136.7, family: "Tachyglossidae", group: "Mammal", licenceLevel: "Level 1" },
+    { id: "obs-34", occurrenceId: "occ-34", commonName: "Short-beaked Echidna", species: "Tachyglossus aculeatus", type: "Individual", observerInitials: "LS", observerName: "Lana Steiner", parentEventId: "site-naracoorte-1", date: "2026-08-21", region: "Naracoorte", lat: -36.96, lon: 140.8, family: "Tachyglossidae", group: "Mammal", licenceLevel: "Level 1" },
+    { id: "obs-35", occurrenceId: "occ-35", commonName: "Short-beaked Echidna", species: "Tachyglossus aculeatus", type: "Individual", observerInitials: "MD", observerName: "Maya Dewitt", parentEventId: "site-remarkable-1", date: "2026-08-13", region: "Mount Remarkable", lat: -32.78, lon: 138.14, family: "Tachyglossidae", group: "Mammal", licenceLevel: "Level 1" },
+    { id: "obs-36", occurrenceId: "occ-36", commonName: "Superb Fairywren", species: "Malurus cyaneus", type: "Individual", observerInitials: "LS", observerName: "Lana Steiner", parentEventId: "site-naracoorte-1", date: "2026-08-22", region: "Naracoorte", lat: -36.97, lon: 140.77, family: "Maluridae", group: "Bird", licenceLevel: "Level 1" },
+    { id: "obs-37", occurrenceId: "occ-37", commonName: "Superb Fairywren", species: "Malurus cyaneus", type: "Population", observerInitials: "OW", observerName: "Olivia Wyatt", parentEventId: "site-ki-1", date: "2026-05-19", region: "Kangaroo Island", lat: -35.92, lon: 136.71, family: "Maluridae", group: "Bird", licenceLevel: "Level 1" },
+    { id: "obs-38", occurrenceId: "occ-38", commonName: "Superb Fairywren", species: "Malurus cyaneus", type: "Population", observerInitials: "MD", observerName: "Maya Dewitt", parentEventId: "site-remarkable-1", date: "2026-08-14", region: "Mount Remarkable", lat: -32.78, lon: 138.11, family: "Maluridae", group: "Bird", licenceLevel: "Level 1" },
+    { id: "obs-39", occurrenceId: "occ-39", commonName: "Southern Brown Bandicoot", species: "Isoodon obesulus", type: "Individual", observerInitials: "OW", observerName: "Olivia Wyatt", parentEventId: "site-ki-1", date: "2026-05-20", region: "Kangaroo Island", lat: -35.96, lon: 136.75, family: "Peramelidae", group: "Mammal", licenceLevel: "Level 1" },
 ];
 
 export type ResourceType = "Image" | "File" | "Reference Link";
@@ -442,13 +484,19 @@ export const searchResources: SearchResource[] = [
     { id: "res-12", name: "https://gbif.org/species/2481660", type: "Reference Link", attachedToConcept: "Species ID", recordId: "occ-12", recordName: "Southern Bell Frog", parentEventId: "site-naracoorte-1", date: "2026-08-19", region: "Naracoorte", lat: -36.98, lon: 140.82 },
 ];
 
-/** How far a restricted (Level 2) record's location is generalised, in km, or `null` for a public
- *  record. Birds generalise to 5 km (a nest or roost needs less room to protect), everything else to
- *  10 km. The one rule shared by the Species table's coordinate cell, the Explore map's blurred
- *  area and the record page's blurred location, so they can never disagree. */
-export function restrictedRadiusKm(record: { licenceLevel?: LicenceLevel; group?: SpeciesGroup }): number | null {
+/** The sizes a restricted block can be, in km on a side (the business, 20 Nov 2026: "1km2 or 10km2"). */
+export type RestrictedBlockKm = 1 | 10;
+
+/** The size a restricted record is shown at when it does not say. For the demo every restricted record is a 10 km block (the designer, 20 Nov 2026: tweak the 5 km to 10 km); it was
+ *  5 km for a bird and 10 km for everything else. A record that is to be shown at 1 km says so with `restrictedBlockKm`. */
+export const DEFAULT_RESTRICTED_BLOCK_KM: RestrictedBlockKm = 10;
+
+/** How far a restricted (Level 2) record's location is generalised, in km (the side of its block), or `null` for a public record: the block size the record carries (`restrictedBlockKm`,
+ *  1 or 10), else the default. The one rule shared by the Species table's coordinate cell, the Explore map's blurred area and the record page's blurred location, so they can never
+ *  disagree. */
+export function restrictedRadiusKm(record: { licenceLevel?: LicenceLevel; group?: SpeciesGroup; restrictedBlockKm?: RestrictedBlockKm }): RestrictedBlockKm | null {
     if (record.licenceLevel !== "Level 2") return null;
-    return record.group === "Bird" ? 5 : 10;
+    return record.restrictedBlockKm ?? DEFAULT_RESTRICTED_BLOCK_KM;
 }
 
 export function findOccurrence(id: string): SearchOccurrence | undefined {

@@ -1,7 +1,7 @@
 import type { SectionId } from "../option-2/sections";
 
 // The steps of Add Project option 2 (the business is considering a dataset upload during project creation, 30 Oct 2026): everything
-// the project itself says comes first (Project basics, Data owner, Geographic extent, then Method and details), and the Datasets step
+// the project itself says comes first (Project overview, Data owner, Geographic extent, then Method and details), and the Datasets step
 // follows it, so a dataset is checked against what the project says it is (the designer, 2 Nov 2026: a location outside the project's
 // scope is an error, which does not stop the project being created, because the corrected dataset can be uploaded later). The sections
 // are the same ones option 1 has, in the same order, with "dataset" after Method and details.

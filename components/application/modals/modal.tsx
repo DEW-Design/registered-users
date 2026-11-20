@@ -110,12 +110,12 @@ function ModalHeader({
     );
 }
 
-function ModalFooter({ layout = "stacked", children }: { layout?: ModalLayout; children: ReactNode }) {
+function ModalFooter({ layout = "stacked", column = false, children }: { layout?: ModalLayout; /** One button above the other at every width, each as wide as the modal (for labels too long to share a row). */ column?: boolean; children: ReactNode }) {
     return (
         <div
             className={cx(
                 "z-10 flex flex-1 flex-col-reverse gap-3 p-4 pt-6 sm:px-6 sm:pt-8 sm:pb-6",
-                layout === "stacked" ? "*:grow sm:grid sm:grid-cols-2" : "sm:flex-row sm:items-center sm:justify-end",
+                column ? "*:w-full" : layout === "stacked" ? "*:grow sm:grid sm:grid-cols-2" : "sm:flex-row sm:items-center sm:justify-end",
             )}
         >
             {children}
@@ -201,6 +201,8 @@ interface DestructiveModalProps {
      * layout, since three actions don't fit the stacked two-column row. Omit when there is nothing to keep.
      */
     secondaryLabel?: string;
+    /** `column` puts the two buttons one above the other at every width, each as wide as the modal, for a label too long for half of it ("Cancel & keep editing"). The default is the two-column row. @default "row" */
+    footerLayout?: "row" | "column";
     /** @default Save01 (the one secondary this modal has is "Save draft") */
     secondaryIcon?: FC<{ className?: string }>;
     onSecondary?: () => void;
@@ -220,6 +222,7 @@ export const DestructiveModal = ({
     onConfirm,
     isConfirmLoading,
     secondaryLabel,
+    footerLayout = "row",
     secondaryIcon = Save01,
     onSecondary,
 }: DestructiveModalProps) => {
@@ -229,7 +232,7 @@ export const DestructiveModal = ({
             <Modal className={layoutWidth[layout]}>
                 <Dialog>
                     <ModalHeader icon={icon} iconColor="error" title={title} description={description} layout={layout} />
-                    <ModalFooter layout={layout}>
+                    <ModalFooter layout={layout} column={footerLayout === "column" && layout === "stacked"}>
                         <Button color="secondary" size="md" iconLeading={cancelIcon} slot="close">
                             {cancelLabel}
                         </Button>

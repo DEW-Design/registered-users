@@ -1,4 +1,4 @@
-import { COLLECTION_METHOD_OPTIONS, EMBARGO_TYPE_OPTIONS, FOCUS_AREA_OPTIONS, PERMIT_TYPE_OPTIONS, PROJECT_METADATA_CONCEPTS, REGISTRATION_SPECIES, ROLE_OF_WORK_OPTIONS, SURVEY_TYPE_OPTIONS } from "@/app/pages/project-registration/data";
+import { collectionMethodLabels, EMBARGO_TYPE_OPTIONS, PROJECT_METADATA_CONCEPTS, REGISTRATION_SPECIES, ROLE_OF_WORK_OPTIONS, SURVEY_TYPE_OPTIONS } from "@/app/pages/project-registration/data";
 import { allRecordsOf, culturalOf, type DataCollectionState, type ProjectDetailsState, type RestrictionsState, type RestrictionTypeKey } from "@/app/pages/project-registration/types";
 
 // What changed between two saves of a project, as the project audit log records it: one entry per field whose value, read the way
@@ -56,14 +56,10 @@ const FIELDS: { field: string; read: (s: ProjectFieldState) => string }[] = [
       return e.boundary?.label ?? e.shapefileName ?? (e.method ? `Defined by ${e.method}` : "");
     },
   },
-  { field: "Focus areas", read: (s) => list(s.collection.focusAreas.map((id) => (id === "other" && s.collection.focusAreaOther ? s.collection.focusAreaOther : labelOf(FOCUS_AREA_OPTIONS, id)))) },
   { field: "Survey type", read: (s) => labelOf(SURVEY_TYPE_OPTIONS, s.collection.surveyType) },
-  { field: "Data collection method", read: (s) => labelOf(COLLECTION_METHOD_OPTIONS, s.collection.collectionMethod) },
+  { field: "Data collection method", read: (s) => collectionMethodLabels(s.collection.collectionMethods) },
+  { field: "Targeted taxon", read: (s) => list(s.collection.targetedSpeciesIds.map((id) => REGISTRATION_SPECIES.find((sp) => sp.id === id)?.commonName ?? id)) },
   { field: "Methodology", read: (s) => s.collection.methodDetails },
-  { field: "Targeted species", read: (s) => list(s.collection.targetedSpeciesIds.map((id) => REGISTRATION_SPECIES.find((sp) => sp.id === id)?.commonName ?? id)) },
-  { field: "Permit type", read: (s) => list(s.collection.permits.map((p) => labelOf(PERMIT_TYPE_OPTIONS, p.type))) },
-  { field: "Permit number", read: (s) => list(s.collection.permits.map((p) => p.number)) },
-  { field: "URI/DOI number", read: (s) => s.collection.uriDoi },
   { field: "Limitations and biases", read: (s) => s.collection.limitationsAndBiases },
   { field: "Project restriction", read: (s) => (s.restrictions.hasRestrictions ? list([...s.restrictions.enabledTypes].map((k) => RESTRICTION_TITLES[k])) : "") },
   { field: "Embargo type", read: (s) => list(s.restrictions.embargo.types.map((t) => (t === "other" ? s.restrictions.embargo.typeOther : labelOf(EMBARGO_TYPE_OPTIONS, t)))) },

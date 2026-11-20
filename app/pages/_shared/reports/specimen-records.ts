@@ -73,7 +73,7 @@ const TAXA: Record<string, Taxon> = {
 };
 
 /** The register a group of species is held in (the options in field-options.ts "Institution rego #"). */
-const REGO_FOR_GROUP: Record<SpeciesGroup, string> = {
+export const REGO_FOR_GROUP: Record<SpeciesGroup, string> = {
   Mammal: "Mammals",
   Bird: "Birds",
   Reptile: "Herpetology",

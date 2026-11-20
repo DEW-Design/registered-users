@@ -1,6 +1,6 @@
 "use client";
 
-import type { FC } from "react";
+import type { FC, ReactNode } from "react";
 import { AlertFullWidth } from "@/components/application/alerts/alerts";
 
 // The page banner: one full-width notice across the top of a screen's content, directly under the header and outside
@@ -26,9 +26,9 @@ export function PageBanner({
 }: {
   /** What is true, in a few words: "Some locations are approximate". */
   title: string;
-  /** One line on what that means for this person. */
-  description: string;
-  /** The next step, named by where it goes: "Go to DLA", "Sign up for access". */
+  /** One line on what that means for this person (text, or text with a link in it). */
+  description: ReactNode;
+  /** The next step, named by where it goes: "Apply for a data licence", "Sign up for access". */
   actionLabel: string;
   /** The icon that names the action (CONTRACTS 3.12): an arrow after the label for "Go to ...", a person for "Sign up". */
   actionIcon: FC<{ className?: string }>;

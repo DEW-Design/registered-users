@@ -15,38 +15,35 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { ArrowLeft, Plus, Save01, Trash01, XClose } from "@untitledui/icons";
 import { Button } from "@/components/base/buttons/button";
-import { Checkbox } from "@/components/base/checkbox/checkbox";
 import { Input } from "@/components/base/input/input";
 import { RadioButton, RadioGroup } from "@/components/base/radio-buttons/radio-buttons";
-import { MultiSelect } from "@/components/base/select/multi-select";
 import { Select } from "@/components/base/select/select";
 import { toast } from "@/components/application/toast/toast";
 import { AlertFullWidth } from "@/components/application/alerts/alerts";
 import { DestructiveModal } from "@/components/application/modals/modal";
 import { FormPage } from "@/app/pages/_shared/form-page";
 import { FormRow } from "@/app/pages/_shared/form-row";
-import { FOCUS_AREA_OPTIONS, PERMIT_TYPE_OPTIONS, REGISTRATION_SPECIES, ROLE_OF_WORK_OPTIONS } from "@/app/pages/project-registration/data";
+import { ROLE_OF_WORK_OPTIONS } from "@/app/pages/project-registration/data";
 import { GeoExtentPicker } from "@/app/pages/project-registration/geo-extent-picker";
-import { DataOwnersRow, MethodologyRow, RestrictionKindsRow, SectionFields } from "@/app/pages/project-registration/option-2/form-sections";
+import { DataOwnersRow, MethodologyRow, RestrictionKindsRow, SectionFields, TargetedTaxonRow } from "@/app/pages/project-registration/option-2/form-sections";
 import { isSectionValid, methodologySummary, missingFields, missingMethodFieldsV2, missingOwnerFields, missingOwnerFieldsV2, toSavedDetails, withLegacyMethodologies } from "@/app/pages/project-registration/option-2/sections";
 import { ManagerCard } from "@/app/pages/project-registration/step-1-project-details";
 import { RESTRICTION_TYPE_META } from "@/app/pages/project-registration/step-3-privacy-restrictions";
-import { emptyContact, emptyPermitRow, emptyProjectManager, isGeoExtentComplete, type ContactPerson, type ProjectDetailsState, type ProjectManager, type RestrictionTypeKey } from "@/app/pages/project-registration/types";
+import { emptyContact, emptyProjectManager, isGeoExtentComplete, type ContactPerson, type ProjectDetailsState, type ProjectManager, type RestrictionTypeKey } from "@/app/pages/project-registration/types";
 import { useSampleContent } from "@/app/_prototype-tools/sample-content";
 import { EditDrawer } from "./edit-drawer";
 import { PROJECT_STATUSES, useEditStore, type ProjectState, type ProjectStatus } from "./edit-store";
 import { sampleProjectCard } from "./project-edit-sample";
 
 /** The cards of the Overview tab. Restriction cards use the registration's restriction keys. */
-export type ProjectCardId = "details" | "owner" | "managers" | "extent" | "collection" | "permits" | "add-restriction" | RestrictionTypeKey;
+export type ProjectCardId = "details" | "owner" | "managers" | "extent" | "collection" | "add-restriction" | RestrictionTypeKey;
 
 export const CARD_TITLES: Record<ProjectCardId, string> = {
   details: "Project details",
   owner: "Published by",
   managers: "Project managers",
   extent: "Geographic extent",
-  collection: "Focus, species and method",
-  permits: "Permits and identifiers",
+  collection: "Methodology",
   "add-restriction": "Add a restriction",
   embargo: "Embargo",
   species: "Species restriction",
@@ -63,7 +60,6 @@ const CARD_GROUP: Record<ProjectCardId, string> = {
   managers: "Overview",
   extent: "Data collection and methodology",
   collection: "Data collection and methodology",
-  permits: "Data collection and methodology",
   "add-restriction": "Privacy and restrictions",
   embargo: "Privacy and restrictions",
   species: "Privacy and restrictions",
@@ -75,7 +71,6 @@ const CARD_GROUP: Record<ProjectCardId, string> = {
 };
 
 const STATUS_ITEMS = PROJECT_STATUSES.map((s) => ({ id: s, label: s }));
-const SPECIES_ITEMS = REGISTRATION_SPECIES.map((s) => ({ id: s.id, label: `${s.commonName} (${s.species})` }));
 const REQUIRED = "This field is required";
 
 /** A data owner contact's role: its own, or for the first contact the registration's `roleOfWork`. */
@@ -120,8 +115,6 @@ export function cardMissing(id: ProjectCardId, s: ProjectState): string[] {
       // Survey type is optional (16 Oct 2026): Add Project stopped asking it, so a project created there is complete without it.
       // The methodology is checked as Add Project checks it (the designer, 25 Oct 2026).
       return missingMethodFieldsV2(withLegacyMethodologies(c));
-    case "permits":
-      return out;
     case "add-restriction":
       return out;
     default:
@@ -216,7 +209,7 @@ function OwnerForm({ draft, update, showErrors }: FormProps) {
               <Input label="Email" type="email" isRequired={primary} value={c.email} onChange={(v) => updateContact(c.id, { email: v })} isInvalid={primary && missing(c.email)} hint={primary && missing(c.email) ? REQUIRED : undefined} />
               <div className="grid gap-4 sm:grid-cols-2">
                 <Input label="Phone number" value={c.phone} onChange={(v) => updateContact(c.id, { phone: v })} />
-                <Input label="Team" placeholder="E.g., DEW Biodiversity Team" value={c.organisation ?? ""} onChange={(v) => updateContact(c.id, { organisation: v })} />
+                <Input label="Team" placeholder="DEW Biodiversity Team" value={c.organisation ?? ""} onChange={(v) => updateContact(c.id, { organisation: v })} />
               </div>
             </div>
           );
@@ -270,38 +263,11 @@ function ExtentForm({ draft, update, showErrors }: FormProps) {
 
 function CollectionForm({ draft, update, showErrors }: FormProps) {
   const c = draft.collection;
-  const patch = (p: Partial<typeof c>) => update({ ...draft, collection: { ...c, ...p } });
-  const toggleFocus = (id: string, on: boolean) => {
-    if (id === "biological") return;
-    patch({ focusAreas: on ? [...c.focusAreas, id] : c.focusAreas.filter((f) => f !== id), focusAreaOther: id === "other" && !on ? "" : c.focusAreaOther });
-  };
   return (
     <>
-      <FormRow title="Focus areas" required description="Biological is always included. Add any other domains the project covers.">
-        <div className="grid gap-3 sm:grid-cols-2">
-          {FOCUS_AREA_OPTIONS.map((o) => (
-            <Checkbox key={o.id} size="sm" label={o.label} hint={o.id === "biological" ? "Always included" : undefined} isSelected={c.focusAreas.includes(o.id)} isDisabled={o.id === "biological"} onChange={(on) => toggleFocus(o.id, on)} />
-          ))}
-        </div>
-        {c.focusAreas.includes("other") && (
-          <Input label="Please specify" isRequired value={c.focusAreaOther} onChange={(v) => patch({ focusAreaOther: v })} isInvalid={showErrors && blank(c.focusAreaOther)} hint={showErrors && blank(c.focusAreaOther) ? REQUIRED : undefined} />
-        )}
-      </FormRow>
-      <FormRow title="Targeted species" description="Species the project sets out to record.">
-        <MultiSelect
-          aria-label="Targeted species"
-          placeholder="Search and select species"
-          items={SPECIES_ITEMS}
-          selectedKeys={new Set(c.targetedSpeciesIds)}
-          onSelectionChange={(keys) => patch({ targetedSpeciesIds: Array.from(keys as Set<string>) })}
-          onReset={() => patch({ targetedSpeciesIds: [] })}
-          onSelectAll={() => patch({ targetedSpeciesIds: SPECIES_ITEMS.map((o) => o.id) })}
-        >
-          {(item) => <MultiSelect.Item {...item} selectionIndicator="checkbox" selectionIndicatorAlign="left" />}
-        </MultiSelect>
-      </FormRow>
+      <TargetedTaxonRow state={draft} onChange={(next) => update({ ...draft, collection: next.collection })} />
       {/* Asked as Add Project asks it (the designer, 25 Oct 2026). The page reads the methodology as text, so a change to the
-          list is written back as `methodDetails` and `limitationsAndBiases`, as creating a project does (toSavedForm). */}
+          list is written back as `methodDetails` and `limitationsAndBiases`, as creating a project does (toSavedForm). Focus areas and the permits and identifiers are not on this page any more (the designer, 19 Nov 2026): a permit number is on each dataset and is rolled up here. */}
       <MethodologyRow
         state={{ ...draft, collection: withLegacyMethodologies(c) }}
         onChange={(next) => {
@@ -310,33 +276,6 @@ function CollectionForm({ draft, update, showErrors }: FormProps) {
         }}
         showErrors={showErrors}
       />
-    </>
-  );
-}
-
-function PermitsForm({ draft, update }: FormProps) {
-  const c = draft.collection;
-  const patch = (p: Partial<typeof c>) => update({ ...draft, collection: { ...c, ...p } });
-  const updatePermit = (id: number, p: Partial<(typeof c.permits)[number]>) => patch({ permits: c.permits.map((x) => (x.id === id ? { ...x, ...p } : x)) });
-  return (
-    <>
-      <FormRow title="Permits" description="Any permits the project was carried out under.">
-        {c.permits.map((permit, i) => (
-          <div key={permit.id} className="flex items-end gap-3">
-            <Select label="Permit type" placeholder="Select permit type" items={PERMIT_TYPE_OPTIONS} selectedKey={permit.type} onSelectionChange={(key) => updatePermit(permit.id, { type: key as string })} className="flex-1">
-              {(item) => <Select.Item {...item}>{item.label}</Select.Item>}
-            </Select>
-            <Input label="Permit no." value={permit.number} onChange={(v) => updatePermit(permit.id, { number: v })} className="flex-1" />
-            <Button color="secondary" size="md" iconLeading={Trash01} aria-label={`Remove permit ${i + 1}`} onClick={() => patch({ permits: c.permits.filter((x) => x.id !== permit.id) })} />
-          </div>
-        ))}
-        <Button color="link-color" size="sm" iconLeading={Plus} className="w-max" onClick={() => patch({ permits: [...c.permits, emptyPermitRow(Math.max(0, ...c.permits.map((p) => p.id)) + 1)] })}>
-          Add a permit
-        </Button>
-      </FormRow>
-      <FormRow title="URI / DOI" description="An existing identifier, if the dataset has one.">
-        <Input aria-label="URI or DOI number" placeholder="E.g., 10.5281/zenodo.1234567" value={c.uriDoi} onChange={(v) => patch({ uriDoi: v })} />
-      </FormRow>
     </>
   );
 }
@@ -376,8 +315,6 @@ function CardForm({ id, ...props }: FormProps & { id: ProjectCardId }) {
       return <ExtentForm {...props} />;
     case "collection":
       return <CollectionForm {...props} />;
-    case "permits":
-      return <PermitsForm {...props} />;
     case "add-restriction":
       return <AddRestrictionForm {...props} />;
     default:

@@ -31,15 +31,18 @@
 //
 // Same form state, validation rules, restriction editors and success screen as the first layout.
 // No backend: "Create project" keeps the project in this browser's localStorage (created-projects-store.ts),
-// and Save draft says it persists nothing.
+// and the answers are kept as a draft in localStorage as they are given (form-draft-store.ts), so a refresh brings the form back as it was; creating or discarding the project clears it.
 
 import { useState } from "react";
+import { useFormDraft } from "@/app/pages/_shared/form-draft-store";
+import { deserializeForm, deserializeSet, serializeForm, serializeSet } from "../form-storage";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Trash01 } from "@untitledui/icons";
 import { DestructiveModal } from "@/components/application/modals/modal";
 import { toast } from "@/components/application/toast/toast";
 import { useRoleHref } from "@/lib/use-role-href";
 import { useUserRole } from "@/lib/use-user-role";
+import { Badge } from "@/components/base/badges/badges";
 import { FormPage } from "@/app/pages/_shared/form-page";
 import { RestrictedState } from "@/app/pages/_shared/restricted-state";
 import { createdProjectHref, saveCreatedProject, type CreatedProject } from "@/app/pages/_shared/created-projects-store";
@@ -72,9 +75,18 @@ export function RegistrationFlow({ datasetStep, basePath = BASE_PATH }: { datase
   const searchParams = useSearchParams();
   const roleHref = useRoleHref();
 
-  const [state, setState] = useState<FormState>(() => ({ details: initialProjectDetails(), collection: initialDataCollection(), restrictions: initialRestrictions() }));
+  // The answers and the sections gone through are a draft that survives a refresh. Option 2's own route (`datasetStep`) keeps its own draft, apart from option 1's.
+  const draftKey = datasetStep ? "add-project-with-dataset" : "add-project";
+  const draft = useFormDraft<FormState>({
+    key: draftKey,
+    initial: () => ({ details: initialProjectDetails(), collection: initialDataCollection(), restrictions: initialRestrictions() }),
+    encode: serializeForm,
+    decode: deserializeForm,
+  });
+  const visitedDraft = useFormDraft<Set<SectionId>>({ key: `${draftKey}-visited`, initial: () => new Set(), encode: serializeSet, decode: deserializeSet });
+  const { value: state, set: setState } = draft;
+  const { value: visited, set: setVisited } = visitedDraft;
   const [dirty, setDirty] = useState(false);
-  const [visited, setVisited] = useState<Set<SectionId>>(new Set());
   const [attempted, setAttempted] = useState<Set<SectionId>>(new Set());
   // The project once it is created: kept in localStorage, and where "Go to Project" leads.
   const [created, setCreated] = useState<CreatedProject | null>(null);
@@ -96,7 +108,6 @@ export function RegistrationFlow({ datasetStep, basePath = BASE_PATH }: { datase
         ? sections.filter((sec) => sec !== "review" && !validOf(sec)).map((sec) => sectionMeta(sec, version).title)
         : missingFields(id, state, version);
   const stepNumber = datasetStep ? datasetFlowStep(current) : meta.step;
-  const stepCount = datasetStep ? DATASET_FLOW_STEP_TITLES.length : 3;
   const stepTitle = stepNumber ? (datasetStep ? DATASET_FLOW_STEP_TITLES[stepNumber - 1] : STEP_TITLES[stepNumber as 1 | 2 | 3]) : undefined;
 
   const update = (next: FormState) => {
@@ -138,11 +149,13 @@ export function RegistrationFlow({ datasetStep, basePath = BASE_PATH }: { datase
     }
     const project = saveCreatedProject(toSavedForm(state, version), role);
     datasetStep?.create(project); // the dataset goes onto the project that was just made
+    draft.clear();
+    visitedDraft.clear();
     setCreated(project);
   };
 
-  const handleCancel = () => (dirty || datasetStep?.dirty ? setConfirmCancel(true) : router.push(roleHref("/pages/project-list")));
-  const handleSaveDraft = () => toast.brand("Draft saved", { description: "This is a demo build with no real backend - nothing is actually persisted." });
+  const handleCancel = () => (dirty || draft.restored || datasetStep?.dirty ? setConfirmCancel(true) : router.push(roleHref("/pages/project-list")));
+  const handleSaveDraft = () => toast.brand("Draft saved", { description: "Your answers are kept in this browser until you create the project." });
 
   const role = useUserRole();
   const isGuest = role === "public-user";
@@ -198,7 +211,7 @@ export function RegistrationFlow({ datasetStep, basePath = BASE_PATH }: { datase
   } else {
     main = (
       <FormPage
-        eyebrow={stepNumber && stepTitle ? `Step ${stepNumber} of ${stepCount} - ${stepTitle}` : undefined}
+        eyebrow={stepTitle}
         title={meta.title}
         subtitle={meta.description}
         onCancel={handleCancel}
@@ -231,30 +244,43 @@ export function RegistrationFlow({ datasetStep, basePath = BASE_PATH }: { datase
                 }}
               />
             )}
-            <SectionFields key={`${sampleKey}-${copyKey}`} id={current} state={state} onChange={update} showErrors={showErrors} version={version} />
+            <SectionFields key={`${sampleKey}-${copyKey}-${draft.restored ? "restored" : "new"}`} id={current} state={state} onChange={update} showErrors={showErrors} version={version} />
           </>
         )}
       </FormPage>
     );
   }
 
+  // The last crumb says which project this is: "New project" until it has a name, then the name with a Draft badge (once it is created it is a project, not a draft).
+  const projectName = state.details.shortTitle.trim();
+  const crumb = projectName ? (
+    <span className="inline-flex items-center gap-2">
+      {projectName}
+      {!created && (
+        <Badge size="sm" color="gray">
+          Draft
+        </Badge>
+      )}
+    </span>
+  ) : (
+    "New project"
+  );
+
   return (
     <>
-      <RegistrationShell sidebar={sidebar}>{main}</RegistrationShell>
+      <RegistrationShell sidebar={sidebar} current={crumb}>{main}</RegistrationShell>
       <DestructiveModal confirmIcon={Trash01} cancelIcon={ArrowLeft}
         isOpen={confirmCancel}
         onOpenChange={setConfirmCancel}
         title="Discard this project?"
-        description="You have unsaved details. Save a draft to keep them, or discard them."
-        confirmLabel="Discard project"
-        cancelLabel="Keep editing"
-        secondaryLabel="Save draft"
-        onSecondary={() => {
-          setConfirmCancel(false);
-          handleSaveDraft();
-        }}
+        description="You have unsaved details. Discard them, or cancel and keep editing."
+        confirmLabel="Discard"
+        cancelLabel="Cancel & keep editing"
+        footerLayout="column"
         onConfirm={() => {
           setConfirmCancel(false);
+          draft.clear();
+          visitedDraft.clear();
           router.push(roleHref("/pages/project-list"));
         }}
       />

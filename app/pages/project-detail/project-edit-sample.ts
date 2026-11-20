@@ -1,7 +1,7 @@
 import { methodologySummary } from "@/app/pages/project-registration/option-2/sections";
 import { sampleProjectForm } from "@/app/pages/project-registration/sample-content";
 import { OFFERED_RESTRICTION_TYPES } from "@/app/pages/project-registration/step-3-privacy-restrictions";
-import { emptyConceptRow, emptyPermitRow, emptyProjectManager, type ConceptValueRow, type ContactPerson } from "@/app/pages/project-registration/types";
+import { emptyConceptRow, emptyProjectManager, type ConceptValueRow, type ContactPerson } from "@/app/pages/project-registration/types";
 import type { ProjectState } from "./edit-store";
 import type { ProjectCardId } from "./project-edit";
 
@@ -64,26 +64,12 @@ export function sampleProjectCard(id: ProjectCardId, draft: ProjectState): Proje
       return { ...draft, collection: { ...c, geographicExtent: sample.collection.geographicExtent } };
 
     case "collection": {
-      // Add Project's sample answers: Systematic, which lists its methodologies (one of them Other, which asks for a name), and the Other focus area, which asks to specify.
+      // Add Project's sample answers: Systematic, which lists its methodologies (one of them Other, which asks for a name).
       const sc = sample.collection;
-      const next = { ...c, focusAreas: sc.focusAreas, focusAreaOther: sc.focusAreaOther, targetedSpeciesIds: sc.targetedSpeciesIds, collectionMethod: sc.collectionMethod, methodologies: sc.methodologies };
+      const next = { ...c, collectionMethods: sc.collectionMethods, methodologies: sc.methodologies };
       const { names, notes } = methodologySummary(next);
       return { ...draft, collection: { ...next, methodDetails: names, limitationsAndBiases: notes } };
     }
-
-    case "permits":
-      // Two permit rows. The number is left empty: a number would be invented. No URI or DOI, for the same reason.
-      return {
-        ...draft,
-        collection: {
-          ...c,
-          permits: [
-            { ...emptyPermitRow(1), type: "scientific-research" },
-            { ...emptyPermitRow(2), type: "wildlife-ethics" },
-          ],
-          uriDoi: "",
-        },
-      };
 
     case "add-restriction": {
       // Every kind that can still be added, ticked.

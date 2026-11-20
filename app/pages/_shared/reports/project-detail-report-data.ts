@@ -11,7 +11,7 @@ import { boundarySummary, SA_NATIONAL_PARKS } from "@/app/pages/_shared/map-sear
 import { countKinds, groupOfRecord, indexOf, recordsOfKind, type ReportProject } from "@/app/pages/_shared/reports/report-records";
 import { formatIsoDay } from "@/app/pages/_shared/reports/ingestion-report-data";
 import { conceptLabel } from "@/app/pages/project-registration/concept-rows";
-import { COLLECTION_METHOD_OPTIONS, EMBARGO_TYPE_OPTIONS, PERMIT_TYPE_OPTIONS, PROJECT_METADATA_CONCEPTS, REGISTRATION_SPECIES, SPECIES_CONCEPTS } from "@/app/pages/project-registration/data";
+import { collectionMethodLabels, EMBARGO_TYPE_OPTIONS, PROJECT_METADATA_CONCEPTS, REGISTRATION_SPECIES, SPECIES_CONCEPTS } from "@/app/pages/project-registration/data";
 import type { GeoExtentValue, RestrictionTypeKey } from "@/app/pages/project-registration/types";
 import { contactRole, roleLabel } from "@/app/pages/project-detail/project-edit";
 
@@ -45,11 +45,10 @@ export interface ProjectRow {
   managerOrganisation: string;
   location: string;
   speciesGroups: string[];
-  targetedSpecies: string;
+  targetedTaxon: string;
   method: string;
-  permitTypes: string[];
+  /** Rolled up from the project's datasets: a permit number is asked on each dataset. */
   permitNumbers: string;
-  uriDoi: string;
   limitations: string;
   restricted: "Yes" | "No";
   embargo: "Yes" | "No";
@@ -74,7 +73,7 @@ function extentText(extent: GeoExtentValue): string {
   return extent.boundary ? boundarySummary(extent.boundary) : "";
 }
 
-export function projectRowFor({ project, seq, seed }: ReportProject): ProjectRow {
+export function projectRowFor({ project, seq, seed }: ReportProject, permitNumbers: string[] = []): ProjectRow {
   const { details: d, collection: c, restrictions: r, status } = seed.project;
   const index = indexOf(seed);
   const counts = countKinds(seed);
@@ -100,7 +99,6 @@ export function projectRowFor({ project, seq, seed }: ReportProject): ProjectRow
 
   const speciesName = (id: string) => REGISTRATION_SPECIES.find((s) => s.id === id)?.commonName ?? id;
   const embargoTypes = on("embargo") ? r.embargo.types.map((t) => (t === "other" ? r.embargo.typeOther || "Other" : (EMBARGO_TYPE_OPTIONS.find((o) => o.id === t)?.label ?? t))) : [];
-  const permits = c.permits.filter((p) => p.type || p.number);
 
   return {
     id: project.id,
@@ -128,11 +126,9 @@ export function projectRowFor({ project, seq, seed }: ReportProject): ProjectRow
     managerOrganisation: join(managers.map((m) => m.organisation)),
     location: extentText(c.geographicExtent),
     speciesGroups: [...groups].sort(),
-    targetedSpecies: join(c.targetedSpeciesIds.map(speciesName), ", "),
-    method: COLLECTION_METHOD_OPTIONS.find((o) => o.id === c.collectionMethod)?.label ?? "",
-    permitTypes: permits.map((p) => PERMIT_TYPE_OPTIONS.find((o) => o.id === p.type)?.label ?? "").filter(Boolean),
-    permitNumbers: join(permits.map((p) => p.number)),
-    uriDoi: c.uriDoi,
+    targetedTaxon: join(c.targetedSpeciesIds.map(speciesName), ", "),
+    method: collectionMethodLabels(c.collectionMethods),
+    permitNumbers: join(permitNumbers),
     limitations: c.limitationsAndBiases,
     restricted: r.hasRestrictions ? "Yes" : "No",
     embargo: on("embargo") ? "Yes" : "No",

@@ -5,19 +5,20 @@ import Link from "next/link";
 import { AlertFullWidth } from "@/components/application/alerts/alerts";
 import { DestructiveModal } from "@/components/application/modals/modal";
 import { FormPage } from "@/app/pages/_shared/form-page";
-import { TemplateDownloads } from "@/app/pages/_shared/template-finder/template-downloads";
+import { RecommendedTemplates } from "@/app/pages/_shared/dataset-upload/recommended-templates";
 import { FormRow } from "@/app/pages/_shared/form-row";
 import { FormSectionList, FormSidebar, deriveSectionStatus } from "@/app/pages/_shared/form-section-list";
 import { FileQueue, UploadDropzone, useFileQueue } from "@/app/pages/_shared/dataset-upload/upload-dropzone";
 import { AcknowledgementRows, emptyAcknowledgement, type Acknowledgement } from "@/app/pages/_shared/dataset-upload/acknowledgement-rows";
+import type { AcceptedMethodology } from "@/app/pages/_shared/dataset-upload/accepted-methodologies";
+import { DatasetIdentifiers } from "@/app/pages/_shared/dataset-upload/dataset-identifiers";
 import {
   emptyUploadDraft,
   kindOfFiles,
   missingForUpload,
-  recommendedTemplates,
+  recommendTemplates,
   uploadSectionOrder,
   uploadSections,
-  type DatasetTemplate,
   type UploadDraft,
   type UploadSection,
 } from "@/app/pages/_shared/dataset-upload/dataset-data";
@@ -25,8 +26,10 @@ import { useDatasets } from "@/app/pages/_shared/dataset-upload/dataset-store";
 import { describePlace, useDetectedConcepts } from "@/app/pages/_shared/dataset-upload/custom-concepts";
 import { CustomConceptRows } from "@/app/pages/_shared/dataset-upload/custom-concepts-views";
 import { sampleAcknowledgement, sampleDatasetFiles } from "@/app/pages/_shared/dataset-upload/dataset-sample";
+import { useFormDraft } from "@/app/pages/_shared/form-draft-store";
 import { useSampleContent } from "@/app/_prototype-tools/sample-content";
 import { projectDetailsPath } from "@/app/pages/_shared/project-routes";
+import { useCanOpen } from "@/lib/use-can-open";
 import { useRoleHref } from "@/lib/use-role-href";
 import { NumberedSteps } from "@/app/pages/_shared/numbered-steps";
 import { ArrowLeft, Trash01 } from "@untitledui/icons";
@@ -54,45 +57,34 @@ const uploadInstructions = [
   "PDF, images (JPG, PNG, GIF, RAW), Word, audio and video can be added too. Each file can be up to 10 MB.",
 ];
 
-function TemplateCard({ template }: { template: DatasetTemplate }) {
-  return (
-    <div className="flex flex-col gap-3 rounded-xl border border-secondary bg-primary p-4">
-      <div className="flex flex-col gap-1">
-        <p className="text-sm font-semibold text-primary">{template.title}</p>
-        <p className="text-sm text-balance text-tertiary">{template.description}</p>
-      </div>
-      <dl className="m-0 flex flex-wrap gap-x-6 gap-y-1 text-sm">
-        <div className="flex gap-1.5">
-          <dt className="text-tertiary">Collection method:</dt>
-          <dd className="m-0 font-medium text-secondary">{template.collectionMethod}</dd>
-        </div>
-        <div className="flex gap-1.5">
-          <dt className="text-tertiary">Species type:</dt>
-          <dd className="m-0 font-medium text-secondary">{template.speciesType}</dd>
-        </div>
-      </dl>
-      <div className="border-t border-secondary pt-3">
-        <TemplateDownloads />
-      </div>
-    </div>
-  );
-}
-
 export function UploadForm({
   project,
+  accepted = [],
   onCancel,
   onSubmit,
 }: {
   project: { id: string; code: string; name: string };
+  /** The methodologies the project accepts, from its registration: said before the files are added. None is nothing to say. */
+  accepted?: AcceptedMethodology[];
   onCancel: () => void;
   onSubmit: (draft: UploadDraft) => void;
 }) {
   useDatasets(); // loads the saved datasets before this one is added
   const roleHref = useRoleHref();
+  const canOpen = useCanOpen();
   const queue = useFileQueue("everything");
-  const [answers, setAnswers] = useState<Acknowledgement>(emptyAcknowledgement);
-  const [section, setSection] = useState<UploadSection>("files");
-  const [visited, setVisited] = useState<Set<UploadSection>>(new Set());
+  // The answers, the section and the sections gone through are a draft for this project that survives a refresh (form-draft-store.ts). The files are not kept: a file
+  // cannot be stored, so after a refresh they are added again.
+  const saved = useFormDraft<{ answers: Acknowledgement; section: UploadSection; visited: UploadSection[] }>({
+    key: `upload-dataset:${project.id}`,
+    initial: () => ({ answers: emptyAcknowledgement, section: "files", visited: [] }),
+    encode: JSON.stringify,
+    decode: (raw) => ({ ...{ answers: emptyAcknowledgement, section: "files" as UploadSection, visited: [] }, ...JSON.parse(raw) }),
+  });
+  const { answers, section, visited: visitedList } = saved.value;
+  const visited = new Set(visitedList);
+  const setAnswers = (next: React.SetStateAction<Acknowledgement>) => saved.set((d) => ({ ...d, answers: typeof next === "function" ? next(d.answers) : next }));
+  const setSection = (next: UploadSection) => saved.set((d) => ({ ...d, section: next }));
   const [blocked, setBlocked] = useState<Set<UploadSection>>(new Set());
   const [submitPressed, setSubmitPressed] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
@@ -113,11 +105,10 @@ export function UploadForm({
   const index = Math.max(0, order.indexOf(section));
   const isLast = index === order.length - 1;
   const showErrors = (id: UploadSection) => submitPressed || blocked.has(id);
-  const dirty = queue.files.length > 0 || answers.licence !== "" || answers.firstNations !== "" || answers.privacyConfirmed;
+  const dirty = saved.restored || queue.files.length > 0 || answers.permitNumber !== "" || answers.uriDoi !== "" || answers.licence !== "" || answers.firstNations !== "" || answers.privacyConfirmed;
 
   const goTo = (next: UploadSection) => {
-    setVisited((v) => new Set(v).add(section));
-    setSection(next);
+    saved.set((d) => ({ ...d, visited: [...new Set([...d.visited, d.section])], section: next }));
   };
   // Continue, and jumping ahead in column 2, refuse to leave a section with mandatory details missing.
   const proceed = (next: UploadSection) => {
@@ -135,6 +126,7 @@ export function UploadForm({
       setSection(first);
       return;
     }
+    saved.clear();
     onSubmit(draft);
   };
 
@@ -172,19 +164,32 @@ export function UploadForm({
       >
         {section === "files" && (
           <>
+            {accepted.length > 0 && (
+              <div className="mb-6">
+                <AlertFullWidth
+                  contained
+                  wrap
+                  color="gray"
+                  title="Methodologies this project accepts"
+                  description={`${accepted.map((a) => (a.accepted.length ? `${a.method}: ${a.accepted.join(", ")}` : a.method)).join("; ")}. Upload data collected with these.`}
+                  confirmLabel=""
+                />
+              </div>
+            )}
             <FormRow title="Data upload instructions">
               <NumberedSteps steps={uploadInstructions} />
             </FormRow>
             <FormRow title="Dataset files" required description="Add one or more files." error={queue.rejectedMessage}>
               <UploadDropzone accepts="everything" onAdd={queue.add} isInvalid={showErrors("files") && queue.files.length === 0} />
               <FileQueue files={queue.files} onRemove={queue.remove} />
+              <DatasetIdentifiers answers={answers} update={update} />
             </FormRow>
-            <FormRow title="Recommended templates" description="Standard templates recommended for this project.">
-              <div className="flex flex-col gap-3">
-                {recommendedTemplates.map((template) => (
-                  <TemplateCard key={template.id} template={template} />
-                ))}
-              </div>
+            <FormRow title="Recommended templates" description="Standard templates for the methodologies this project accepts.">
+              <RecommendedTemplates
+                templates={recommendTemplates(accepted)}
+                hasMethodologies={accepted.length > 0}
+                browseHref={canOpen("/pages/template-finder") ? roleHref("/pages/template-finder") : undefined}
+              />
             </FormRow>
           </>
         )}
@@ -242,6 +247,7 @@ export function UploadForm({
         cancelLabel="Keep editing"
         onConfirm={() => {
           setConfirmDiscard(false);
+          saved.clear();
           onCancel();
         }}
       />

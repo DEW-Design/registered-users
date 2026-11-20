@@ -45,6 +45,8 @@ export function RegistrationProgress({
       heading="Add project"
       progress={{ done: editable.filter((id) => visited.has(id) && valid(id)).length, total: editable.length }}
       groups={groups}
+      closingDivider={false}
+      showProgress={false}
       closing={created ? { ...item("review"), status: "complete" } : item("review")}
       onSelect={(id) => onSelect(id as SectionId)}
     />

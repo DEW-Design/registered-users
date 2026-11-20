@@ -16,7 +16,7 @@
 //  - Project records: every event, occurrence and observation in a tree or a table, beside a record
 //    inspector that shows the selected record's metadata grouped by Darwin Core class
 //    (records-explorer.tsx, record-inspector.tsx).
-//  - Species: every species recorded in the project, with where and when.
+//  - Species: every species recorded in the project, with where and when. (Hidden for now, 19 Nov 2026: its tab and content are commented out below.)
 //  - Datasets (30 Oct 2026): every upload to this project, the one in progress with its pre-flight validation, and each dataset's own page
 //    (`?view=datasets&dataset=<id>`, datasets-view.tsx), whose Back link returns here (`?tab=datasets`).
 //  - Artefacts and attachments: every file attached to a record, each linked back to its record.
@@ -38,7 +38,8 @@ import {
   TabPanel,
   Tabs as ContentTabs,
 } from "@/components/application/tabs/tabs";
-import { ArrowNarrowRight, Database01, Feather, Grid01, Lock01, Paperclip, Upload01, UploadCloud02 } from "@untitledui/icons";
+// `Feather` (the Species tab's icon) is left out while that tab is hidden.
+import { ArrowNarrowRight, Database01, Grid01, Lock01, Paperclip, Upload01, UploadCloud02 } from "@untitledui/icons";
 import { Button } from "@/components/base/buttons/button";
 import { BadgeWithDot } from "@/components/base/badges/badges";
 import { AlertFullWidth } from "@/components/application/alerts/alerts";
@@ -61,7 +62,7 @@ import { useUserRole } from "@/lib/use-user-role";
 import { useRoleHref } from "@/lib/use-role-href";
 import { navForRole, keyHref, type NavNode } from "@/lib/registered-user-nav";
 import { ProjectTab, formatDay, hasRestrictionToAdd, type ProjectTabHandle } from "./project-tab";
-import { SpeciesView, useProjectSpecies } from "./species-view";
+// import { SpeciesView, useProjectSpecies } from "./species-view"; // The Species tab is hidden for now.
 import { ProjectSwitcher } from "@/app/pages/_shared/project-switcher";
 import { HeroMeta, RecordBackLink, RecordHero } from "@/app/pages/_shared/record-hero";
 import { EditStoreProvider, useEditStore } from "./edit-store";
@@ -79,8 +80,9 @@ import { useCreateContext, type CreateContext } from "@/lib/create-context";
 import type { FilterSelection } from "@/app/pages/_shared/list-filter";
 import { ownerName, ownersOf } from "@/app/pages/project-registration/types";
 
-type DetailTab = "project" | "records" | "species" | "datasets" | "artefacts";
-const isDetailTab = (v: string | null): v is DetailTab => v === "project" || v === "records" || v === "species" || v === "datasets" || v === "artefacts";
+// "species" is out of the tabs while the Species tab is hidden, so a link with `?tab=species` opens the default tab and not an empty one.
+type DetailTab = "project" | "records" | /* "species" | */ "datasets" | "artefacts";
+const isDetailTab = (v: string | null): v is DetailTab => v === "project" || v === "records" || v === "datasets" || v === "artefacts";
 
 function ProjectHero({ onUploadAttachments }: { onUploadAttachments: () => void }) {
   const { project, meta } = useEditStore();
@@ -214,7 +216,7 @@ function ProjectDetail({ basePath, notice }: ProjectDetailTemplateProps) {
   const [recordFilter, setRecordFilter] = useState<FilterSelection>({});
   const [recordsView, setRecordsView] = useState<RecordsView>("tree");
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
-  const species = useProjectSpecies();
+  // const species = useProjectSpecies(); // The Species tab is hidden for now.
   // Reviewing flagged concepts is an admin's job (BioData Admin, Privileged Admin). It is management
   // work, not a view of the records, so it is its own screen (`?view=review`, same route so the
   // session's edits stay), opened from a banner in Project records or from the admin's Home.
@@ -455,12 +457,15 @@ function ProjectDetail({ basePath, notice }: ProjectDetailTemplateProps) {
                         icon={Database01}
                         badge={records.length}
                       />
+                      {/* The Species tab is hidden for now (19 Nov 2026). To bring it back: restore this tab and its panel below, the `Feather` import, the `species-view`
+                          import, `const species`, and "species" in `DetailTab` and `isDetailTab`.
                       <Tab
                         id="species"
                         label="Species"
                         icon={Feather}
                         badge={species.length}
                       />
+                      */}
                       {canSeeDatasets && <Tab id="datasets" label="Datasets" icon={UploadCloud02} badge={datasetCount} />}
                       <Tab
                         id="artefacts"
@@ -501,9 +506,11 @@ function ProjectDetail({ basePath, notice }: ProjectDetailTemplateProps) {
                       />
                     </TabPanel>
 
+                    {/* The Species tab's content, hidden with its tab.
                     <TabPanel id="species" className="pt-6">
                       <SpeciesView onOpenRecord={(id) => openRecord(id)} />
                     </TabPanel>
+                    */}
 
                     {canSeeDatasets && (
                       <TabPanel id="datasets" className="pt-6">

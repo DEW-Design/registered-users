@@ -5,8 +5,8 @@
 // in-form action row of the form pattern (a secondary `Button` with its icon, 4.1), and the created projects store the Projects list
 // already reads.
 //
-// What is carried is what the person answered about how the project is run (owner, contacts, extent, method, permits, species,
-// restrictions). What is not: the names (so the new project has to be named), the URI or DOI (one project's identifier), the dates
+// What is carried is what the person answered about how the project is run (owner, contacts, extent, methodology, targeted taxon,
+// restrictions). What is not: the names (so the new project has to be named), the dates
 // (they open as they do on a new project) and the logo (a temporary address that does not survive a reload). The project's number is
 // assigned on create, as for any project, and datasets are not carried (they are a different step with files). It is offered only while
 // the form is untouched, so it can never overwrite what someone has typed, and only where a previous project exists (2.12).
@@ -25,7 +25,6 @@ export function duplicateProjectForm(project: CreatedProject): FormState {
   return {
     ...form,
     details: { ...form.details, shortTitle: "", fullTitle: "", sameAsShortTitle: true, startDate: today(getLocalTimeZone()), endDate: null, dataOwnerOrgLogo: null },
-    collection: { ...form.collection, uriDoi: "" },
   };
 }
 

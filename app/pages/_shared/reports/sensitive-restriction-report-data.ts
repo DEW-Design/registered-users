@@ -19,10 +19,10 @@
 // SAMPLE: a project's restriction has no review record in the app, so its DEW reviewer and approver are the admin
 // reviewer (REVIEWING_ADMIN_NAME) and the two dates are derived from the project's start date (8 and 12 days
 // after it). The vocabulary for the access level and the treatment is the wireframe's own, used where the app has
-// no equivalent; the generalisation distance follows `restrictedRadiusKm` (birds 5 km, everything else 10 km).
+// no equivalent; the generalisation distance follows `restrictedRadiusKm` (a 1 km or a 10 km block; 10 km for every record in the demo).
 
 import { CURRENT_USER_NAME, REVIEWING_ADMIN_NAME } from "@/app/pages/_shared/agreement-scope";
-import { hasEndDate, hasScientificName, restrictedRadiusKm, searchEvents, searchOccurrences, type SearchEvent } from "@/app/pages/_shared/map-search/search-data";
+import { DEFAULT_RESTRICTED_BLOCK_KM, hasEndDate, hasScientificName, restrictedRadiusKm, searchEvents, searchOccurrences, type SearchEvent } from "@/app/pages/_shared/map-search/search-data";
 import {
   REVIEW_PANEL,
   attributeLabel,
@@ -217,7 +217,7 @@ function projectRestrictions(project: SearchEvent): Draft[] {
     const event = searchEvents.find((e) => e.id === occ.parentEventId);
     if ((event ? projectFor(event)?.id : undefined) !== project.id) continue;
     seen.add(occ.species);
-    const km = restrictedRadiusKm(occ) ?? 10;
+    const km = restrictedRadiusKm(occ) ?? DEFAULT_RESTRICTED_BLOCK_KM;
     drafts.push({
       ...blank,
       ...stamp,

@@ -99,7 +99,7 @@ export const NOMINATION_ATTRIBUTES: ConceptOption[] = [
   // New (the designer, 6 Nov 2026, from the Word document: "Observation type / evidence of presence (e.g. nests)"); named "Evidence of presence" on
   // 9 Nov 2026 ("remove the text 'observation type /' ... only keep 'Evidence of presence'"). The document gives no list of values, so it is
   // typed, not chosen from a list invented here.
-  { id: "evidence-of-presence", label: "Evidence of presence", valueType: "text", placeholder: "E.g., nests" },
+  { id: "evidence-of-presence", label: "Evidence of presence", valueType: "text", placeholder: "Nests" },
   ...SPECIES_CONCEPTS.filter((c) => c.id !== "location"),
 ];
 

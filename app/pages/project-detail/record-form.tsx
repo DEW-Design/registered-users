@@ -320,7 +320,7 @@ export function RecordDrawer({
                 <Input
                   label="Scientific name"
                   isRequired
-                  placeholder="E.g., Isoodon obesulus"
+                  placeholder="Isoodon obesulus"
                   value={draft.scientificName}
                   onChange={(scientificName) => patch({ scientificName })}
                   isInvalid={showErr && !draft.scientificName.trim()}

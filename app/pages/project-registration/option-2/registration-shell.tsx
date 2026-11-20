@@ -24,10 +24,13 @@ const ACTIVE_SECTION = "Projects";
 
 export function RegistrationShell({
   sidebar,
+  current = "New project",
   children,
 }: {
   /** Column 2's content. A function form gets the close callback so the mobile menu can dismiss itself. */
   sidebar: ReactNode | ((close: () => void) => ReactNode);
+  /** The last crumb: "New project" until the project has a name, then the name (the designer, 17 Nov 2026). */
+  current?: ReactNode;
   children: ReactNode;
 }) {
   const router = useRouter();
@@ -71,7 +74,7 @@ export function RegistrationShell({
             {ACTIVE_SECTION}
           </Link>
         }
-        current="Add project"
+        current={current}
       />
 
       <div className="flex flex-1 overflow-hidden">

@@ -176,9 +176,11 @@ interface TabComponentProps extends AriaTabProps {
     icon?: FC<{ className?: string }> | ReactNode;
     /** The badge displayed next to the label. */
     badge?: number | string;
+    /** Draw the icon alone: the label is the tab's accessible name and its native tooltip, not text. For a short toggle of two or three views that has no room for words (opt-in). */
+    iconOnly?: boolean;
 }
 
-export const Tab = ({ label, children, badge, icon: Icon, className, ...otherProps }: TabComponentProps) => {
+export const Tab = ({ label, children, badge, icon: Icon, iconOnly = false, className, ...otherProps }: TabComponentProps) => {
     const { size = "sm", type = "button-brand", fullWidth } = useContext(TabListContext);
 
     const showPillColorBadge = type === "underline" || type === "line" || type === "button-brand";
@@ -186,6 +188,7 @@ export const Tab = ({ label, children, badge, icon: Icon, className, ...otherPro
     return (
         <AriaTab
             {...otherProps}
+            {...(iconOnly && typeof label === "string" ? { "aria-label": label } : {})}
             className={(prop) =>
                 cx(
                     "hit-area relative z-10 flex h-max cursor-pointer items-center justify-center gap-2 rounded-md whitespace-nowrap text-quaternary transition duration-100 ease-linear",
@@ -194,6 +197,8 @@ export const Tab = ({ label, children, badge, icon: Icon, className, ...otherPro
                     fullWidth && "w-full flex-1",
                     sizes[size].base,
                     sizes[size][type],
+                    // Icon alone: the padding is the icon box's own (it carries the tooltip), so the tab is as big as its box and no bigger.
+                    iconOnly && "p-0!",
                     getTabStyles(prop)[type],
                     typeof className === "function" ? className(prop) : className,
                 )
@@ -203,9 +208,16 @@ export const Tab = ({ label, children, badge, icon: Icon, className, ...otherPro
                 <>
                     {/* Icon */}
                     {isValidElement(Icon) && Icon}
-                    {isReactComponent(Icon) && <Icon data-icon className="transition-inherit-all" />}
+                    {isReactComponent(Icon) && !iconOnly && <Icon data-icon className="transition-inherit-all" />}
+                    {/* Icon alone: the label is its native tooltip, on its own padding (the tab's), so the whole tab shows it. */}
+                    {isReactComponent(Icon) && iconOnly && (
+                        <span title={typeof label === "string" ? label : undefined} className="flex px-2.5 py-2">
+                            {/* A grandchild of the tab, so the tab's own `*:data-icon` size and colour rules do not reach it: the size is set here and the colour is the tab's text colour. */}
+                            <Icon className="size-4 transition-inherit-all" />
+                        </span>
+                    )}
 
-                    <span className={cx("flex items-center gap-1.5", type !== "line" && "px-0.5")}>
+                    <span className={cx("flex items-center gap-1.5", type !== "line" && "px-0.5", iconOnly && "sr-only")}>
                         {typeof children === "function" ? children(state) : children || label}
 
                         {/* Badge - `badge != null && badge !== ""`, not `badge &&`: a real, valid

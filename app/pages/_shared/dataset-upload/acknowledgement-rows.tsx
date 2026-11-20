@@ -21,7 +21,7 @@ import {
 
 export type Acknowledgement = Omit<UploadDraft, "files" | "kind">;
 
-export const emptyAcknowledgement: Acknowledgement = { licence: "", firstNations: "", iiaReference: "", privacyConfirmed: false };
+export const emptyAcknowledgement: Acknowledgement = { licence: "", firstNations: "", iiaReference: "", permitNumber: "", uriDoi: "", privacyConfirmed: false };
 
 export function AcknowledgementRows({
   answers,

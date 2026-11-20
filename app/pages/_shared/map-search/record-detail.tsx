@@ -27,7 +27,7 @@ import {
   type SearchOccurrence,
   type SpeciesGroup,
 } from "./search-data";
-import { SPECIES_GROUP_COLOR } from "./species-group-icons";
+import { LIFE_FORM_COLOR, lifeFormOf } from "./species-group-icons";
 
 // The record-detail sidebar shown when a user clicks a Project/Event/Occurrence/Observation row
 // on the map search results page - built directly from the Figma "Details Container" frames
@@ -247,7 +247,7 @@ function LocationInformationSection({ lat, lon, restrictedKm, group }: { lat: nu
     const block = generalisedBlock(lat, lon, restrictedKm);
     return (
       <div className="flex flex-col gap-4">
-        <RestrictedLocationMapPreview block={block} blockKm={restrictedKm} color={group ? SPECIES_GROUP_COLOR[group] : undefined} />
+        <RestrictedLocationMapPreview block={block} blockKm={restrictedKm} color={group ? LIFE_FORM_COLOR[lifeFormOf(group)] : undefined} />
         <Field label="Location Details" value={<RestrictedLocationDetails blockKm={restrictedKm} />} />
         <PlaceholderFields
           labels={["IBRA Region", "IBRA Sub Region", "Location Method", "Datum", "Reliability", "Sample Site Dimensions", "Location Comment"]}
@@ -472,7 +472,7 @@ function buildEventSections(event: SearchEvent): AccordionItemType[] {
 }
 
 // ── Occurrence Individual/Population (nodes 220:50890/220:51320) - identical shape except
-//    Individual carries an extra "Voucher" accordion Population doesn't. ──
+//    Individual carries a full "Voucher" accordion, and Population only its Institution Rego # (designer, 20 Nov 2026). ──
 
 function occurrenceDetailsFields(o: SearchOccurrence): { label: string; value: ReactNode }[] {
   return [
@@ -506,6 +506,8 @@ function buildOccurrenceSections(o: SearchOccurrence, role: UserRole): Accordion
   ];
   if (o.type === "Individual") {
     sections.push({ id: "voucher", title: "Voucher", content: <VoucherSection /> });
+  } else if (o.type === "Population") {
+    sections.push({ id: "voucher", title: "Voucher", content: <PlaceholderFields labels={["Institution Rego #"]} /> });
   }
   sections.push({ id: "location", title: "Location Information", content: <LocationInformationSection lat={o.lat} lon={o.lon} restrictedKm={generalisedKm(o, role)} group={o.group} /> });
   sections.push({ id: "custom", title: "Custom Property", content: <CustomPropertySection /> });

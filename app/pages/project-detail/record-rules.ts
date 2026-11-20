@@ -1,12 +1,22 @@
 // What can be added where, and how a new record starts out.
 //
-// The hierarchy (the designer, 28 Sept 2026, changed by the business's comments of 10 Nov 2026):
-//   Project > anything: every event type but a Point intercept, and every occurrence and observation
-//   Site is an event that sits directly under the project, never inside another event
-//   any other event (Visit, Transect, Quadrat, Block, Ramble, Trap, Opportune, Point intercept, Custom event) > any
-//          other event: an event can have sub-events, to any depth ("Any event can have any event")
-//          Business rules: a Block cannot have a Ramble; a Point intercept must be a child event (never directly under the
-//          project, from the business's "Event - Point Intercept" frame, 10 Nov 2026), so it is offered under any event
+// The hierarchy: the business's data model sheet of 20 Nov 2026 ("what can go under where") for events, which replaced the nesting rule of 10 Nov 2026
+// ("any event can have any event"), and the designer's rules of 28 Sept 2026 for the records inside an event:
+//   Project > Site, Ramble, Transect, Quadrat, Block, Trap, Custom event, Opportune: every event type but those the sheet marks "must have a parent event"
+//          (Visit, Point intercept), and every occurrence and observation
+//   An event can hold the events `CHILD_EVENTS` lists for its type (the sheet's "Allowed children events"):
+//          Site:            Site, Visit, Ramble, Transect, Block, Trap, Custom event, Opportune, Point intercept
+//          Visit*:          Site, Ramble, Transect, Trap, Custom event, Opportune, Point intercept
+//          Ramble:          Site, Visit, Transect, Trap, Custom event, Opportune, Point intercept
+//          Transect:        Site, Visit, Ramble, Trap, Custom event, Opportune, Point intercept
+//          Block:           Site, Visit, Ramble, Transect, Trap, Custom event, Opportune, Point intercept
+//          Trap:            Site, Visit, Trap, Custom event, Opportune, Point intercept
+//          Custom event:    Site, Visit, Ramble, Transect, Block, Trap, Custom event, Opportune, Point intercept
+//          Opportune:       Visit, Ramble, Transect, Block, Trap, Custom event, Opportune, Point intercept
+//          Point intercept*: Visit, Custom event (the sheet's copy we hold is cut off after these two)
+//          (* = must have a parent event; the sheet calls a Trap a "Trap Array" and a Custom event "Custom")
+//   The sheet has no Quadrat: it is kept, inside every event but a Point intercept and a Quadrat, and holding what a Transect holds (open, for the designer).
+//   Marked "(?)" on the sheet and allowed here: a Trap inside a Ramble and inside a Transect.
 //   any event or sub-event > Occurrences (Individual, Population) and Observations (Individual, Population,
 //          Non-biotic, Community) ("Observation can sit under an event or sub-event")
 //   Occurrence > exactly one Observation of the same type (Individual or Population)
@@ -24,27 +34,40 @@ import { TYPE_DESCRIPTIONS, eventLabels, hasOwnFrame, eventSections, observation
 
 export const SAMPLING_TYPES = ["Transect", "Quadrat", "Block", "Ramble", "Trap", "Opportune", "Point intercept", "Custom event"] as const;
 
-/** The events that can be added inside another event: every event but a Site (which is only ever directly under the project). */
-const SUB_EVENT_TYPES = ["Visit", ...SAMPLING_TYPES] as const;
+/** Every event type that can be added inside another event (a Site too, since the sheet of 20 Nov 2026 allows one inside most events). */
+const SUB_EVENT_TYPES = ["Site", "Visit", ...SAMPLING_TYPES] as const;
 
-/** The business rules on what an event may hold, in one place so every path that creates or moves a record asks the same question. */
-const NOT_ALLOWED_INSIDE: Record<string, string[]> = {
-  Block: ["Ramble"],
+/** The events the business's sheet marks "must have a parent event": never added directly under the project. */
+const NEEDS_PARENT_EVENT = ["Visit", "Point intercept"];
+
+/** What each event may hold (the sheet's "Allowed children events"), in one place so every path that creates or moves a record asks the same question. */
+const CHILD_EVENTS: Record<string, readonly string[]> = {
+  Site: ["Site", "Visit", "Ramble", "Transect", "Block", "Trap", "Custom event", "Opportune", "Point intercept"],
+  Visit: ["Site", "Ramble", "Transect", "Trap", "Custom event", "Opportune", "Point intercept"],
+  Ramble: ["Site", "Visit", "Transect", "Trap", "Custom event", "Opportune", "Point intercept"],
+  Transect: ["Site", "Visit", "Ramble", "Trap", "Custom event", "Opportune", "Point intercept"],
+  // The sheet has no Quadrat: it holds what a Transect holds, and sits inside every event but a Point intercept and a Quadrat (see `canContain`).
+  Quadrat: ["Site", "Visit", "Ramble", "Trap", "Custom event", "Opportune", "Point intercept"],
+  Block: ["Site", "Visit", "Ramble", "Transect", "Trap", "Custom event", "Opportune", "Point intercept"],
+  Trap: ["Site", "Visit", "Trap", "Custom event", "Opportune", "Point intercept"],
+  "Custom event": ["Site", "Visit", "Ramble", "Transect", "Block", "Trap", "Custom event", "Opportune", "Point intercept"],
+  Opportune: ["Visit", "Ramble", "Transect", "Block", "Trap", "Custom event", "Opportune", "Point intercept"],
+  "Point intercept": ["Visit", "Custom event"],
 };
 
 /**
  * Whether a record of `childKind` and `childType` may sit directly inside `parent` (`null` = the project).
- * Events: a Site only under the project; any other event under the project or inside any event, except a Ramble in a Block and a Point
- * intercept directly under the project.
+ * Events: under the project unless the sheet says the event must have a parent (a Visit, a Point intercept); inside an event only what that event's type lists
+ * (`CHILD_EVENTS`), and a Quadrat (not on the sheet) inside any event but a Point intercept or a Quadrat.
  * Occurrences and observations: under the project or any event; an observation under an occurrence of its own type, and only one.
  */
 export function canContain(parent: Pick<SurveyRecord, "kind" | "type"> | null, childKind: RecordKind, childType: string): boolean {
-  // A Point intercept is always a child event: never directly under the project.
-  if (!parent) return !(childKind === "event" && childType === "Point intercept");
+  if (!parent) return !(childKind === "event" && NEEDS_PARENT_EVENT.includes(childType));
   if (parent.kind === "event") {
     if (childKind !== "event") return true;
-    if (childType === "Site") return false;
-    return !(NOT_ALLOWED_INSIDE[parent.type] ?? []).includes(childType);
+    // The sheet has no Quadrat. It is kept inside every event but a Point intercept and another Quadrat (the sample data has Quadrats in a Transect).
+    if (childType === "Quadrat") return parent.type !== "Point intercept" && parent.type !== "Quadrat";
+    return (CHILD_EVENTS[parent.type] ?? []).includes(childType);
   }
   if (parent.kind === "occurrence") return childKind === "observation" && childType === parent.type;
   return false;
@@ -76,8 +99,8 @@ export function childOptions(parent: SurveyRecord | null, children: SurveyRecord
     option("observation", "Non-biotic"),
     option("observation", "Community"),
   ];
-  // Anything can be added directly under the project: every event type, occurrence and observation.
-  if (!parent) return [option("event", "Site"), ...SUB_EVENT_TYPES.filter((t) => canContain(null, "event", t)).map((t) => option("event", t)), ...records];
+  // Directly under the project: every event type that need not have a parent, occurrence and observation.
+  if (!parent) return [...SUB_EVENT_TYPES.filter((t) => canContain(null, "event", t)).map((t) => option("event", t)), ...records];
   if (parent.kind === "event") return [...SUB_EVENT_TYPES.filter((t) => canContain(parent, "event", t)).map((t) => option("event", t)), ...records];
   if (parent.kind === "occurrence") {
     // An occurrence carries exactly one observation, of its own type.

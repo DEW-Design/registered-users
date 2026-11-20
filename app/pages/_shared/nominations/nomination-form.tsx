@@ -482,7 +482,7 @@ export function NominationForm({
           aria-label="Likelihood and consequences"
           isRequired={likelihoodRequired}
           rows={5}
-          placeholder="E.g., site specificity of the species, poaching threat, sensitivities to disturbance, social media interest"
+          placeholder="Site specificity of the species, poaching threat, sensitivities to disturbance, social media interest"
           value={justification}
           isInvalid={likelihoodMissing}
           hint={likelihoodMissing ? "Describe the likelihood and consequences of misuse" : undefined}
@@ -501,7 +501,7 @@ export function NominationForm({
           aria-label="Risks of not releasing the data"
           isRequired={needsAnswers}
           rows={4}
-          placeholder="E.g., accidental destruction of habitat due to lack of data access"
+          placeholder="Accidental destruction of habitat due to lack of data access"
           value={risks}
           isInvalid={risksMissing}
           hint={risksMissing ? "Describe the risks of not releasing the data" : undefined}
@@ -534,7 +534,7 @@ export function NominationForm({
             label="Where is it public?"
             isRequired
             rows={3}
-            placeholder="E.g., in academic publications that cannot be redacted"
+            placeholder="In academic publications that cannot be redacted"
             value={publicWhere}
             isInvalid={whereMissing}
             hint={whereMissing ? "Say where the data is already public" : undefined}
@@ -619,7 +619,7 @@ export function NominationForm({
               <Input
                 aria-label="Location name"
                 isRequired
-                placeholder="E.g., Pygmy Bluetongue Lizard nesting site"
+                placeholder="Pygmy Bluetongue Lizard nesting site"
                 value={locationName}
                 isInvalid={showErrors("location") && !locationName.trim()}
                 hint={showErrors("location") && !locationName.trim() ? "Name the location" : undefined}

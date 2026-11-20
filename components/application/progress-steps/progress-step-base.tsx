@@ -53,7 +53,7 @@ export const IconOnly = <T extends ComponentType>({ status = "incomplete", size 
             {/* Tick icon. */}
             {status === "complete" && (
                 <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className={cx(size === "sm" ? "size-3" : "size-4")}>
-                    <path d="M10 3L4.5 8.5L2 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M10 3L4.5 8.5L2 6" stroke="currentColor" strokeWidth="1.5" vectorEffect="non-scaling-stroke" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
             )}
         </span>
@@ -152,7 +152,7 @@ export const IconTopNumber = <T extends ComponentType>({
                 >
                     {status === "complete" ? (
                         <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className={cx(size === "sm" ? "size-3" : "size-4")}>
-                            <path d="M10 3L4.5 8.5L2 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                            <path d="M10 3L4.5 8.5L2 6" stroke="currentColor" strokeWidth="1.5" vectorEffect="non-scaling-stroke" strokeLinecap="round" strokeLinejoin="round" />
                         </svg>
                     ) : (
                         <span className={cx("font-semibold", size === "sm" ? "text-xs" : "text-sm")}>{step}</span>
@@ -225,7 +225,7 @@ export const IconLeftNumber = <T extends ComponentType>({
                 >
                     {status === "complete" ? (
                         <svg width="12" height="12" viewBox="0 0 12 12" fill="none" className={cx(size === "sm" ? "size-3" : "size-4")}>
-                            <path d="M10 3L4.5 8.5L2 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                            <path d="M10 3L4.5 8.5L2 6" stroke="currentColor" strokeWidth="1.5" vectorEffect="non-scaling-stroke" strokeLinecap="round" strokeLinejoin="round" />
                         </svg>
                     ) : (
                         <span className={cx("font-semibold", size === "sm" ? "text-xs" : "text-sm")}>{step}</span>

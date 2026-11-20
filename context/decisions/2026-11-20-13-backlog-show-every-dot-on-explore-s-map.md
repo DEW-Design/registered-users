@@ -1,0 +1,5 @@
+# 2026-11-20 - Backlog: show every dot on Explore's map by default
+
+- **Nov 20 2026: logged in the backlog (`.claude/rules/ref-shell.md`), not built.** The designer, looking at the Map and table view: "in the table view - when toggled, shouldn't we show all the dots?", then "log this in the backlog: By default, can we show all the dots on the map? for species search?"
+  - **What is true today.** Explore opens with an empty map and plots records only for a keyword, a drawn or typed area, a shapefile or a park (`mapMarkers`, `hasSearch` in `observations-search.tsx`). In the Map and table view the table shows every record the role may see (31 for a registered user) while the map above shows none, so the two disagree until a search is made, and a row's hover has no dot to light.
+  - **Open, for the designer (0.4).** Whether every record is plotted by default, and in which views (the table view only, or the map view too); how a restricted record is shown (still a flat block, 10 km by default, never a point); how the key and the result count read with nothing searched; and drawing cost as the data grows. Nothing in the code was changed for this entry.

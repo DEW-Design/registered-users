@@ -1,0 +1,9 @@
+# 2026-11-19 - Species tab hidden on the project detail page
+
+- **Nov 19 2026: Hidden in the product (`app/pages/project-detail/project-detail-template.tsx`).** The designer: "On the project detail page, let's hide the species tab, comment out that tab and its content for now." The Species tab and its panel (`SpeciesView`) are commented out, not deleted; `species-view.tsx` is untouched.
+  - **What is commented out, and what went with it.** The `<Tab id="species">` (with its count badge), the `<TabPanel id="species">`, the `species-view` import, `const species = useProjectSpecies()` and the `Feather` icon import, each of which was used only by that tab (leaving them would be unused code, which `eslint --max-warnings=0` fails). A comment at the tab says how to bring it back.
+  - **Agent call: "species" is also out of `DetailTab` and `isDetailTab`.** A link or a saved URL with `?tab=species` would otherwise select a tab that has no panel and show an empty page. Now it opens the default tab (Overview, or Project records for a project with records). Reversible: put `"species"` back in those two lines.
+  - **Not changed.** The Species tab's data (`useProjectSpecies`, the records' species field, the species the restrictions step names) and every other screen that shows species (Explore, nominations, reports).
+  - **Verified (19 Nov 2026, Chromium headless, project detail):** the tabs read Overview, Project records (28), Datasets (3), Artefacts and attachments (7); no "Species" text on the page; `?tab=species` opens Overview, and `?tab=records`, `?tab=artefacts` and `?tab=datasets` open their own tabs; zero console errors; `tsc`, `eslint --max-warnings=0` on the file and `check:contracts` clean.
+  - **Not checked.** The page for a project with no records (it opens on Overview there, by the existing rule), and other roles (this edition has one).
+  - **Touches:** contracts 0.2, 0.9; `2026-11-18-23` (unrelated work, same day's thread of changes).

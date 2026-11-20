@@ -37,7 +37,7 @@ export const TagCheckbox = ({ className, isFocused, isSelected, isDisabled, size
                     isSelected && "opacity-100",
                 )}
             >
-                <path d="M11.6666 3.5L5.24992 9.91667L2.33325 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M11.6666 3.5L5.24992 9.91667L2.33325 7" stroke="currentColor" strokeWidth="1.5" vectorEffect="non-scaling-stroke" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
         </div>
     );

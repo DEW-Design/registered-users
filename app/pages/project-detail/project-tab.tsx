@@ -28,8 +28,9 @@ import { DestructiveModal } from "@/components/application/modals/modal";
 import { toast } from "@/components/application/toast/toast";
 import { LocationDetailsTable } from "@/app/pages/_shared/location-details-table";
 import { ExpandableMap } from "@/app/pages/_shared/map-search/expandable-map";
-import { COLLECTION_METHOD_OPTIONS, EMBARGO_TYPE_OPTIONS, FOCUS_AREA_OPTIONS, PERMIT_TYPE_OPTIONS, PROJECT_METADATA_CONCEPTS, REGISTRATION_SPECIES, SPECIES_CONCEPTS } from "@/app/pages/project-registration/data";
+import { collectionMethodLabels, EMBARGO_TYPE_OPTIONS, PROJECT_METADATA_CONCEPTS, REGISTRATION_SPECIES, SPECIES_CONCEPTS } from "@/app/pages/project-registration/data";
 import { conceptLabel, conceptValueLabel } from "@/app/pages/project-registration/concept-rows";
+import { usePermitNumbers } from "@/app/pages/_shared/dataset-upload/permit-numbers";
 import { drawnShapeLine, geoExtentSummary } from "@/app/pages/project-registration/geo-extent-picker";
 import { OFFERED_RESTRICTION_TYPES, RESTRICTION_TYPE_META } from "@/app/pages/project-registration/step-3-privacy-restrictions";
 import { allRecordsOf, culturalOf, isGeoExtentComplete, ownerName, ownersOf, type RestrictionTypeKey } from "@/app/pages/project-registration/types";
@@ -104,18 +105,6 @@ function Rows({ rows }: { rows: { label: string; value?: ReactNode; empty?: bool
         );
       })}
     </dl>
-  );
-}
-
-function Chips({ items }: { items: string[] }) {
-  return (
-    <div className="flex flex-wrap gap-1.5">
-      {items.filter(Boolean).map((i) => (
-        <span key={i} className="inline-flex items-center rounded-full border border-secondary bg-secondary px-2.5 py-1 text-xs font-medium text-secondary">
-          {i}
-        </span>
-      ))}
-    </div>
   );
 }
 
@@ -526,7 +515,7 @@ export function ProjectTab({
    *  (an avatar, a name, one supporting line); "card" is that, each person in a card of their own with the section's cards dissolved. @default "rows" */
   peopleStyle?: PeopleStyle;
 }) {
-  const { project, saveProject, canEdit } = useEditStore();
+  const { project, meta, saveProject, canEdit } = useEditStore();
   const [editing, setEditingState] = useState<ProjectCardId | null>(null);
   const [focusLabel, setFocusLabel] = useState<string | undefined>(undefined);
   const setEditing = (next: ProjectCardId | null) => {
@@ -553,15 +542,16 @@ export function ProjectTab({
   const boundary = c.geographicExtent.boundary;
   const extentCentre = boundary ? boundaryCentre(boundary) : null;
   const hasExtent = !!boundary || isGeoExtentComplete(c.geographicExtent);
-  const method = COLLECTION_METHOD_OPTIONS.find((o) => o.id === c.collectionMethod);
-  const focus = c.focusAreas.map((id) => (id === "other" ? c.focusAreaOther || "Other" : (FOCUS_AREA_OPTIONS.find((o) => o.id === id)?.label ?? id)));
-  const species = c.targetedSpeciesIds.map((id) => REGISTRATION_SPECIES.find((s) => s.id === id)?.commonName ?? id);
+  const method = collectionMethodLabels(c.collectionMethods);
+  const taxa = c.targetedSpeciesIds.map((id) => REGISTRATION_SPECIES.find((s) => s.id === id)?.commonName ?? id);
+  // A permit number is on a dataset; the project shows its datasets' numbers, rolled up.
+  const permitNumbers = usePermitNumbers(meta.id);
   const enabled = r.hasRestrictions ? RESTRICTION_TYPE_META.filter((m) => r.enabledTypes.has(m.key)) : [];
   const card = (id: ProjectCardId): TocItem => ({ id: `card-${id}`, label: CARD_TITLES[id] });
 
   // Progressive disclosure: which closed section holds an element ("On this page" id), and opening it. A card that is being edited, or that "On this page" points at, is never left inside a closed section.
   const sectionOf = (id: string): "data-collection" | "privacy" | null => {
-    if (id === "data-collection" || id === "card-extent" || id === "card-collection" || id === "card-permits") return "data-collection";
+    if (id === "data-collection" || id === "card-extent" || id === "card-collection") return "data-collection";
     if (id === "privacy" || id === "card-add-restriction" || enabled.some((m) => id === `card-${m.key}`)) return "privacy";
     return null;
   };
@@ -590,7 +580,7 @@ export function ProjectTab({
 
   const toc: TocItem[] = [
     { id: "overview", label: "Overview", children: [card("details"), card("owner"), ...(seesPeople ? [card("managers")] : [])] },
-    { id: "data-collection", label: "Data collection and methodology", children: [card("extent"), card("collection"), card("permits")] },
+    { id: "data-collection", label: "Data collection and methodology", children: [card("extent"), card("collection")] },
     { id: "privacy", label: "Privacy and restrictions", children: enabled.map((m) => card(m.key)) },
   ];
 
@@ -714,7 +704,7 @@ export function ProjectTab({
           </div>
         </Section>
 
-        <Section id="data-collection" title="Data collection and methodology" description="Where, how and under what permits the data was collected." collapsedNote={needsDetails(["extent", "collection", "permits"]) ? detailsNeeded : undefined}>
+        <Section id="data-collection" title="Data collection and methodology" description="Where and how the data was collected." collapsedNote={needsDetails(["extent", "collection"]) ? detailsNeeded : undefined}>
           <Card card="extent" onEdit={setEditing}>
             {!hasExtent ? (
               <ListEmptyState
@@ -747,34 +737,17 @@ export function ProjectTab({
           </Card>
           <Card card="collection" onEdit={setEditing}>
             <div className="flex flex-col gap-4">
-              <div className="flex flex-col gap-2">
-                <p className="text-xs font-semibold tracking-wide text-quaternary uppercase">Focus areas</p>
-                <Chips items={focus} />
-              </div>
-              <div className="flex flex-col gap-2">
-                <p className="text-xs font-semibold tracking-wide text-quaternary uppercase">Targeted species</p>
-                {species.length > 0 ? <Chips items={species} /> : <p className="text-sm text-quaternary">Not provided</p>}
-              </div>
               <Rows
                 rows={[
-                  { label: "Collection method", value: method?.label },
+                  { label: "Targeted taxon", value: taxa.join(", ") },
+                  { label: "Collection method", value: method },
                   { label: "Methodology", value: c.methodDetails },
                   { label: "Limitations and biases", value: c.limitationsAndBiases },
+                  // Rolled up from the project's datasets; changed on the dataset, not here.
+                  { label: permitNumbers.length > 1 ? "Permit numbers" : "Permit number", value: permitNumbers.join(", ") },
                 ]}
               />
             </div>
-          </Card>
-          <Card card="permits" onEdit={setEditing}>
-            <Rows
-              rows={[
-                ...(c.permits.length === 0 ? [{ label: "Permit", value: "" }] : []),
-                ...c.permits.flatMap((p, i) => [
-                  { label: c.permits.length > 1 ? `Permit ${i + 1} type` : "Permit type", value: PERMIT_TYPE_OPTIONS.find((o) => o.id === p.type)?.label ?? "" },
-                  { label: c.permits.length > 1 ? `Permit ${i + 1} number` : "Permit number", value: p.number },
-                ]),
-                { label: "URI / DOI", value: c.uriDoi },
-              ]}
-            />
           </Card>
         </Section>
 

@@ -1,6 +1,6 @@
-import { accessKey, accessOf, PROJECT_MANAGER_ROLE } from "../data";
+import { accessKey, accessOf, COLLECTION_METHOD_OPTIONS, PROJECT_MANAGER_ROLE } from "../data";
 import { OTHER_METHODOLOGY } from "../methodology-fields";
-import { allRecordsOf, culturalOf, isGeoExtentComplete, ownersOf, type DataCollectionState, type DataOwner, type MethodologyChoice, type ProjectContact, type ProjectDetailsState, type RestrictionsState, type RestrictionTypeKey } from "../types";
+import { allRecordsOf, culturalOf, isGeoExtentComplete, ownersOf, type CollectionMethod, type DataCollectionState, type DataOwner, type MethodologyChoice, type ProjectContact, type ProjectDetailsState, type RestrictionsState, type RestrictionTypeKey } from "../types";
 import { isTypeValid, OFFERED_RESTRICTION_TYPES } from "../step-3-privacy-restrictions";
 
 // The Add Project flow's sections for the second (three-column) layout. The first layout asks one
@@ -45,22 +45,23 @@ export const STEP_TITLES: Record<1 | 2 | 3, string> = {
 };
 
 const FIXED_SECTIONS: Record<Exclude<SectionId, RestrictionTypeKey>, Omit<SectionMeta, "id">> = {
-  basics: { step: 1, title: "Project basics", description: "What the project is called, what it is about, and when it runs." },
+  basics: { step: 1, title: "Project overview", description: "What the project is called, what it is about, and when it runs." },
   // Project team was rolled into this section (the designer, 2 Oct 2026: "roll all step 3 into step 2"); your role
   // then moved to Step 2's Method and details (6 Oct 2026: "Role should be shown in Step 2").
   owner: { step: 1, title: "Data owner", description: "The organisation or person responsible for this project's data, who to contact about it, and who manages it day to day." },
   dataset: { step: null, title: "Upload datasets", description: "Add datasets to this project now, or skip this step and add them later." },
-  extent: { step: 2, title: "Extent and focus", description: "Where the data was collected and which domains the project covers." },
+  extent: { step: 2, title: "Geographic extent", description: "Where the data was collected." },
   method: { step: 2, title: "Method and details", description: "The kind of survey, how the data was collected and your role in it, plus any permits, identifiers or limitations." },
-  restrictions: { step: 3, title: "Restrictions", description: "BDBSA data is open access by default. Choose which protections, if any, apply to this project." },
+  restrictions: { step: 3, title: "Restrictions", description: "BioData SA is open access by default." },
   review: { step: null, title: "Review and create", description: "Check every section, then create the project." },
 };
 
-// Version 2 moved focus areas into Method and details, and took survey type and your role out of it.
+// Version 2 took survey type and your role out of Method and details. Focus areas and the permits and identifiers were then taken
+// out of it (the designer, 19 Nov 2026), the permits and identifiers to the dataset upload, and it is called Data collection methodology.
 const FIXED_SECTIONS_V2: Partial<typeof FIXED_SECTIONS> = {
   owner: { step: 1, title: "Data owner", description: "The organisation or person responsible for this project's data, and the people to contact about it." },
   extent: { step: 2, title: "Geographic extent", description: "Where the data was collected." },
-  method: { step: 2, title: "Method and details", description: "Which domains the project covers and how the data was collected, plus any permits or identifiers." },
+  method: { step: 2, title: "Data collection methodology", description: "How the data was collected, and which taxa it targets." },
 };
 
 const TYPE_TITLES: Record<RestrictionTypeKey, { title: string; description: string }> = {
@@ -137,25 +138,22 @@ export function missingOwnerFieldsV2(d: ProjectDetailsState): string[] {
     });
     if (!o.officers.some((p) => p.isPrimary)) out.push(`A primary contact${of}`);
   });
-  // An organisation names who manages the project, as version 1 asked; an individual owner is the person. A manager is an
-  // officer whose role in the project is Project Manager (the designer, 16 Oct 2026: it was a tick of its own). One across
-  // the project is enough, whichever owner they are with.
-  if (owners.some((o) => o.type === "organisation") && !owners.some((o) => o.officers.some(isManager))) out.push("A project manager");
+  // No officer has to be a Project Manager: there is no prerequisite to be a data owner (the designer, 17 Nov 2026; before it, an
+  // organisation needed one).
   return out.map((m) => m.charAt(0).toUpperCase() + m.slice(1));
 }
 
 export function missingMethodFieldsV2(c: DataCollectionState): string[] {
   const out: string[] = [];
-  if (c.focusAreas.length === 0) out.push("Focus areas");
-  if (c.focusAreas.includes("other") && !c.focusAreaOther.trim()) out.push("Focus area (please specify)");
-  if (!c.collectionMethod) out.push("Methodology");
-  if (c.collectionMethod === "systematic") {
+  const has = (m: CollectionMethod) => c.collectionMethods.includes(m);
+  if (c.collectionMethods.length === 0) out.push("Methodology");
+  if (has("systematic")) {
     const chosen = c.methodologies ?? [];
-    if (chosen.length === 0) out.push("At least one methodology");
+    if (chosen.length === 0) out.push("At least one systematic methodology");
     if (chosen.some((m) => m.id === OTHER_METHODOLOGY && !m.other?.trim())) out.push("Other methodology (please name it)");
   }
-  if (c.collectionMethod === "other" && !c.otherMethod?.trim()) out.push("Description of the methodology");
-  if (c.collectionMethod === "analysis") {
+  if (has("other") && !c.otherMethod?.trim()) out.push("Description of the methodology");
+  if (has("analysis")) {
     const chosen = c.analyses ?? [];
     if (chosen.length === 0) out.push("At least one type of analysis or reporting");
     if (chosen.some((m) => m.id === OTHER_METHODOLOGY && !m.other?.trim())) out.push("Other analysis or reporting (please name it)");
@@ -180,22 +178,35 @@ function missingFieldsV2(id: SectionId, s: FormState): string[] | null {
 /** A project saved before methodologies were a list (the project page's seed, version 1) holds its methodology as text. For editing
  *  it in the list, that text becomes one entry with the limitations as its note; nothing is rewritten until the list is changed. */
 export function withLegacyMethodologies(c: DataCollectionState): DataCollectionState {
-  if (c.collectionMethod !== "systematic" || c.methodologies || !c.methodDetails.trim()) return c;
+  if (!c.collectionMethods.includes("systematic") || c.methodologies || !c.methodDetails.trim()) return c;
   return { ...c, methodologies: [{ rid: 1, id: c.methodDetails.trim(), note: c.limitationsAndBiases }] };
 }
 
-/** The methodologies as text: names for `methodDetails`, and each note under its name for `limitationsAndBiases`. */
+/** The methodologies as text: names for `methodDetails`, and each note under its name for `limitationsAndBiases`. A project can hold more than one method, so
+ *  these are the names and notes of every one chosen: the systematic methodologies, the kinds of analysis or reporting, and an Other method's description. */
 export function methodologySummary(c: DataCollectionState): { names: string; notes: string } {
   const label = (m: MethodologyChoice) => (m.id === OTHER_METHODOLOGY && m.other?.trim() ? m.other.trim() : m.id);
-  const chosen = c.collectionMethod === "systematic" ? (c.methodologies ?? []) : c.collectionMethod === "analysis" ? (c.analyses ?? []) : [];
-  if (c.collectionMethod === "other") return { names: c.otherMethod?.trim() ?? "", notes: "" };
+  const chosen = [...(c.collectionMethods.includes("systematic") ? (c.methodologies ?? []) : []), ...(c.collectionMethods.includes("analysis") ? (c.analyses ?? []) : [])];
+  const other = c.collectionMethods.includes("other") ? (c.otherMethod?.trim() ?? "") : "";
   return {
-    names: chosen.map(label).join(", "),
+    names: [...chosen.map(label), ...(other ? [other] : [])].join(", "),
     notes: chosen
       .filter((m) => m.note.trim())
       .map((m) => `${label(m)}: ${m.note.trim()}`)
       .join("\n"),
   };
+}
+
+/** What a project accepts for a dataset, by method: each method it holds, with the methodologies chosen under it (Systematic: BAM, BCM, RAM; Analysis/Reporting: its kinds;
+ *  Other: what it is). Shown on the dataset upload, so the person knows what is accepted before they add files. A method with nothing under it (Incidental observations)
+ *  is a line of its own. */
+export function acceptedMethodologies(c: DataCollectionState): { method: string; accepted: string[] }[] {
+  const label = (m: MethodologyChoice) => (m.id === OTHER_METHODOLOGY && m.other?.trim() ? m.other.trim() : m.id);
+  const withList = withLegacyMethodologies(c);
+  return COLLECTION_METHOD_OPTIONS.filter((o) => withList.collectionMethods.includes(o.id)).map((o) => ({
+    method: o.label,
+    accepted: o.id === "systematic" ? (withList.methodologies ?? []).map(label) : o.id === "analysis" ? (withList.analyses ?? []).map(label) : o.id === "other" && withList.otherMethod?.trim() ? [withList.otherMethod.trim()] : [],
+  }));
 }
 
 /** A version 2 form as the project page reads it: the contacts written out as the data owner's contacts (the primary
@@ -250,11 +261,12 @@ export function isSectionValid(id: SectionId, s: FormState, version: FormVersion
         (d.dataOwnerType === "individual" ? roleValid(d) : d.projectManagers.some((m) => m.firstName.trim() && m.lastName.trim() && m.email.trim()))
       );
     case "extent":
-      return isGeoExtentComplete(c.geographicExtent) && c.focusAreas.length > 0 && (!c.focusAreas.includes("other") || c.focusAreaOther.trim().length > 0);
+      return isGeoExtentComplete(c.geographicExtent);
     case "method":
-      return !!c.surveyType && !!c.collectionMethod && c.methodDetails.trim().length > 0 && (d.dataOwnerType === "individual" || roleValid(d));
+      return !!c.surveyType && c.collectionMethods.length > 0 && c.methodDetails.trim().length > 0 && (d.dataOwnerType === "individual" || roleValid(d));
     case "restrictions":
-      return !s.restrictions.hasRestrictions || s.restrictions.enabledTypes.size > 0;
+      // "Other restrictions" is explained on this page, so its explanation is part of it being complete.
+      return !s.restrictions.hasRestrictions || (s.restrictions.enabledTypes.size > 0 && (!s.restrictions.enabledTypes.has("other") || s.restrictions.otherRestrictions.trim().length > 0));
     case "dataset":
       return true; // option 2's step answers for itself (with-dataset/dataset-step.tsx); here it asks for nothing, so a flow without it is unchanged
     case "review":
@@ -319,12 +331,10 @@ export function missingFields(id: SectionId, s: FormState, version: FormVersion 
       break;
     case "extent":
       if (!isGeoExtentComplete(c.geographicExtent)) out.push("Geographic extent");
-      if (c.focusAreas.length === 0) out.push("Focus areas");
-      if (c.focusAreas.includes("other") && blank(c.focusAreaOther)) out.push("Focus area (please specify)");
       break;
     case "method":
       if (!c.surveyType) out.push("Survey type");
-      if (!c.collectionMethod) out.push("Method of data collection");
+      if (c.collectionMethods.length === 0) out.push("Method of data collection");
       if (blank(c.methodDetails)) out.push("Methodology");
       if (d.dataOwnerType === "organisation") {
         if (!d.roleOfWork) out.push("Your role");
@@ -333,6 +343,7 @@ export function missingFields(id: SectionId, s: FormState, version: FormVersion 
       break;
     case "restrictions":
       if (r.hasRestrictions && r.enabledTypes.size === 0) out.push("At least one kind of restriction");
+      if (r.hasRestrictions && r.enabledTypes.has("other") && blank(r.otherRestrictions)) out.push("Explanation of the other restrictions");
       break;
     case "embargo":
       if (r.embargo.types.length === 0) out.push("Type of embargo");

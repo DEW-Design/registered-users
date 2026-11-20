@@ -37,8 +37,8 @@ export function AppHeader({
   mobileNav?: ReactNode;
   /** The current top-level section: a label, or an interactive element in its place. Omit for Home. */
   section?: ReactNode;
-  /** A final, page-specific crumb after `section`. */
-  current?: string;
+  /** A final, page-specific crumb after `section`: text, or an element where the crumb carries a badge. */
+  current?: ReactNode;
   /** For a screen whose breadcrumb is a longer chain: build it here, given the org pill text to pass on. Overrides `section`/`current`. */
   renderBreadcrumb?: (orgLabel: string | undefined) => ReactNode;
   /** A slot after the Add menu for the Activity bell, while where Activity shows is being explored (`/proto/activity-notifications`). Nothing in the product passes it, so no header changes until the designer decides. */

@@ -15,6 +15,7 @@ import { RecordActionBar, type RecordAction } from "@/app/pages/_shared/record-a
 import { ColumnChooser, useColumnChoice } from "@/app/pages/_shared/reports/column-chooser";
 import { reportExportActions } from "@/app/pages/_shared/reports/report-export";
 import { ParametersPopover, type ReportParameters } from "@/app/pages/_shared/reports/report-parameters";
+import { ReportExportButton } from "@/app/pages/_shared/reports/report-export-button";
 import { ToolbarSearch } from "@/app/pages/_shared/toolbar-search";
 import { MetricTile } from "@/app/pages/_shared/map-search/metric-tile";
 import { cx } from "@/utils/cx";
@@ -217,10 +218,19 @@ export interface DataReportProps<R> {
   /** The search, when it is kept by the screen around the report (Explore's Map and table view: the search card's field). The toolbar then has no search box of its own, so the
    *  screen never shows two (4.6: "doesn't make sense to have two different search bars"). Left out, the report has its own search, as every report page does. */
   search?: string;
+  /** With `search`: the screen's setter for it. The toolbar then draws the search box (search, Filter, Columns, as every report has), writing to the screen's one search, so the box in the screen's own card and this one always read the same. */
+  onSearchChange?: (value: string) => void;
+  /** With `header="none"`: the exports are one "Export" button with a chevron that opens CSV and XLSX, in place of the "..." menu. `actions` still wins, for a role that must sign up first. */
+  exportButton?: boolean;
   /** With `header="none"`: what sits at the right of the toolbar in place of the report's "..." menu (a screen that gates export for a role draws its own control). */
   actions?: ReactNode;
   /** After the actions at the right of the toolbar: a control of the screen around the report (Explore's full screen for the table). */
   toolbarEnd?: ReactNode;
+  /** Pressing a row (a click, or Enter on it) does this: Explore's Map and table view opens the row's species card. The rows are then pointers. `rowActionable` leaves a row out (no pointer, no press);
+   *  `activeRowId` is the row whose card is open, drawn in the brand tint so the table says which row the card is for. */
+  onRowAction?: (row: R) => void;
+  rowActionable?: (row: R) => boolean;
+  activeRowId?: string;
   /** Told which row the pointer is over, or none (Explore's Map and table view lights the row's dot on its map). */
   onRowHover?: (row: R | null) => void;
   /** A panel of facets beside the table in place of the Filter menu and its chips. Gets the filter and every row, so it can count. Compared in /proto/layouts. */
@@ -269,9 +279,14 @@ export function DataReport<R>({
   keepSearch,
   wrapBody,
   search: outerSearch,
+  onSearchChange,
+  exportButton,
   actions,
   toolbarEnd,
   onRowHover,
+  onRowAction,
+  rowActionable,
+  activeRowId,
 }: DataReportProps<R>) {
   const showingExample = realRows.length === 0 && example !== undefined;
   const allRows = useMemo(() => (showingExample ? [example] : realRows), [showingExample, example, realRows]);
@@ -327,22 +342,24 @@ export function DataReport<R>({
   const latestDay = latest ? newestDay(allRows, latest) : null;
   const heroFacts = typeof facts === "function" ? facts(rows) : facts;
   const lineActions = isValidElement(heroActions) ? cloneElement(heroActions as ReactElement<{ onDark?: boolean }>, { onDark: false }) : heroActions;
-  const noneActions = actions ?? lineActions;
+  const noneActions = actions ?? (exportButton ? <ReportExportButton actions={reportExportActions(rows, columns, exportName, typeof exportPreamble === "function" ? exportPreamble({ search, filter }) : exportPreamble)} /> : lineActions);
 
   const body = (
     <div className={cx("flex min-h-0 min-w-0 flex-1 flex-col", header === "line" ? "gap-3 px-6 pb-4 pt-3" : header === "none" ? "gap-3" : "gap-4 p-6")}>
       <div className={cx("flex shrink-0 flex-wrap gap-3", parameters?.inline ? "items-end" : "items-center")}>
-        {outerSearch === undefined && (
+        {(outerSearch === undefined || onSearchChange) && (
         <ToolbarSearch
           label={searchLabel}
           placeholder={searchPlaceholder}
           value={search}
           onChange={(v) => {
-            setSearch(v);
+            if (outerSearch !== undefined) onSearchChange?.(v);
+            else setSearch(v);
             setPage(1);
           }}
           onClear={() => {
-            setSearch("");
+            if (outerSearch !== undefined) onSearchChange?.("");
+            else setSearch("");
             setPage(1);
           }}
         />
@@ -396,9 +413,15 @@ export function DataReport<R>({
                 />
               ))}
             </Table.Header>
-            <Table.Body items={paged} dependencies={[shownColumns]}>
+            <Table.Body items={paged} dependencies={[shownColumns, activeRowId, !!onRowAction]}>
               {(r) => (
-                <Table.Row id={rowId(r)} textValue={rowId(r)} onHoverChange={onRowHover ? (hovered) => onRowHover(hovered ? r : null) : undefined}>
+                <Table.Row
+                  id={rowId(r)}
+                  textValue={rowId(r)}
+                  onHoverChange={onRowHover ? (hovered) => onRowHover(hovered ? r : null) : undefined}
+                  onAction={onRowAction && (rowActionable?.(r) ?? true) ? () => onRowAction(r) : undefined}
+                  className={cx(onRowAction && (rowActionable?.(r) ?? true) && "cursor-pointer", activeRowId !== undefined && rowId(r) === activeRowId && "bg-brand-primary hover:bg-brand-primary")}
+                >
                   {shownColumns.map((c) => (
                     <Table.Cell key={c.id} className={cx("whitespace-nowrap", c.sticky && "sticky left-0 z-1 border-r border-secondary bg-primary [tr:hover_&]:bg-secondary")}>
                       {c.cell(r)}

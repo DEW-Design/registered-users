@@ -69,6 +69,8 @@ export function addDataset(project: { id: string; code: string }, draft: UploadD
     licence: draft.licence as Dataset["licence"],
     firstNations: draft.firstNations as Dataset["firstNations"],
     ...(draft.iiaReference.trim() ? { iiaReference: draft.iiaReference.trim() } : {}),
+    ...(draft.permitNumber.trim() ? { permitNumber: draft.permitNumber.trim() } : {}),
+    ...(draft.uriDoi.trim() ? { uriDoi: draft.uriDoi.trim() } : {}),
     status: "file_uploaded",
     uploadedBy: CURRENT_USER_NAME,
     uploadedAt: now,

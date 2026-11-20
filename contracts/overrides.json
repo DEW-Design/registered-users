@@ -269,6 +269,46 @@
       "reviewBy": "2027-05-05",
       "reason": "Designer approved in session (6 Nov 2026) making the resize handle a component when Explore's Table toggle needed the project page's tree and details split (drag, arrow keys, double-click to reset). Checked components/** first: no splitter or resizable pane exists in base, application or custom; app/pages/_shared/resizable-columns.tsx resizes table columns, not panes. The handle was inline in app/pages/project-detail/records-explorer.tsx (a behaviour in a screen, 1.10); that screen now uses this component, so there is one implementation (1.7). Starts in components/custom (1.4).",
       "status": "active"
+    },
+    {
+      "id": "OVR-028",
+      "component": "components/custom/draw-map/draw-map.tsx",
+      "designer": "Sai Maniganahalli",
+      "approvedBy": "Sai Maniganahalli",
+      "date": "2026-11-18",
+      "reviewBy": "2027-05-17",
+      "reason": "Designer asked to roll the Map first geographic extent into the product (18 Nov 2026). The map that is drawn on (a polygon by clicks, a circle by pressing and dragging, points dragged, keyboard nudges, hover linked to the table) is a behaviour, built in components (1.10). Checked: SAMap and ExpandableMap (app/pages/_shared/map-search) draw with leaflet-draw and cannot report the shape while it is drawn, drag its points smoothly or link a point to a table row; no component in components/** draws on a map.",
+      "status": "active"
+    },
+    {
+      "id": "OVR-029",
+      "component": "components/custom/draw-map/use-drawing.ts",
+      "designer": "Sai Maniganahalli",
+      "approvedBy": "Sai Maniganahalli",
+      "date": "2026-11-18",
+      "reviewBy": "2027-05-17",
+      "reason": "The state of drawing an area (tool, points, pointer, the area, the shape waiting to be reviewed, the one taken back to edit), apart from the map that shows it. Part of the same drawn-on map as draw-map.tsx (OVR for that file); a hook, not a second map. Checked: no hook or store in components/** or app/pages/_shared holds drawing state.",
+      "status": "active"
+    },
+    {
+      "id": "OVR-030",
+      "component": "components/custom/draw-map/number-bubble.tsx",
+      "designer": "Sai Maniganahalli",
+      "approvedBy": "Sai Maniganahalli",
+      "date": "2026-11-18",
+      "reviewBy": "2027-05-17",
+      "reason": "A point's number as the progress steps' numbered bubble (24px circle, hairline ring, 12px semibold), asked for by the designer on 18 Nov 2026 for the map tooltip and the coordinates table. Checked: the bubble exists only inside IconTopNumber and IconLeftNumber (components/application/progress-steps/progress-step-base.tsx), which draw a title and a connector with it, so it cannot be used alone. Open: those two should use this one, so there is a single bubble (1.7).",
+      "status": "active"
+    },
+    {
+      "id": "OVR-031",
+      "component": "components/custom/draw-map/draw-layer.tsx",
+      "designer": "Sai Maniganahalli",
+      "approvedBy": "Sai Maniganahalli",
+      "date": "2026-11-19",
+      "reviewBy": "2027-05-18",
+      "reason": "Designer asked (19 Nov 2026) for the map tool updates made on the project (add a circle, add a polygon, corners to select and drag) to flow into Explore. The drawing engine (OVR-028) and its state (OVR-029) are built to be the one drawing behaviour; this is the thin layer that puts them inside a map that is not the draw map (Explore's SAMap), holding the drawing state in a child so the pointer does not re-render the screen. Checked: SAMap's own DrawBridge uses leaflet-draw, which has no review step, corner dragging or live tooltips; no other component in components/** puts the drawing tools in another map.",
+      "status": "active"
     }
   ]
 }

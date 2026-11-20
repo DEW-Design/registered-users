@@ -1,0 +1,72 @@
+# Builds the BioData SA testing edition as a static site and publishes it to GitHub Pages.
+#
+# - Runs on every push to main, and by hand from the Actions tab (workflow_dispatch).
+# - The site is served from https://<owner>.github.io/<repo>/, so it is built with BASE_PATH=/<repo> (next.config.ts reads it).
+# - `app/proto` (the labs) is removed before the build: labs never ship (CONTRACTS 5.4).
+# - `npm run check:contracts` runs first, so a build that breaks a contract is not published (CONTRACTS 0.6).
+#
+# One-time setup in the repository: Settings, Pages, Build and deployment, Source: GitHub Actions.
+
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time; a newer push replaces one still waiting, but never cancels a deploy that is running.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Check the contracts
+        run: npm run check:contracts
+
+      - name: Leave the labs out of the build
+        run: rm -rf app/proto
+
+      - name: Build
+        run: npm run build
+        env:
+          BASE_PATH: /${{ github.event.repository.name }}
+
+      # GitHub Pages runs no Jekyll here, but the marker keeps `_next/` served if that ever changes.
+      - name: Mark the site as plain static files
+        run: touch out/.nojekyll
+
+      - name: Upload the site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: out
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

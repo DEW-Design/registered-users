@@ -8,11 +8,11 @@ import { ButtonUtility } from "@/components/base/buttons/button-utility";
 import { RecordRow } from "@/app/pages/_shared/record-hero";
 import { FORM_FIELD_WIDTH } from "@/app/pages/_shared/form-row";
 import { cx } from "@/utils/cx";
-import { COLLECTION_METHOD_OPTIONS, FOCUS_AREA_OPTIONS, ROLE_OF_WORK_OPTIONS, SURVEY_TYPE_OPTIONS } from "../data";
+import { collectionMethodLabels, REGISTRATION_SPECIES, ROLE_OF_WORK_OPTIONS, SURVEY_TYPE_OPTIONS } from "../data";
 import { geoExtentSummary } from "../geo-extent-picker";
 import { isGeoExtentComplete, ownerName, ownersOf, type ProjectContact } from "../types";
 import { restrictionsSummaryRows } from "../step-3-privacy-restrictions";
-import { methodologySummary, STEP_TITLES, type FormState, type FormVersion, type SectionId } from "./sections";
+import { acceptedMethodologies, methodologySummary, STEP_TITLES, type FormState, type FormVersion, type SectionId } from "./sections";
 
 // The last section: every answer grouped by step, each row with an Edit link back to its section,
 // and - if anything is still missing - the sections that need attention listed at the top with a
@@ -57,8 +57,7 @@ export function ReviewSection({ state, onEdit, version = 1, dataset }: { state: 
   const person = (p: { firstName: string; lastName: string }) => `${p.firstName} ${p.lastName}`.trim();
   const roleLabel = d.roleOfWork === "other" ? d.roleOfWorkOther : ROLE_OF_WORK_OPTIONS.find((o) => o.id === d.roleOfWork)?.label;
   const managers = d.projectManagers.map(person).filter(Boolean).join(", ");
-  const focus = c.focusAreas.map((id) => (id === "other" && c.focusAreaOther ? c.focusAreaOther : (FOCUS_AREA_OPTIONS.find((o) => o.id === id)?.label ?? id))).join(", ");
-  const method = COLLECTION_METHOD_OPTIONS.find((o) => o.id === c.collectionMethod)?.label;
+  const method = collectionMethodLabels(c.collectionMethods);
   const surveyType = SURVEY_TYPE_OPTIONS.find((o) => o.id === c.surveyType)?.label;
   const dates = d.startDate ? `${formatDate(d.startDate)} to ${d.endDate ? formatDate(d.endDate) : "ongoing"}` : "";
   const restrictionRows = restrictionsSummaryRows(r);
@@ -76,7 +75,6 @@ export function ReviewSection({ state, onEdit, version = 1, dataset }: { state: 
 
       <StepCard title={STEP_TITLES[2]}>
         <SummaryRow label="Geographic extent" value={isGeoExtentComplete(c.geographicExtent) ? geoExtentSummary(c.geographicExtent) : ""} onEdit={() => onEdit("extent")} />
-        <SummaryRow label="Focus areas" value={focus} onEdit={() => onEdit("extent")} />
         <SummaryRow label="Survey type" value={surveyType} onEdit={() => onEdit("method")} />
         <SummaryRow label="Method of data collection" value={method} onEdit={() => onEdit("method")} />
         <SummaryRow label="Methodology" value={c.methodDetails} onEdit={() => onEdit("method")} />
@@ -85,8 +83,9 @@ export function ReviewSection({ state, onEdit, version = 1, dataset }: { state: 
 
       <StepCard title={STEP_TITLES[3]}>
         <SummaryRow label="Restrictions" value={r.hasRestrictions ? "Yes, apply restrictions" : "No restrictions - openly available to every BioData SA user"} onEdit={() => onEdit("restrictions")} />
+        {/* Other restrictions is explained on the Restrictions section, which has no section of its own. */}
         {restrictionRows.map((row) => (
-          <SummaryRow key={row.key} label={row.title} value={row.summary} onEdit={() => onEdit(row.key)} />
+          <SummaryRow key={row.key} label={row.title} value={row.summary} onEdit={() => onEdit(row.key === "other" ? "restrictions" : row.key)} />
         ))}
       </StepCard>
     </div>
@@ -94,7 +93,7 @@ export function ReviewSection({ state, onEdit, version = 1, dataset }: { state: 
 }
 
 // Version 2: each data owner, then its Project officers row (each person with their role, and which is the primary contact),
-// focus areas under Method and details, no survey type or your role, and one Methodology row (the method, then the
+// the targeted taxon and the methodology under Data collection methodology, no survey type or your role, and one Methodology row (the method, then the
 // methodologies added) with their notes.
 function ReviewSectionV2({ state, onEdit, dataset }: { state: FormState; onEdit: (id: SectionId) => void; dataset?: DatasetReview }) {
   const { details: d, collection: c, restrictions: r } = state;
@@ -107,9 +106,12 @@ function ReviewSectionV2({ state, onEdit, dataset }: { state: FormState; onEdit:
       .filter((p) => person(p))
       .map((p) => [person(p), roleOf(p)].filter(Boolean).join(", ") + (p.isPrimary ? " (primary contact)" : ""))
       .join("; ");
-  const focus = c.focusAreas.map((id) => (id === "other" && c.focusAreaOther ? c.focusAreaOther : (FOCUS_AREA_OPTIONS.find((o) => o.id === id)?.label ?? id))).join(", ");
-  const method = COLLECTION_METHOD_OPTIONS.find((o) => o.id === c.collectionMethod)?.label;
-  const { names, notes } = methodologySummary(c);
+  // Every method the project uses, each with the methodologies chosen under it.
+  const methodology = acceptedMethodologies(c)
+    .map((a) => (a.accepted.length ? `${a.method}: ${a.accepted.join(", ")}` : a.method))
+    .join("; ");
+  const { notes } = methodologySummary(c);
+  const taxa = c.targetedSpeciesIds.map((id) => REGISTRATION_SPECIES.find((s) => s.id === id)?.commonName ?? id).join(", ");
   const dates = d.startDate ? `${formatDate(d.startDate)} to ${d.endDate ? formatDate(d.endDate) : "ongoing"}` : "";
   const restrictionRows = restrictionsSummaryRows(r);
   // Where the data was collected is part of the project's identification at option 2, and part of data collection at option 1.
@@ -132,9 +134,9 @@ function ReviewSectionV2({ state, onEdit, dataset }: { state: FormState; onEdit:
 
       <StepCard title={STEP_TITLES[2]}>
         {!dataset && extentRow}
-        <SummaryRow label="Focus areas" value={focus} onEdit={() => onEdit("method")} />
-        <SummaryRow label="Methodology" value={[method, names].filter(Boolean).join(": ")} onEdit={() => onEdit("method")} />
-        {(c.collectionMethod === "systematic" || c.collectionMethod === "analysis") && notes && <SummaryRow label="Variations, limitations and biases" value={notes} onEdit={() => onEdit("method")} />}
+        <SummaryRow label="Targeted taxon" value={taxa} onEdit={() => onEdit("method")} />
+        <SummaryRow label="Methodology" value={methodology} onEdit={() => onEdit("method")} />
+        {notes && <SummaryRow label="Variations, limitations and biases" value={notes} onEdit={() => onEdit("method")} />}
       </StepCard>
 
       {dataset && (
@@ -147,8 +149,9 @@ function ReviewSectionV2({ state, onEdit, dataset }: { state: FormState; onEdit:
 
       <StepCard title={STEP_TITLES[3]}>
         <SummaryRow label="Restrictions" value={r.hasRestrictions ? "Yes, apply restrictions" : "No restrictions - openly available to every BioData SA user"} onEdit={() => onEdit("restrictions")} />
+        {/* Other restrictions is explained on the Restrictions section, which has no section of its own. */}
         {restrictionRows.map((row) => (
-          <SummaryRow key={row.key} label={row.title} value={row.summary} onEdit={() => onEdit(row.key)} />
+          <SummaryRow key={row.key} label={row.title} value={row.summary} onEdit={() => onEdit(row.key === "other" ? "restrictions" : row.key)} />
         ))}
       </StepCard>
     </div>

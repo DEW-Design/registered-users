@@ -62,6 +62,7 @@ Build, then publish the `out/` folder.
 - **Under a sub-path** (for example `https://example.com/testing/`): `BASE_PATH=/testing npm run build`.
 - The build is Node 20, `npm ci`, `npm run build`, upload `out/`. No server, no environment variables beyond the optional `BASE_PATH`.
 - URLs end in a slash (`/pages/dashboard/`), as every static host serves them.
+- **GitHub Pages:** `.github/workflows/deploy.yml` builds and publishes the site on every push to `main` (and by hand from the Actions tab), under `https://<owner>.github.io/<repo>/` (it sets `BASE_PATH=/<repo>`). It runs `npm run check:contracts` first, leaves `app/proto` (the labs) out of the build, and uses Node 22. One-time setup: Settings, Pages, Build and deployment, Source: GitHub Actions. A private repository needs a GitHub plan that includes Pages for private repositories.
 
 ### Participants' data
 

@@ -663,18 +663,18 @@ export function HomeDashboardContent() {
           underneath for actions). ── */}
       <div className="flex flex-col gap-3 px-6 pb-6">
         <h2 className="text-lg font-semibold text-primary">Quick actions</h2>
-        {/* The Add menu's own names for these (lib/create-menu.ts), so one thing has one name; each moves on to another screen, so its icon is the forward arrow (3.12). */}
+        {/* The Add menu's own names for these (lib/create-menu.ts), so one thing has one name; each is a leading icon + label + trailing arrow (it moves on to another screen, 3.12), the icons matching the cards on this screen. */}
         <div className="flex flex-wrap items-center gap-2">
-          <Button color="secondary" iconTrailing={ArrowNarrowRight} href={roleHref("/pages/project-list")}>
-            Your projects and datasets
+          <Button color="secondary" iconLeading={Folder} iconTrailing={ArrowNarrowRight} href={roleHref("/pages/project-list")}>
+            Manage projects and datasets
           </Button>
           {canOpen("/pages/dla/new") && (
-            <Button color="secondary" iconTrailing={ArrowNarrowRight} href={roleHref("/pages/dla/new")}>
+            <Button color="secondary" iconLeading={FileLock01} iconTrailing={ArrowNarrowRight} href={roleHref("/pages/dla/new")}>
               Data licence request
             </Button>
           )}
           {canOpen("/pages/nominations/new") && (
-            <Button color="secondary" iconTrailing={ArrowNarrowRight} href={roleHref("/pages/nominations/new")}>
+            <Button color="secondary" iconLeading={Feather} iconTrailing={ArrowNarrowRight} href={roleHref("/pages/nominations/new")}>
               Sensitive species nomination
             </Button>
           )}

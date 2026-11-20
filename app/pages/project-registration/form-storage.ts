@@ -23,11 +23,24 @@ export function serializeForm(state: FormState): string {
 }
 
 export function deserializeForm(json: string): FormState {
-    return JSON.parse(json, (_key, value) => {
+    const form = JSON.parse(json, (_key, value) => {
         if (value && typeof value === "object") {
             if (typeof value[DATE] === "string") return parseDate(value[DATE]);
             if (Array.isArray(value[SET])) return new Set(value[SET]);
         }
         return value;
     });
+    // A form saved before a project could hold more than one method has `collectionMethod`; it becomes the one entry of `collectionMethods` (19 Nov 2026).
+    const c = form?.collection as ({ collectionMethod?: string | null; collectionMethods?: string[] } & Record<string, unknown>) | undefined;
+    if (c && !Array.isArray(c.collectionMethods)) {
+        c.collectionMethods = c.collectionMethod ? [c.collectionMethod] : [];
+        delete c.collectionMethod;
+    }
+    // Focus areas, permits and the URI / DOI are no longer asked or held (19 Nov 2026: the permit number and the URI / DOI are on the dataset); a form saved with them is read without.
+    if (c) for (const field of ["focusAreas", "focusAreaOther", "permits", "uriDoi"]) delete c[field];
+    return form;
 }
+
+/** A set of section ids (the sections a person has been through), as text. */
+export const serializeSet = (set: Set<string>): string => JSON.stringify([...set]);
+export const deserializeSet = <T extends string>(raw: string): Set<T> => new Set(JSON.parse(raw) as T[]);

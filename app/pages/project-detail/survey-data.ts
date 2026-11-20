@@ -584,6 +584,8 @@ export interface OccurrenceFields extends CommonFields {
   /** NSX code (field-schema.ts NSX_SPECIES). */
   nsx: string;
   status: string;
+  /** The institution rego # alone, for a record that has no voucher (an Occurrence Population, or a record seeded from Explore). A voucher's own `rego` wins. */
+  rego?: string;
   voucher?: {
     type: string;
     number: string;
@@ -630,7 +632,7 @@ export function occurrenceSections(o: OccurrenceFields): MetaSection[] {
               { label: "Voucher number", term: "catalogNumber", value: v?.number ?? NP, type: "voucher" as const },
               { label: "Voucher images", value: json(v?.images ?? []), type: "images" as const },
               { label: "Institution name", term: "institutionCode", value: v?.institution ?? NP, type: "select" as const },
-              { label: "Institution rego #", value: v?.rego ?? NP, type: "select" as const },
+              { label: "Institution rego #", value: v?.rego ?? o.rego ?? NP, type: "select" as const },
               { label: "Determination date", term: "dateIdentified", value: v?.determinationDate ?? NP, type: "date" as const },
               { label: "Determination date accuracy", value: v?.determinationAccuracy ?? NP, type: "vocab" as const },
               { label: "Determiners", term: "identifiedBy", value: list(v?.determiners ?? []), type: "people" as const },
@@ -638,6 +640,10 @@ export function occurrenceSections(o: OccurrenceFields): MetaSection[] {
             ],
           },
         ]
+      : []),
+    // A Population has no voucher of its own, only the institution rego # (designer, 20 Nov 2026).
+    ...(o.type === "Population"
+      ? [{ id: "voucher", title: "Voucher", rows: [{ label: "Institution rego #", value: o.rego ?? NP, type: "select" as const }] }]
       : []),
     recordLocation(o),
     { ...CUSTOM },

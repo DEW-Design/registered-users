@@ -180,7 +180,7 @@ export function Step1ProjectDetails({
     if (cardIndex === 0) {
         return (
             <TypeformCard cardKey={0} step={1} totalSteps={TOTAL_QUESTIONS} kicker="Project details" title="What's your project called?" description="A short, user-facing name people will see first - you can add the full official title later if it's different." showBack={false} nextDisabled={!cardValid[0]} onNext={next}>
-                <Input aria-label="Project short title" placeholder="E.g., Biodiversity Monitoring of the Coorong Wetlands 2025" value={value.shortTitle} onChange={(v) => patch({ shortTitle: v })} size="lg" inputClassName="text-lg" />
+                <Input aria-label="Project short title" placeholder="Biodiversity Monitoring of the Coorong Wetlands 2025" value={value.shortTitle} onChange={(v) => patch({ shortTitle: v })} size="lg" inputClassName="text-lg" />
             </TypeformCard>
         );
     }
@@ -188,7 +188,7 @@ export function Step1ProjectDetails({
     if (cardIndex === 1) {
         return (
             <TypeformCard cardKey={1} step={2} totalSteps={TOTAL_QUESTIONS} kicker="Project details" title={`Tell us what "${value.shortTitle}" is about`} description="Include background, aims and objectives - when, where, what, how, why, who." nextDisabled={!cardValid[1]} onNext={next} onBack={back}>
-                <TextArea aria-label="Abstract" placeholder="E.g., Please include background, aims and objectives." rows={6} value={value.abstract} onChange={(v) => patch({ abstract: v })} autoFocus />
+                <TextArea aria-label="Abstract" placeholder="Please include background, aims and objectives." rows={6} value={value.abstract} onChange={(v) => patch({ abstract: v })} autoFocus />
             </TypeformCard>
         );
     }

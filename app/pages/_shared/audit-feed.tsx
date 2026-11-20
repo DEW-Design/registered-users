@@ -67,7 +67,7 @@ function Move({ event, meta, current, withName }: { event: FeedEvent; meta: Stat
             {status.label}
           </Badge>
           {current && (
-            <Badge size="sm" type="modern" color="gray">
+            <Badge size="sm" color="brand">
               Current
             </Badge>
           )}

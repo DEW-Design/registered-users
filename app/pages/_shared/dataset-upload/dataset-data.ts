@@ -151,6 +151,9 @@ export interface Dataset {
   firstNations: FirstNationsConsideration;
   /** The approving authority, only when First Nations is Authorised or Restricted. */
   iiaReference?: string;
+  /** The permit the data was collected under, and the dataset's URI or DOI: both optional, asked under the files (they were asked when a project was created). */
+  permitNumber?: string;
+  uriDoi?: string;
   /** Absent means structured. */
   kind?: DataKind;
   status: DatasetStatus;
@@ -181,10 +184,12 @@ export interface UploadDraft {
   licence: DataLicence | "";
   firstNations: FirstNationsConsideration | "";
   iiaReference: string;
+  permitNumber: string;
+  uriDoi: string;
   privacyConfirmed: boolean;
 }
 
-export const emptyUploadDraft: UploadDraft = { files: [], licence: "", firstNations: "", iiaReference: "", privacyConfirmed: false };
+export const emptyUploadDraft: UploadDraft = { files: [], licence: "", firstNations: "", iiaReference: "", permitNumber: "", uriDoi: "", privacyConfirmed: false };
 
 // ── The form's sections ──
 export type UploadSection = "files" | "custom" | "acknowledgement";
@@ -216,13 +221,27 @@ export function missingForUpload(draft: UploadDraft, uploading: boolean): Record
 }
 
 // ── Recommended templates ──
-// The three the upload wireframe recommends, taken from the one template list the Template Finder
-// also reads, so the two can't drift apart.
+// A template is recommended for a project when it is the template of a methodology the project accepts (the ones chosen under Systematic in Add Project). Until 19 Nov 2026
+// the upload form showed the same three whatever the project (the wireframe's own); they were the legacy templates, which belong to no methodology. The templates
+// are from the one list the Template Finder also reads, so the two can't drift apart.
 export type { DatasetTemplate };
 
-const RECOMMENDED_TEMPLATE_IDS = ["site-visit-species-load", "site-visit-species-load-custom", "species-data-return"];
+/** The standard template of each methodology in the Survey methodology vocabulary that has one, by the methodology's name and the template's id. A methodology with no
+ *  template here (Biological Survey of South Australia, Scattered Trees, ...) recommends none. The Waterbug Bioblitz template is taken to be the Macro Invertebrate
+ *  BioBlitz's (a judgement from the names, to be confirmed). */
+const TEMPLATE_OF_METHODOLOGY: Record<string, string> = {
+  "Bush Assessment Method (BAM)": "bushland-assessment-method",
+  "Rangeland Assessment Method (RAM)": "rangeland-assessment-method",
+  Ramble: "ramble",
+  "Macro Invertebrate BioBlitz": "waterbug-bioblitz",
+  BCM: "bushland-condition-monitoring",
+};
 
-export const recommendedTemplates: DatasetTemplate[] = datasetTemplates.filter((t) => RECOMMENDED_TEMPLATE_IDS.includes(t.id));
+/** The templates for the methodologies a project accepts, once each, in the Template Finder's order. */
+export function recommendTemplates(accepted: { accepted: string[] }[]): DatasetTemplate[] {
+  const ids = new Set(accepted.flatMap((a) => a.accepted).flatMap((name) => TEMPLATE_OF_METHODOLOGY[name] ?? []));
+  return datasetTemplates.filter((t) => ids.has(t.id));
+}
 
 export function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;

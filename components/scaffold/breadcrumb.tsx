@@ -31,8 +31,8 @@ export function Breadcrumb({
   /** The current top-level nav section - a plain label (e.g. "Projects"), or a custom
    * interactive element in its place (e.g. a project switcher). Omit for the Home page itself. */
   section?: ReactNode;
-  /** A final, page-specific crumb after `section` - e.g. a project's name. Always plain, always current. */
-  current?: string;
+  /** A final, page-specific crumb after `section` - e.g. a project's name. Always current. A string is plain text; an element lets the crumb carry a badge (Add Project's "Draft"). */
+  current?: ReactNode;
   /** The org pill's text, or omit to hide the pill entirely. "DEW" for the `biodata-*` roles (a
    * real, fixed org), "ORG" for `privileged-*` (no single real partner-org name to show yet) - see
    * `orgLabelForRole` in `lib/user-role.ts`. Was a plain `showOrgSwitcher` boolean rendering a

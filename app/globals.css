@@ -807,3 +807,14 @@ body .leaflet-container .leaflet-control-attribution a {
   stroke-width: 3px;
   stroke-opacity: 1;
 }
+
+/* Icons are drawn at one weight: 1.5px, at every size (the designer, 17 Nov 2026: "Icon weights need to be consistently 1.5px ... regardless of their scale").
+   The icon set draws its line at 2 units on a 24 unit box, so the weight changed with the icon's size (1.67px at 20px, 1.17px at 14px). The line is set to
+   1.5px and made non-scaling, so it is 1.5px on the screen whatever the icon's size. It replaces the per-size patches (`stroke-[2.25px]` on 16px icons).
+   An icon that is artwork rather than a control's icon opts out with `data-icon-art` (the landing page's 120px compass). Unlayered, so it wins over the utilities. */
+svg[viewBox="0 0 24 24"][fill="none"][stroke="currentColor"][stroke-width]:not([data-icon-art]) {
+  stroke-width: 1.5px;
+}
+svg[viewBox="0 0 24 24"][fill="none"][stroke="currentColor"][stroke-width]:not([data-icon-art]) * {
+  vector-effect: non-scaling-stroke;
+}

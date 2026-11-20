@@ -7,6 +7,7 @@ import type { Attribute } from "@/app/pages/_shared/attribute-filter";
 import { useDatasets } from "@/app/pages/_shared/dataset-upload/dataset-store";
 import { optionsFromValues } from "@/app/pages/_shared/list-filter";
 import { datasetCountsByProject, reportBundlesFor } from "@/app/pages/_shared/reports/report-records";
+import { permitNumbersOf } from "@/app/pages/_shared/dataset-upload/permit-numbers";
 import { projectRowFor, type ProjectRow } from "@/app/pages/_shared/reports/project-detail-report-data";
 import { DataReport } from "@/app/pages/_shared/reports/report-table";
 import { REPORT_WIDTH as W, emptyColumn, idColumn, numberColumn, textColumn, type ViewColumn } from "@/app/pages/_shared/reports/report-columns";
@@ -64,11 +65,9 @@ const columns: ViewColumn<ProjectRow>[] = [
   textColumn("managerOrganisation", "Manager organisation", W.xl, (r) => r.managerOrganisation),
   textColumn("location", "Project location", W.xl, (r) => r.location, { clamp: true }),
   textColumn("speciesGroup", "Species group", W.lg, (r) => r.speciesGroups.join(", ")),
-  textColumn("targetedSpecies", "Targeted species", W.xl, (r) => r.targetedSpecies, { clamp: true }),
+  textColumn("targetedTaxon", "Targeted taxon", W.xl, (r) => r.targetedTaxon, { clamp: true }),
   textColumn("method", "Data collection method", W.lg, (r) => r.method),
-  textColumn("permitType", "Permit type", W.lg, (r) => r.permitTypes.join("; ")),
   textColumn("permitNumber", "Permit number", W.md, (r) => r.permitNumbers),
-  textColumn("uriDoi", "URI/DOI number", W.md, (r) => r.uriDoi),
   textColumn("limitations", "Limitations and biases", W.xl, (r) => r.limitations, { clamp: true }),
   textColumn("restricted", "Project restriction", W.md, (r) => r.restricted),
   textColumn("embargo", "Embargo", W.sm, (r) => r.embargo),
@@ -90,7 +89,8 @@ const searchText = (r: ProjectRow) => [r.code, r.title, r.organisation, r.owner,
 export function ProjectDetailReport() {
   const role = useUserRole();
   const datasets = useDatasets();
-  const rows = useMemo(() => reportBundlesFor(role).map(projectRowFor), [role]);
+  // The permit number of each project is rolled up from its datasets.
+  const rows = useMemo(() => reportBundlesFor(role).map((b) => projectRowFor(b, permitNumbersOf(datasets, b.project.id))), [role, datasets]);
   const datasetCounts = useMemo(() => datasetCountsByProject(datasets), [datasets]);
 
   const attributes = useMemo(() => {
@@ -100,7 +100,6 @@ export function ProjectDetailReport() {
       ...one("status", "Status", options((r) => [r.status]), (r) => r.status),
       ...one("speciesGroup", "Species group", options((r) => r.speciesGroups), (r) => r.speciesGroups),
       ...one("method", "Data collection method", options((r) => [r.method]), (r) => r.method),
-      ...one("permitType", "Permit type", options((r) => r.permitTypes), (r) => r.permitTypes),
       ...one("restricted", "Project restriction", [{ id: "Yes", label: "Yes" }, { id: "No", label: "No" }], (r) => r.restricted),
       ...one("embargoType", "Embargo type", options((r) => r.embargoTypes), (r) => r.embargoTypes),
       ...one("organisation", "Project owner organisation", options((r) => [r.organisation]), (r) => r.organisation, true),

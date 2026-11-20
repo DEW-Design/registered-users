@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { toast } from "@/components/application/toast/toast";
 import { addDataset } from "@/app/pages/_shared/dataset-upload/dataset-store";
+import { useAcceptedMethodologies } from "@/app/pages/_shared/dataset-upload/accepted-methodologies";
 import { UploadForm } from "@/app/pages/_shared/dataset-upload/upload-form";
 import { UploadShell, type UploadProject } from "@/app/pages/_shared/dataset-upload/upload-shell";
 import { projectDetailsPath } from "@/app/pages/_shared/project-routes";
@@ -21,12 +22,14 @@ export function UploadScreen({ projectId, project }: { projectId: string; projec
   const canUpload = useFeatureAccess("datasetUpload");
   const canOpen = useCanOpen();
   const back = () => router.push(roleHref(projectDetailsPath(projectId)));
+  const accepted = useAcceptedMethodologies(projectId);
 
   return (
     <UploadShell project={project}>
       {project && canUpload && (
         <UploadForm
           project={project}
+          accepted={accepted}
           onCancel={back}
           onSubmit={(draft) => {
             const dataset = addDataset(project, draft);

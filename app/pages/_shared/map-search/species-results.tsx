@@ -99,6 +99,7 @@ import {
   type SearchOccurrence,
   type SpeciesGroup,
   kingdomForGroup,
+  DEFAULT_RESTRICTED_BLOCK_KM,
   restrictedRadiusKm,
   rootProjectForParentEventId,
   siteNameForParentEventId,
@@ -122,12 +123,9 @@ function matchesSearch(haystack: string, term: string): boolean {
   return !q || haystack.toLowerCase().includes(q);
 }
 
-/** Real, threatened-species-appropriate obfuscation radius - a bird's nest/roost site typically
- *  needs less spatial "room" to protect than a wider-ranging mammal or reptile's home range, so
- *  birds obfuscate to a tighter 5km, everything else to 10km. Both are real examples the user's own
- *  ask named ("5km radius or 10km radius etc"), not arbitrary. */
+/** The block a restricted record is shown as: 1 or 10 km on a side (`restrictedRadiusKm`, search-data.ts), 10 km for every record in the demo. */
 function obfuscationRadiusFor(o: SearchOccurrence): number {
-  return restrictedRadiusKm(o) ?? 10;
+  return restrictedRadiusKm(o) ?? DEFAULT_RESTRICTED_BLOCK_KM;
 }
 
 /** `generalise`: withhold the coordinates and say only the size of the block the record is in (every role but

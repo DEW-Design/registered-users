@@ -192,6 +192,10 @@ interface MultiSelectProps extends RefAttributes<HTMLDivElement>, CommonProps {
      * @default "multiple"
      */
     selectionMode?: "multiple" | "single";
+    /** Whether the popover is open when the component first shows (a picker that appears because it was asked for, and should be open). */
+    defaultOpen?: boolean;
+    /** Called when the popover opens or closes. */
+    onOpenChange?: (isOpen: boolean) => void;
     /** Called as the search text changes, to look the items up elsewhere (a list too long to hand over whole). */
     onSearchChange?: (value: string) => void;
     /**
@@ -249,6 +253,8 @@ const MultiSelectRoot = ({
     selectedCountFormatter,
     supportingText,
     selectionMode = "multiple",
+    defaultOpen = false,
+    onOpenChange,
     onSearchChange,
     filterItems = true,
     isLoading = false,
@@ -272,7 +278,14 @@ const MultiSelectRoot = ({
     const unseen = (items ?? []).filter((item) => labels[String(item.id)] !== (item.label ?? String(item.id)));
     if (unseen.length > 0)
         setLabels((was) => ({ ...was, ...Object.fromEntries(unseen.map((item) => [String(item.id), item.label ?? String(item.id)])) }));
-    const [isOpen, setOpen] = useState(false);
+    const [isOpen, setOpenState] = useState(defaultOpen);
+    const setOpen = useCallback(
+        (open: boolean) => {
+            setOpenState(open);
+            onOpenChange?.(open);
+        },
+        [onOpenChange],
+    );
     const { contains } = useFilter({ sensitivity: "base" });
     const [searchValue, setSearchValueState] = useState("");
     const setSearchValue = useCallback(

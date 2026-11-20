@@ -24,7 +24,20 @@ export function SummaryCloseButton({ onClick, onPhoto = false }: { onClick: () =
 
 /** The facts are rows: the label at the left, the value at the right edge (where a list's status column is), a hairline between the rows in the card's own alpha rule, and one above the first.
  *  The designer chose this from three ways of showing them (23 Oct 2026). */
-export function SummaryFacts({ facts }: { facts: { label: string; value: ReactNode }[] }) {
+export function SummaryFacts({ facts, inline = false }: { facts: { label: string; value: ReactNode }[]; inline?: boolean }) {
+  // `inline` (the compact card, for a map with little height): the facts side by side, each label over its value, in the same hairline above, so three facts take one row's height instead of three (a fourth wraps to a second row).
+  if (inline) {
+    return (
+      <dl className={cx("m-0 flex flex-wrap gap-x-6 gap-y-2 border-t pt-3 text-sm", MAP_SURFACE_RULE)}>
+        {facts.map((fact) => (
+          <div key={fact.label} className="flex flex-col gap-0.5">
+            <dt className="text-tertiary">{fact.label}</dt>
+            <dd className="m-0 text-primary">{fact.value}</dd>
+          </div>
+        ))}
+      </dl>
+    );
+  }
   return (
     <dl className={cx("m-0 flex flex-col border-t text-sm", MAP_SURFACE_RULE)}>
       {facts.map((fact) => (

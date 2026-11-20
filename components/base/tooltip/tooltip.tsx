@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useLayoutEffect, useRef, type ReactNode } from "react";
 import type {
     ButtonProps as AriaButtonProps,
     TooltipProps as AriaTooltipProps,
@@ -8,6 +8,31 @@ import type {
 } from "react-aria-components";
 import { Button as AriaButton, OverlayArrow as AriaOverlayArrow, Tooltip as AriaTooltip, TooltipTrigger as AriaTooltipTrigger } from "react-aria-components";
 import { cx } from "@/utils/cx";
+
+/**
+ * Makes the box hug its text. Text that wraps (`text-balance`) is as wide as the box allows and evens its lines out, so the box is left wider than its longest
+ * line, with more room at the right than at the left. This reads the longest line the text really sets and narrows the content to it. Text on one line, and a
+ * box already as narrow as its text, are left as they are. Measured in the box's own units, so the entering animation's scale does not change the answer.
+ */
+function useHugContent<T extends HTMLElement>(dependency: ReactNode) {
+    const ref = useRef<T>(null);
+    useLayoutEffect(() => {
+        const el = ref.current;
+        if (!el) return;
+        el.style.width = "";
+        const natural = el.offsetWidth;
+        if (!natural) return;
+        const scale = el.getBoundingClientRect().width / natural || 1;
+        const range = document.createRange();
+        let widest = 0;
+        for (const child of Array.from(el.children)) {
+            range.selectNodeContents(child);
+            for (const line of Array.from(range.getClientRects())) widest = Math.max(widest, line.width / scale);
+        }
+        if (widest > 0 && Math.ceil(widest) < natural) el.style.width = `${Math.ceil(widest)}px`;
+    }, [dependency]);
+    return ref;
+}
 
 interface TooltipProps extends AriaTooltipTriggerComponentProps, Omit<AriaTooltipProps, "children"> {
     /**
@@ -77,9 +102,7 @@ export const Tooltip = ({
                                 "ease-in animate-out fade-out zoom-out-95 in-placement-left:slide-out-to-right-0.5 in-placement-right:slide-out-to-left-0.5 in-placement-top:slide-out-to-bottom-0.5 in-placement-bottom:slide-out-to-top-0.5",
                         )}
                     >
-                        <span className="text-xs font-semibold text-balance text-white">{title}</span>
-
-                        {description && <span className="text-xs font-medium text-balance text-tooltip-supporting-text">{description}</span>}
+                        <TooltipText title={title} description={description} />
 
                         {arrow && (
                             <AriaOverlayArrow>
@@ -97,6 +120,17 @@ export const Tooltip = ({
         </AriaTooltipTrigger>
     );
 };
+
+function TooltipText({ title, description }: { title: ReactNode; description?: ReactNode }) {
+    const ref = useHugContent<HTMLDivElement>(`${typeof title === "string" ? title : ""}${typeof description === "string" ? description : ""}`);
+    return (
+        <div ref={ref} className="flex flex-col items-start gap-1">
+            <span className="text-xs font-semibold text-balance text-white">{title}</span>
+
+            {description && <span className="text-xs font-medium text-balance text-tooltip-supporting-text">{description}</span>}
+        </div>
+    );
+}
 
 type TooltipTriggerProps = AriaButtonProps;
 

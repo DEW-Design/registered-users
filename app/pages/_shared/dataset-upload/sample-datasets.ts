@@ -15,6 +15,8 @@ export const SAMPLE_DATASETS: Dataset[] = [
     projectId: SAMPLE_PROJECT.id,
     projectCode: SAMPLE_PROJECT.code,
     files: [{ name: "AHL_spring_survey_2025.xlsx", size: 421_888 }],
+    // The permit number the project's registration held (project-registration-data.ts) is now on the dataset it was collected under.
+    permitNumber: "SA-2025-0142",
     licence: "ccby",
     firstNations: "none",
     status: "approved",

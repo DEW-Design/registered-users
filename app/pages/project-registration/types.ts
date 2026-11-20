@@ -206,16 +206,6 @@ export type SurveyType = "biological" | "native-vegetation";
 
 export type CollectionMethod = "incidental" | "systematic" | "analysis" | "unknown" | "other";
 
-export interface PermitRow {
-    id: number;
-    type: string | null;
-    number: string;
-}
-
-export function emptyPermitRow(id: number): PermitRow {
-    return { id, type: null, number: "" };
-}
-
 /** One methodology added in version 2 of option 2, with its own note on any variation, limitation or bias. */
 export interface MethodologyChoice {
     /** Tells two "Other" methodologies apart; the rest are added once each. */
@@ -229,18 +219,15 @@ export interface MethodologyChoice {
 
 export interface DataCollectionState {
     geographicExtent: GeoExtentValue;
-    focusAreas: string[];
-    /** Only populated when `focusAreas` includes `"other"` - the user's own free-text description
-     *  of the additional, non-listed domain, same "Other" reveal pattern as `roleOfWorkOther`. */
-    focusAreaOther: string;
+    /** The taxa the project targets (asked as Targeted taxon). The field keeps its earlier name; what it holds is the ids of the species chosen. */
     targetedSpeciesIds: string[];
     surveyType: SurveyType | null;
-    collectionMethod: CollectionMethod | null;
+    /** How the data was or will be collected. A project can hold more than one (the designer, 19 Nov 2026), each with its own list below. Older
+     *  saved forms hold one, as `collectionMethod`; they are read into this (form-storage.ts). */
+    collectionMethods: CollectionMethod[];
     /** The methodology: the name of an entry in the Survey method controlled vocabulary. Older projects
      *  hold free text here, which still displays. */
     methodDetails: string;
-    permits: PermitRow[];
-    uriDoi: string;
     limitationsAndBiases: string;
     /** Version 2 of option 2 only: the methodologies added (a Systematic project), in the order added, each with its note.
      *  On create they are also written out as `methodDetails` and `limitationsAndBiases`, which the project page reads. */
@@ -254,16 +241,10 @@ export interface DataCollectionState {
 export function initialDataCollection(): DataCollectionState {
     return {
         geographicExtent: emptyGeoExtent(),
-        // "Biological" defaults selected, and can never be unselected - see data.ts's
-        // FOCUS_AREA_OPTIONS comment.
-        focusAreas: ["biological"],
-        focusAreaOther: "",
         targetedSpeciesIds: [],
         surveyType: null,
-        collectionMethod: null,
+        collectionMethods: [],
         methodDetails: "",
-        permits: [emptyPermitRow(1)],
-        uriDoi: "",
         limitationsAndBiases: "",
         methodologies: [],
     };

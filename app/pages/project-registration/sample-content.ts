@@ -15,7 +15,7 @@
 import { getLocalTimeZone, parseDate, today } from "@internationalized/date";
 import { SA_NATIONAL_PARKS } from "@/app/pages/_shared/map-search/geo";
 import { REGISTRATION_SPECIES } from "./data";
-import { emptyConceptRow, emptyPermitRow, emptyProjectContact, initialDataCollection, initialProjectDetails, initialRestrictions, type ConceptValueRow, type RestrictionTypeKey } from "./types";
+import { emptyConceptRow, emptyProjectContact, initialDataCollection, initialProjectDetails, initialRestrictions, type ConceptValueRow, type RestrictionTypeKey } from "./types";
 import { OTHER_METHODOLOGY } from "./methodology-fields";
 import type { FormState } from "./option-2/sections";
 
@@ -53,23 +53,21 @@ export function sampleProjectForm(): FormState {
         method: "map",
         boundary: { id: `park-${park.id}`, kind: "circle", center: [park.lat, park.lon], radiusKm: 15, label: park.name },
       },
-      focusAreas: ["biological", "water", "land", "other"],
-      focusAreaOther: "Shorebird roost condition",
       targetedSpeciesIds: birds,
-      collectionMethod: "systematic",
+      collectionMethods: ["systematic"],
       methodologies: [
         { rid: 1, id: "Bird survey, 500 metre area search", note: "Counted at high tide only, so birds roosting off site at low tide are missed." },
         { rid: 2, id: "Bird survey, 20 minutes, 2 hectare", note: "" },
         // "Other" asks what the methodology is.
         { rid: 3, id: OTHER_METHODOLOGY, other: "Dusk roost count from the shoreline", note: "Weather and light limit how many birds can be counted." },
       ],
-      // "None required" is a permit type of its own, so no permit number has to be made up.
-      permits: [{ ...emptyPermitRow(1), type: "none" }],
     },
     restrictions: {
       ...initialRestrictions(),
       hasRestrictions: true,
-      enabledTypes: new Set<RestrictionTypeKey>(["embargo", "species", "cultural", "locations", "all"]),
+      // Add Project offers an embargo and Other restrictions (the designer, 19 Nov 2026); the details of the kinds it does not offer stay below, as the project page's cards read them.
+      enabledTypes: new Set<RestrictionTypeKey>(["embargo", "other"]),
+      otherRestrictions: "Roost sites of birds that are not yet listed need protection while their status is assessed.",
       // Every embargo type, so the maximum period and the "Other" reason both show. The end date is inside the longest maximum and the shortest.
       embargo: {
         types: ["publication", "completion", "cultural", "other"],

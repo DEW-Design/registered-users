@@ -23,8 +23,6 @@ import { TemplateDownloads } from "@/app/pages/_shared/template-finder/template-
 
 const sortKeys: Record<string, (t: DatasetTemplate) => SortValue> = {
   template: (t) => t.title,
-  method: (t) => t.collectionMethod,
-  species: (t) => t.speciesType,
 };
 
 const filterGetters: FilterGetters<DatasetTemplate> = {
@@ -111,7 +109,7 @@ export function TemplateList({ filter, templates = datasetTemplates, beforeTable
           />
         ) : (
           <TableCard.Root className="flex min-h-48 flex-1 flex-col">
-            <Table layout="fixed" className="min-w-[840px]"
+            <Table layout="fixed" className="min-w-[560px]"
               bodyScrollable
               aria-label="Dataset templates"
               sortDescriptor={sort}
@@ -121,10 +119,8 @@ export function TemplateList({ filter, templates = datasetTemplates, beforeTable
               }}
             >
               <Table.Header sticky>
-                <Table.Head id="template" label="Template" isRowHeader allowsSorting className="w-[52%]" />
-                <Table.Head id="method" label="Collection method" allowsSorting className="w-[16%]" />
-                <Table.Head id="species" label="Species type" allowsSorting className="w-[14%]" />
-                <Table.Head id="download" label="Download" className="w-[18%]" />
+                <Table.Head id="template" label="Template" isRowHeader allowsSorting className="w-[76%]" />
+                <Table.Head id="download" label="Download" className="w-[24%]" />
               </Table.Header>
               <Table.Body items={paged}>
                 {(t) => (
@@ -134,12 +130,6 @@ export function TemplateList({ filter, templates = datasetTemplates, beforeTable
                         <p className="text-sm font-medium text-primary">{t.title}</p>
                         <p className="max-w-xl text-xs text-balance text-tertiary">{t.description}</p>
                       </div>
-                    </Table.Cell>
-                    <Table.Cell>
-                      <span className="text-sm text-secondary">{t.collectionMethod}</span>
-                    </Table.Cell>
-                    <Table.Cell>
-                      <span className="text-sm text-secondary">{t.speciesType}</span>
                     </Table.Cell>
                     <Table.Cell>
                       <TemplateDownloads />

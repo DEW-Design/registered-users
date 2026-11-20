@@ -713,3 +713,64 @@ Not imported into every session on purpose: read or grep it when a task needs hi
 - [2026-11-17] Mohan merge parked: trial branch kept, sai-wips takes our own work only; 13 help-text fields open - `2026-11-17-01-mohan-merge-parked-trial-branch-kept-sai-wips.md`
 - [2026-11-17] Merge of mohan-wips (8f51824) into sai-wips: conflicts resolved, help icon on 99 fields - `2026-11-17-02-merge-of-mohan-wips-8f51824-into-sai-wips.md`
 - [2026-11-17] Context, contracts and decision history brought into the testing edition repo - `2026-11-17-03-context-contracts-and-decision-history-brought-into-the.md`
+- [2026-11-17] Home Quick actions are icon, label and arrow, and the first one is Manage projects and datasets - `2026-11-17-04-home-quick-actions-are-icon-label-and-arrow.md`
+- [2026-11-17] Quick actions icons stand and the icon and arrow pair is for Quick actions only - `2026-11-17-05-quick-actions-icons-stand-and-the-icon-and.md`
+- [2026-11-17] Add Project discard prompt has two buttons, Discard and Cancel and keep editing - `2026-11-17-06-add-project-discard-prompt-has-two-buttons-discard.md`
+- [2026-11-17] Add Project form review notes: crumb, eyebrow, section name, counter, abstract copy, no closing divider - `2026-11-17-07-add-project-form-review-notes-crumb-eyebrow-section.md`
+- [2026-11-17] Add Project round 2: progress removed, icon weight 1.5px, Data owner copy and roles, no E.g. in placeholders - `2026-11-17-08-add-project-round-2-progress-removed-icon-weight.md`
+- [2026-11-17] Project name counter reads n/60 characters - `2026-11-17-09-project-name-counter-reads-n-60-characters.md`
+- [2026-11-17] No officer has to be a Project Manager to be a data owner - `2026-11-17-10-no-officer-has-to-be-a-project-manager.md`
+- [2026-11-17] Geographic extent exploration at proto, four ways to capture a project's area - `2026-11-17-11-geographic-extent-exploration-at-proto-four-ways-to.md`
+- [2026-11-18] Map drawing flow exploration at proto, where the coordinates live - `2026-11-18-01-map-drawing-flow-exploration-at-proto-where-the.md`
+- [2026-11-18] Making a drawn point exact at proto, typed values, nudging, zoom and edge points - `2026-11-18-02-making-a-drawn-point-exact-at-proto-typed.md`
+- [2026-11-18] Expand and draw exploration at proto, the form holds a summary and the drawing has the window - `2026-11-18-03-expand-and-draw-exploration-at-proto-the-form.md`
+- [2026-11-18] Geographic extent becomes Expand and draw, replacing the four tabs - `2026-11-18-04-geographic-extent-becomes-expand-and-draw-replacing-the.md`
+- [2026-11-18] Expand and draw round 3 at proto, the open questions as switches and a hybrid workspace - `2026-11-18-05-expand-and-draw-round-3-at-proto-the.md`
+- [2026-11-18] Map first, with Expand on hover opening the Hybrid workspace - `2026-11-18-06-map-first-with-expand-on-hover-opening-the.md`
+- [2026-11-18] Discard prompt buttons stack, and the check step reads as facts with one clear next action - `2026-11-18-07-discard-prompt-buttons-stack-and-the-check-step.md`
+- [2026-11-18] Dragging the points of a drawn shape, smoother at proto - `2026-11-18-08-dragging-the-points-of-a-drawn-shape-smoother.md`
+- [2026-11-18] The map's cursor says what the mode is, and a shape waiting to be checked cannot be deselected - `2026-11-18-09-the-map-s-cursor-says-what-the-mode.md`
+- [2026-11-18] Expanded workspace reuses the form's map layout, and a press on an area selects it - `2026-11-18-10-expanded-workspace-reuses-the-form-s-map-layout.md`
+- [2026-11-18] In the workspace every area is editable where it is, with no select step - `2026-11-18-11-in-the-workspace-every-area-is-editable-where.md`
+- [2026-11-18] An Edit chip on a used area in the form's map - `2026-11-18-12-an-edit-chip-on-a-used-area-in.md`
+- [2026-11-18] The panel's tabs are the design system's, the empty state is a real one, and the step header has even padding - `2026-11-18-13-the-panel-s-tabs-are-the-design-system.md`
+- [2026-11-18] A circle is drawn by pressing and dragging out, with the handle on the radius - `2026-11-18-14-a-circle-is-drawn-by-pressing-and-dragging.md`
+- [2026-11-18] The workspace panel: add, then the areas, with editing inside each area's own card - `2026-11-18-15-the-workspace-panel-add-then-the-areas-with.md`
+- [2026-11-18] Hovering a point or its row shows the other, with coordinates - `2026-11-18-16-hovering-a-point-or-its-row-shows-the.md`
+- [2026-11-18] Point tooltip number is a step bubble, a waiting shape reads "Not added yet" - `2026-11-18-17-point-tooltip-number-is-a-step-bubble-a.md`
+- [2026-11-18] Table numbers are step bubbles too, and discarding a new shape asks first - `2026-11-18-18-table-numbers-are-step-bubbles-too-and-discarding.md`
+- [2026-11-18] The shape buttons read "Add a polygon" and "Add a circle" - `2026-11-18-19-the-shape-buttons-read-add-a-polygon-and.md`
+- [2026-11-18] The step labels read "Step 1: Choose", "Step 2: Draw", "Step 3: Review" - `2026-11-18-20-the-step-labels-read-step-1-choose-step.md`
+- [2026-11-18] Tried the real progress steps for the step label, reverted to the text label - `2026-11-18-21-tried-the-real-progress-steps-for-the-step.md`
+- [2026-11-18] Design system run-through of this session's lab work, and the action count on the review step - `2026-11-18-22-design-system-run-through-of-this-session-s.md`
+- [2026-11-18] Map first geographic extent rolled into Add Project - `2026-11-18-23-map-first-geographic-extent-rolled-into-add-project.md`
+- [2026-11-19] Species tab hidden on the project detail page - `2026-11-19-01-species-tab-hidden-on-the-project-detail-page.md`
+- [2026-11-19] Data collection methodology: taxon, multi-select methods, permits and DOI move to the dataset upload - `2026-11-19-02-data-collection-methodology-taxon-multi-select-methods-permi.md`
+- [2026-11-19] Dataset upload recommends the templates of the methodologies the project accepts, in a table - `2026-11-19-03-dataset-upload-recommends-the-templates-of-the-methodologies.md`
+- [2026-11-19] Project page drops Focus areas, Targeted species and Permits, permit numbers roll up from datasets,... - `2026-11-19-04-project-page-drops-focus-areas-targeted-species-and.md`
+- [2026-11-19] Add Project restrictions: Recommended default, Embargo and Other restrictions only, polished notice - `2026-11-19-05-add-project-restrictions-recommended-default-embargo-and-oth.md`
+- [2026-11-19] Add Project and the dataset upload form keep their answers across a refresh - `2026-11-19-06-add-project-and-the-dataset-upload-form-keep.md`
+- [2026-11-19] Targeted taxon shown on the project page, unused data fields removed, mock data on the new structure - `2026-11-19-07-targeted-taxon-shown-on-the-project-page-unused.md`
+- [2026-11-19] The restricted data policy in the No restrictions hint is a link - `2026-11-19-08-the-restricted-data-policy-in-the-no-restrictions.md`
+- [2026-11-19] Review and create is a connected step in Add Project column 2 - `2026-11-19-09-review-and-create-is-a-connected-step-in.md`
+- [2026-11-19] The Current tag on the audit feed matches the status tags - `2026-11-19-10-the-current-tag-on-the-audit-feed-matches.md`
+- [2026-11-19] Explore draws areas with the project's drawing tools: add a circle, add a polygon, corners to drag - `2026-11-19-11-explore-draws-areas-with-the-project-s-drawing.md`
+- [2026-11-19] Explore: no review step, zoom bottom-right, view switch bottom-left, Apply for a Data Licence - `2026-11-19-12-explore-no-review-step-zoom-bottom-right-view.md`
+- [2026-11-19] The map slides instead of flying: no zoom-out arc - `2026-11-19-13-the-map-slides-instead-of-flying-no-zoom.md`
+- [2026-11-20] Explore list heading reads Species occurrence records - `2026-11-20-01-explore-list-heading-reads-species-occurrence-records.md`
+- [2026-11-20] Explore's map key and dot colours are flora and fauna - `2026-11-20-02-explore-s-map-key-and-dot-colours-are.md`
+- [2026-11-20] Explore banner: Some locations are restricted, with the policy link, and Apply for a data licence - `2026-11-20-03-explore-banner-some-locations-are-restricted-with-the.md`
+- [2026-11-20] Restricted block sizes are 1 or 10 km, 10 km for the demo, and the legend drops Restricted block - `2026-11-20-04-restricted-block-sizes-are-1-or-10-km.md`
+- [2026-11-20] More sightings of widespread species so a species spreads across the state - `2026-11-20-05-more-sightings-of-widespread-species-so-a-species.md`
+- [2026-11-20] Explore summary card: Show in project removed from species records - `2026-11-20-06-explore-summary-card-show-in-project-removed-from.md`
+- [2026-11-20] A species search no longer draws a circle over the state - `2026-11-20-07-a-species-search-no-longer-draws-a-circle.md`
+- [2026-11-20] Explore's empty results use the product's empty state - `2026-11-20-08-explore-s-empty-results-use-the-product-s.md`
+- [2026-11-20] Explore's Map and Map and table switch is a pair of toggles beside the search field - `2026-11-20-09-explore-s-map-and-map-and-table-switch.md`
+- [2026-11-20] Explore's Map and table gets occurrence date, collection method and institution rego columns - `2026-11-20-10-explore-s-map-and-table-gets-occurrence-date.md`
+- [2026-11-20] Template Finder and recommended templates drop the collection method and species type columns - `2026-11-20-11-template-finder-and-recommended-templates-drop-the-collectio.md`
+- [2026-11-20] Explore's table toolbar is search, Filter, Columns and an Export button - `2026-11-20-12-explore-s-table-toolbar-is-search-filter-columns.md`
+- [2026-11-20] Backlog: show every dot on Explore's map by default - `2026-11-20-13-backlog-show-every-dot-on-explore-s-map.md`
+- [2026-11-20] Explore's summary card scrolls with a fade where the map is short - `2026-11-20-14-explore-s-summary-card-scrolls-with-a-fade.md`
+- [2026-11-20] A compact species card for Explore's Map and table view - `2026-11-20-15-a-compact-species-card-for-explore-s-map.md`
+- [2026-11-20] A row in Explore's table opens its species card, and an edge-case pass over the split view - `2026-11-20-16-a-row-in-explore-s-table-opens-its.md`
+- [2026-11-20] The event nesting sheet becomes the rule for what can go where - `2026-11-20-17-the-event-nesting-sheet-becomes-the-rule-for.md`

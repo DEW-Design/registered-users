@@ -10,7 +10,7 @@ import { cx } from "@/utils/cx";
 export function ChunkHeading({ label, count, trailing, roomy = false }: { label: string; count?: number; trailing?: ReactNode; roomy?: boolean }) {
   return (
     <h3 className={cx("m-0! flex items-center justify-between gap-3 px-3 pt-3 pb-1 text-xs! font-semibold! tracking-wide! text-quaternary! uppercase first:pt-1", roomy && "pb-2.5 first:pt-2.5")}>
-      <span>
+      <span className="min-w-0 text-balance">
         {label}
         {count !== undefined && <span className="ml-1 tabular-nums">{count.toLocaleString("en-AU")}</span>}
       </span>

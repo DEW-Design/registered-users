@@ -674,7 +674,7 @@ export default function BiodataHomePage() {
                   frame; @untitledui/icons' Compass03 defaults to stroke-width 2 on a 24-unit
                   viewBox, which scales to an effective 10px at this size - `strokeWidth={0.8}`
                   brings it down to the real ~4px weight instead of the too-bold default. */}
-              <Compass03 className="size-[120px] shrink-0 text-white" strokeWidth={0.8} />
+              <Compass03 className="size-[120px] shrink-0 text-white" strokeWidth={0.8} data-icon-art />
               <div className="flex flex-col gap-4">
                 <div className="flex flex-col gap-1">
                   <h3 className="text-2xl font-bold text-white">Learn what is BioData SA</h3>

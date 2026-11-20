@@ -51,7 +51,7 @@ function LocationCard({
             <Input
                 label="Location name"
                 isRequired
-                placeholder="E.g., Pygmy Bluetongue Lizard nesting site"
+                placeholder="Pygmy Bluetongue Lizard nesting site"
                 value={entry.name}
                 onChange={(name) => onChange({ name })}
                 isInvalid={nameMissing}

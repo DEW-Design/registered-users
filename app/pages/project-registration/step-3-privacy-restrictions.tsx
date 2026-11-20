@@ -41,7 +41,7 @@ export const RESTRICTION_TYPE_META: { key: RestrictionTypeKey; title: string; de
     { key: "locations", title: "Restrict data based on Locations", description: "Manage protection rules for sensitive locations recorded in this project", icon: MarkerPin04 },
     { key: "all", title: "Restrict all records within this Project", description: "Every record in this project is restricted", icon: LockKeyholeCircle },
     { key: "metadata", title: "Restrict data based on Project Metadata", description: "Set protection rules for project data such as collection methods and observer details", icon: Database01 },
-    { key: "other", title: "Other Restrictions", description: "Request protection rules for any other restrictions associated with this project", icon: DotsHorizontal },
+    { key: "other", title: "Other restrictions", description: "Request protection rules for any other restrictions associated with this project", icon: DotsHorizontal },
 ];
 
 /** The kinds of restriction a person can switch on (the designer, 25 Oct 2026): Embargo, Species, Cultural Sensitivities,

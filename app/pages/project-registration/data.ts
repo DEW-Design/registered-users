@@ -5,11 +5,11 @@ import { searchOccurrences, rootProjectForParentEventId, type SpeciesGroup } fro
 import type { ProjectAccessLevel, ProjectContact, ProjectDetailsState } from "./types";
 
 export const ROLE_OF_WORK_OPTIONS = [
-    { id: "field-survey", label: "Field Survey" },
+    { id: "field-survey", label: "Field Researcher" },
     { id: "research", label: "Research" },
     { id: "student", label: "Student" },
     { id: "management", label: "Management" },
-    { id: "support", label: "Support" },
+    { id: "support", label: "Support Officer" },
     { id: "project-manager", label: "Project Manager" },
     { id: "other", label: "Other" },
 ];
@@ -17,7 +17,7 @@ export const ROLE_OF_WORK_OPTIONS = [
 // Role in project, asked of each Project contact in Add Project (the designer, 16 Oct 2026): Project Manager became a role
 // here instead of its own tick, and Management and Student are not offered for now. They stay in ROLE_OF_WORK_OPTIONS, the
 // one vocabulary every label is read from, so a contact that already holds one still shows it.
-const ROLE_IN_PROJECT_IDS = ["project-manager", "field-survey", "research", "support", "other"];
+const ROLE_IN_PROJECT_IDS = ["project-manager", "field-survey", "support", "other"];
 export const ROLE_IN_PROJECT_OPTIONS = ROLE_IN_PROJECT_IDS.map((id) => ROLE_OF_WORK_OPTIONS.find((o) => o.id === id)!);
 
 /** The role that makes a Project contact one of the project's managers. */
@@ -75,28 +75,6 @@ export const PERSONA_OPTIONS = [
     { id: "maya-dewitt", label: "Maya Dewitt" },
 ];
 
-// A project can focus on more than one domain at once - Biological is the default (BDBSA is
-// fundamentally a biodiversity repository, so almost every project touches it), pre-selected
-// rather than left for the user to notice and pick themselves, per direct instruction. The rest
-// are real environmental-data domains a project might also collect against alongside it.
-export const FOCUS_AREA_OPTIONS = [
-    { id: "biological", label: "Biological" },
-    { id: "soil", label: "Soil" },
-    { id: "water", label: "Water" },
-    { id: "land", label: "Land" },
-    { id: "marine", label: "Marine" },
-    { id: "habitat-vegetation", label: "Habitat / Vegetation Mapping" },
-    { id: "other", label: "Other" },
-];
-
-export const PERMIT_TYPE_OPTIONS = [
-    { id: "scientific-research", label: "Scientific Research Permit" },
-    { id: "wildlife-ethics", label: "Animal Ethics Approval" },
-    { id: "native-vegetation", label: "Native Vegetation Clearance" },
-    { id: "cultural-heritage", label: "Aboriginal Heritage Clearance" },
-    { id: "none", label: "None required" },
-];
-
 // The two kinds of survey a project runs (the designer, 2 Oct 2026). Narrowing the templates by survey
 // type waits on the templates saying which type they belong to; nothing here invents that mapping.
 export const SURVEY_TYPE_OPTIONS: { id: "biological" | "native-vegetation"; label: string }[] = [
@@ -111,6 +89,12 @@ export const COLLECTION_METHOD_OPTIONS: { id: "incidental" | "systematic" | "ana
     { id: "unknown", label: "Unknown", description: "The method of data collection is not known or not recorded." },
     { id: "other", label: "Other", description: "Data will be collected using a method not listed here (e.g. media/images)." },
 ];
+
+/** The labels of the methods a project holds (it can hold more than one), in the order they are offered, as one line. */
+export const collectionMethodLabels = (ids: readonly string[]): string =>
+    COLLECTION_METHOD_OPTIONS.filter((o) => ids.includes(o.id))
+        .map((o) => o.label)
+        .join(", ");
 
 // Version 2 of option 2 offers every method but Unknown (the designer, 9 Oct 2026: "Remove this option"). Unknown stays in the
 // list above so a project that holds it still reads.

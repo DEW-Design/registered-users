@@ -6,6 +6,7 @@ import { sampleDatasetFiles } from "@/app/pages/_shared/dataset-upload/dataset-s
 import { FormRow } from "@/app/pages/_shared/form-row";
 import { AcknowledgementRows, emptyAcknowledgement, type Acknowledgement } from "@/app/pages/_shared/dataset-upload/acknowledgement-rows";
 import { FileQueue, UploadDropzone, useFileQueue } from "@/app/pages/_shared/dataset-upload/upload-dropzone";
+import { DatasetIdentifiers } from "@/app/pages/_shared/dataset-upload/dataset-identifiers";
 import { addDataset, useDatasets } from "@/app/pages/_shared/dataset-upload/dataset-store";
 import { readFileFacts } from "@/app/pages/_shared/dataset-upload/file-facts";
 import { FileFactsCard, type FileRead } from "./file-facts-card";
@@ -108,6 +109,8 @@ export function useDatasetStep(): DatasetStep {
     ? [{ label: "Dataset files", value: "None added" }]
     : [
         { label: "Dataset files", value: files.map((f) => `${f.name} (${formatFileSize(f.size)})`).join(", ") },
+        ...(answers.permitNumber.trim() ? [{ label: "Permit number", value: answers.permitNumber.trim() }] : []),
+        ...(answers.uriDoi.trim() ? [{ label: "URI / DOI number", value: answers.uriDoi.trim() }] : []),
         { label: "Data licence", value: answers.licence ? licenceLabel(answers.licence) : "" },
         { label: "First Nations considerations", value: answers.firstNations ? `${firstNationsLabel(answers.firstNations)}${answers.iiaReference.trim() ? `, ${answers.iiaReference.trim()}` : ""}` : "" },
         { label: "Privacy and restriction", value: answers.privacyConfirmed ? "Confirmed" : "" },
@@ -128,6 +131,7 @@ export function useDatasetStep(): DatasetStep {
         >
           <UploadDropzone accepts="everything" onAdd={addFiles} />
           <FileQueue files={queue.files} onRemove={removeFile} />
+          <DatasetIdentifiers answers={answers} update={update} />
         </FormRow>
         {queue.files.some((f) => isSpreadsheet(f.name)) && (
           <FormRow title="From your file" description="What the file itself states about the project's data.">

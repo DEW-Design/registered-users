@@ -12,6 +12,7 @@ import { ALL_PROJECTS, activeScope, scopeParameters } from "@/app/pages/_shared/
 import { speciesRowsFor, type SpeciesRow } from "@/app/pages/_shared/reports/species-detail-report-data";
 import { DataReport, ReportTiles, SpeciesCell } from "@/app/pages/_shared/reports/report-table";
 import { REPORT_WIDTH as W, emptyColumn, idColumn, numberColumn, textColumn, type ViewColumn } from "@/app/pages/_shared/reports/report-columns";
+import { dayAttribute, dayColumn, optionsAttribute } from "@/app/pages/_shared/reports/admin-report-helpers";
 import { useUserRole } from "@/lib/use-user-role";
 
 // The Species Detail Report (Figma YMproGZfrFB5jUqPHPxMhk frame 1583:31367, columns list 1594:65311): one row per
@@ -83,6 +84,23 @@ export const speciesDetailColumns: ViewColumn<SpeciesRow>[] = [
   emptyColumn("pastRecord", "Past record", W.sm),
 ];
 
+// Explore's Map and table view (designer, 20 Nov 2026) reads the same rows with its own first columns: Project, Class, Scientific name, Species, NSX code, Occurrence date, Collection
+// method (the project's methodology from Add Project), Institution rego #, then the rest of the report in its order, with the NSL code hidden. Built from the report's own columns, so a label or a cell changes in one place; the
+// Species Detail Report itself is unchanged (its 45 columns are the wireframe's).
+const EXPLORE_FIRST = ["project", "group", "scientific", "common", "nsx", "occurrenceDate", "methodology", "institutionRego"];
+const EXPLORE_COLUMNS: ViewColumn<SpeciesRow>[] = [
+  dayColumn("occurrenceDate", "Occurrence date", W.md, (r) => r.occurrenceDate),
+  textColumn("methodology", "Collection method", W.lg, (r) => r.methodology, { clamp: true }),
+  textColumn("institutionRego", "Institution rego #", W.md, (r) => r.institutionRego),
+];
+const exploreById = new Map([...speciesDetailColumns, ...EXPLORE_COLUMNS].map((c) => [c.id, c]));
+export const exploreSpeciesColumns: ViewColumn<SpeciesRow>[] = [
+  // The first column is the one pinned while the table scrolls sideways.
+  ...EXPLORE_FIRST.map((id) => (id === "project" ? { ...exploreById.get(id)!, sticky: true } : exploreById.get(id)!)),
+  ...speciesDetailColumns.filter((c) => !EXPLORE_FIRST.includes(c.id)).map((c) => (c.sticky ? { ...c, sticky: false } : c)),
+];
+export const EXPLORE_HIDDEN_COLUMNS = ["nsl"];
+
 /** The species groups the wireframe shows as tiles, in its order, named as it names them. The app holds five of them. */
 const GROUP_TILES: { group: SpeciesGroup; label: string }[] = [
   { group: "Plant", label: "Plants" },
@@ -107,6 +125,15 @@ export function speciesDetailAttributes(allRows: SpeciesRow[]): Attribute<Specie
     ...one("dateAccuracy", "Date accuracy", (r) => r.dateAccuracy),
     ...one("sex", "Sex", (r) => r.sex),
     ...one("activity", "Activity", (r) => r.activity),
+  ];
+}
+
+/** Explore's table: the report's attributes, then the occurrence date and a searchable scientific name. */
+export function exploreSpeciesAttributes(allRows: SpeciesRow[]): Attribute<SpeciesRow>[] {
+  return [
+    ...speciesDetailAttributes(allRows),
+    dayAttribute<SpeciesRow>("occurrenceDate", "Occurrence date", (r) => r.occurrenceDate),
+    ...optionsAttribute("scientific", "Scientific name", allRows, (r) => r.scientific, { searchable: true }),
   ];
 }
 

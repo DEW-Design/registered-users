@@ -9,6 +9,7 @@
 //
 // No column here shows a location, so a generalised (Level 2) record cannot leak one through this report.
 
+import { builtInMethodologies } from "@/app/pages/_shared/dataset-upload/accepted-methodologies";
 import { countedOf, fieldOf, firstField, groupOfRecord, indexOf, measurementOf, nsxOf, recordsOfKind, type ReportProject } from "@/app/pages/_shared/reports/report-records";
 
 export interface SpeciesRow {
@@ -22,6 +23,12 @@ export interface SpeciesRow {
   status: string;
   nsx: string;
   scientific: string;
+  /** The occurrence's date, ISO (YYYY-MM-DD); empty where the record has none. The Occurrence date column writes it as a date and its filter reads it. */
+  occurrenceDate: string;
+  /** The methodologies the record's project was registered with in Add Project (Survey methodology vocabulary), as one line. */
+  methodology: string;
+  /** The institution rego # of the occurrence (an Individual's voucher, or a Population's own). */
+  institutionRego: string;
   dateAccuracy: string;
   voucherId: string;
   treeHealth: string;
@@ -86,6 +93,9 @@ export function speciesRowsFor({ project, seed }: ReportProject): SpeciesRow[] {
       status: fieldOf(occurrence, "Occurrence status"),
       nsx: nsxOf(occurrence),
       scientific: occurrence.scientificName ?? "",
+      occurrenceDate: occurrence.date,
+      methodology: builtInMethodologies(project.id).join(", "),
+      institutionRego: fieldOf(occurrence, "Institution rego #"),
       dateAccuracy: fieldOf(occurrence, "Date accuracy"),
       voucherId: fieldOf(occurrence, "Voucher number"),
       treeHealth: observation ? treeHealthOf(observation) : "",
