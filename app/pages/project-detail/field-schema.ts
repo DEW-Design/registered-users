@@ -18,7 +18,7 @@
 import { isPointInBoundary, type Boundary } from "@/app/pages/_shared/map-search/geo";
 import type { MetaRow, SurveyRecord } from "./survey-data";
 import type { SpeciesGroup } from "@/app/pages/_shared/map-search/search-data";
-import { CODE_FIELDS, CODE_TABLES, CODE_VOCABS, INSTITUTION_PREFIX, MULTI_OPTIONS, NUMBER_UNITS, PEOPLE_FIELDS, SELECT_OPTIONS, crownScore } from "./field-options";
+import { CODE_FIELDS, CODE_TABLES, CODE_VOCABS, MULTI_OPTIONS, NUMBER_UNITS, PEOPLE_FIELDS, SELECT_OPTIONS, crownScore } from "./field-options";
 
 export type FieldType =
   | "system"
@@ -403,6 +403,21 @@ export function trapSummary(entry: TrapEntry): { effort: string[]; specs: string
   return { effort, specs: (entry.specs ?? []).map(readTrapSpec) };
 }
 
+/**
+ * A voucher number is stored as one value, "<prefix> <number>" ("SAM 24518"): the prefix is free text, the number is digits.
+ * A value with no space-separated prefix is a number alone.
+ */
+export function parseVoucher(value: string): { prefix: string; number: string } {
+  if (EMPTY_VALUES.has(value)) return { prefix: "", number: "" };
+  const m = value.trim().match(/^(?:(.*\S)\s+)?(\d+)$/);
+  return m ? { prefix: m[1] ?? "", number: m[2] } : { prefix: value.trim(), number: "" };
+}
+
+export function formatVoucher(prefix: string, number: string): string {
+  const joined = [prefix.trim(), number.trim()].filter(Boolean).join(" ");
+  return joined || "Not provided";
+}
+
 /** How a row reads when viewed. `rows` are the other rows of its section, for values that depend on them. */
 export function displayValue(row: MetaRow, rows: MetaRow[] = []): string {
   const type = fieldTypeOf(row);
@@ -416,11 +431,6 @@ export function displayValue(row: MetaRow, rows: MetaRow[] = []): string {
   if (type === "species") {
     const sp = nsxSpecies(row.value);
     return sp ? `${sp.nsx} - ${sp.scientific}` : row.value;
-  }
-  if (type === "voucher") {
-    const inst = rows.find((r) => r.label === "Institution name")?.value ?? "";
-    const prefix = INSTITUTION_PREFIX[inst];
-    return prefix ? `${prefix} ${row.value}` : row.value;
   }
   if (type === "images") return parseJsonList<string>(row.value).join(", ");
   if (type === "codes") {

@@ -40,7 +40,9 @@ import { RecordMap } from "./record-map";
 import { RecordHeaderMeta } from "./record-header-meta";
 import { SiteScoresSection } from "./site-scores-section";
 import { flashElement } from "./flash";
-import { type ChildOption } from "./record-rules";
+import { useShowSavedChanges } from "./record-changes";
+import { inheritanceSource, type ChildOption } from "./record-rules";
+import { InheritedMarker } from "./inherited-section";
 import {
   type MetaSection,
   type RecordKind,
@@ -95,7 +97,7 @@ export function SectionFields({
 }) {
   const { canEdit, saveRecord } = useEditStore();
   const notes = useFieldNotes();
-  const saved = useHiddenFields(record.id);
+  const saved = useHiddenFields(record.id, record);
   const hidden = hiddenOverride ?? saved;
   const forRecord = notes[record.id] ?? {};
   const onEdit =
@@ -146,41 +148,46 @@ export function SectionFields({
   return (
     <div className="flex flex-col gap-3">
       {section.withMap && (
-        <>
-          {showMap && (
-            <RecordMap record={record} lat={lat} lon={lon} className="h-40" />
-          )}
-          {/* In the expanded view the map sits in the side column; the card shows what was entered. */}
-          {/* The table belongs to Location details, so the row's divider sits under the table. */}
-          <div className="flex flex-col gap-2 border-b border-secondary pb-3">
-            <FieldRow
-              recordId={record.id}
-              fieldKey={`${section.id}:Location details`}
-              label="Location details"
-              value={
-                record.locationNote
-                  ? "Generalised for a restricted species"
-                  : locationSummary(
-                      record.location ?? {
-                        method: "coordinates",
-                        boundary: {
-                          id: "pt",
-                          kind: "circle",
-                          center: [record.lat, record.lon],
-                          radiusKm: 0.1,
+        // Coordinates on the left and the map on the right, as the expanded record has them (the map in its side column; the designer, 20 Nov 2026: "Location info needs
+        // to have coordinates on the left and map on the right. Inconsistency logged."). Where the panel is narrow the map goes above, as it did. The table belongs to
+        // Location details, so the row's divider sits under both columns.
+        <div className="@container">
+          <div className={cx("grid gap-3 border-b border-secondary pb-3", showMap && "@3xl:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]")}>
+            <div className="flex flex-col gap-2">
+              <FieldRow
+                recordId={record.id}
+                fieldKey={`${section.id}:Location details`}
+                label="Location details"
+                value={
+                  record.locationNote
+                    ? "Generalised for a restricted species"
+                    : locationSummary(
+                        record.location ?? {
+                          method: "coordinates",
+                          boundary: {
+                            id: "pt",
+                            kind: "circle",
+                            center: [record.lat, record.lon],
+                            radiusKm: 0.1,
+                          },
                         },
-                      },
-                    )
-              }
-              notes={forRecord[`${section.id}:Location details`]}
-              onEdit={onEdit}
-              labelWidth={labelWidth}
-              divider={false}
-            />
-            {/* A restricted record shows no coordinates, rounded or not: only its block on the map. */}
-            {!record.locationNote && <LocationDetailsTable lat={lat} lon={lon} />}
+                      )
+                }
+                notes={forRecord[`${section.id}:Location details`]}
+                onEdit={onEdit}
+                labelWidth={labelWidth}
+                divider={false}
+              />
+              {/* A restricted record shows no coordinates, rounded or not: only its block on the map. */}
+              {!record.locationNote && <LocationDetailsTable lat={lat} lon={lon} />}
+            </div>
+            {showMap && (
+              <div className="order-first @3xl:order-last">
+                <RecordMap record={record} lat={lat} lon={lon} className="h-40 @3xl:h-full @3xl:min-h-40" />
+              </div>
+            )}
           </div>
-        </>
+        </div>
       )}
       <div className="flex flex-col">
         {section.siteScores ? (
@@ -695,8 +702,13 @@ export function RecordPanel({
 }) {
   const store = useEditStore();
   const del = useDeleteRecord(record, onSelect);
-  const hidden = useHiddenFields(record?.id);
+  const hidden = useHiddenFields(record?.id, record);
   const notesAll = useFieldNotes();
+  // Where an inherited section's values come from ("Transect TR00501"), for the marker in its title.
+  const inheritedFrom = (sectionId: string) => {
+    const src = record ? inheritanceSource(sectionId, record, store.recordById) : undefined;
+    return src ? `${src.type} ${src.code}` : "";
+  };
   // The first section starts open, so a record shows its details without a click (designer, 23 Oct 2026).
   const [openSections, setOpenSections] = useState<Set<ReactKey>>(() => {
     const notes = record ? (notesAll[record.id] ?? {}) : {};
@@ -728,6 +740,9 @@ export function RecordPanel({
     }, 350);
     return () => clearTimeout(t);
   }, [focusField, record]);
+
+  // After a Save (the panel's editor hands back to this view): open the sections the change is in, scroll to it and hold the highlight.
+  useShowSavedChanges(record?.id, rootRef, (cards) => setOpenSections((o) => new Set([...o, ...cards])));
 
   if (!record) {
     return (
@@ -858,7 +873,12 @@ export function RecordPanel({
             onOpenKeysChange={(keys) => setOpenSections(new Set(keys))}
             items={shownSections.map((section) => ({
               id: section.id,
-              title: <SectionTitle record={record} section={section} />,
+              title: (
+                <span className="inline-flex flex-wrap items-center gap-x-3">
+                  <SectionTitle record={record} section={section} />
+                  {record.inherits?.includes(section.id) && <InheritedMarker from={inheritedFrom(section.id)} />}
+                </span>
+              ),
               content: (
                 <SectionFields
                   record={record}

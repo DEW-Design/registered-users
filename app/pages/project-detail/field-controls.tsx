@@ -23,6 +23,7 @@ import {
 } from "@/components/base/radio-buttons/radio-buttons";
 import { MultiSelect } from "@/components/base/select/multi-select";
 import { Select } from "@/components/base/select/select";
+import { CoordinateFields } from "@/app/pages/_shared/coordinate-fields";
 import type { Boundary } from "@/app/pages/_shared/map-search/geo";
 import { GeoExtentPicker } from "@/app/pages/project-registration/geo-extent-picker";
 import type { GeoExtentValue } from "@/app/pages/project-registration/types";
@@ -34,6 +35,7 @@ import {
   UNIT_FIELDS,
   formatDimensions,
   formatDuration,
+  formatVoucher,
   isBoundaryInside,
   joinList,
   nsxSpecies,
@@ -41,6 +43,7 @@ import {
   parseDuration,
   parseJsonList,
   parseNumberUnit,
+  parseVoucher,
   splitList,
   toJsonList,
   vocabTerm,
@@ -122,10 +125,21 @@ export function DimensionsControl({
   value: string;
   onChange: (v: string) => void;
 }) {
-  const d = parseDimensions(value);
+  // The value is only a pair once both numbers are in, so a half-typed pair is kept here: handing it back as "Not provided" cleared
+  // the box the person was typing in, and the field could never be filled.
+  const [d, setD] = useState(() => parseDimensions(value));
+  const [emitted, setEmitted] = useState(value);
+  if (value !== emitted) {
+    // The record's value changed from outside (sample content, a discard): start from it.
+    setEmitted(value);
+    setD(parseDimensions(value));
+  }
   const set = (p: Partial<typeof d>) => {
     const next = { ...d, ...p };
-    onChange(formatDimensions(next.a, next.b, next.unit));
+    const out = formatDimensions(next.a, next.b, next.unit);
+    setD(next);
+    setEmitted(out);
+    onChange(out);
   };
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -401,10 +415,7 @@ export function LocationField({
   return (
     <div className="flex flex-col gap-3">
       {pointOnly ? (
-        <div className="grid grid-cols-2 gap-4">
-          <InputNumber label="Latitude" placeholder="-34.93" step={0.00001} formatOptions={{ maximumFractionDigits: 6 }} minValue={-38} maxValue={-25} value={point ? point[0] : NaN} onChange={(lat) => setPoint(lat, point ? point[1] : 138)} />
-          <InputNumber label="Longitude" placeholder="138.60" step={0.00001} formatOptions={{ maximumFractionDigits: 6 }} minValue={129} maxValue={141} value={point ? point[1] : NaN} onChange={(lon) => setPoint(point ? point[0] : -34.93, lon)} />
-        </div>
+        <CoordinateFields lat={point ? point[0] : null} lon={point ? point[1] : null} onChange={(lat, lon) => lat != null && lon != null && setPoint(lat, lon)} />
       ) : (
       <GeoExtentPicker
         value={value}
@@ -583,17 +594,23 @@ export function NumberUnitControl({
   );
 }
 
-/** The NSX code and species: the species list, each with its common name. */
+/**
+ * The NSX code and species: the species list, each with its common name. `taxonomicType` ("Fauna", "Flora") narrows the list to that
+ * type's species. It is an occurrence's name (designer, 17 Nov 2026: the occurrence is named by its species, so the dropdown is the
+ * name's own field and the label is only for assistive technology).
+ */
 export function SpeciesControl({
   label,
   value,
   onChange,
   isInvalid,
+  taxonomicType,
 }: {
   label: string;
   value: string;
   onChange: (nsx: string) => void;
   isInvalid?: boolean;
+  taxonomicType?: string;
 }) {
   return (
     <SearchSelect
@@ -602,7 +619,7 @@ export function SpeciesControl({
       className="max-w-md"
       isInvalid={isInvalid}
       hint={isInvalid ? "Choose a species" : undefined}
-      items={NSX_SPECIES.map((s) => ({
+      items={NSX_SPECIES.filter((s) => !taxonomicType || s.kingdom === taxonomicType).map((s) => ({
         id: s.nsx,
         label: `${s.nsx} - ${s.scientific}`,
         supportingText: s.common,
@@ -613,46 +630,40 @@ export function SpeciesControl({
   );
 }
 
-/** The voucher number, with its institution's prefix in front: "SAM" [24518]. */
+/** The voucher number: a free-text prefix ("SAM") and the number ([24518]), stored as one value, "SAM 24518". */
 export function VoucherControl({
   label,
   value,
-  prefix,
   onChange,
 }: {
   label: string;
   value: string;
-  prefix?: string;
   onChange: (v: string) => void;
 }) {
+  const { prefix, number } = parseVoucher(value);
   return (
     <div className="flex flex-col gap-1.5">
-      <div className="flex items-center gap-2">
-        <span
-          className="flex h-10 min-w-12 items-center justify-center rounded-lg border border-secondary bg-secondary px-2.5 text-sm font-medium text-tertiary"
-          title={
-            prefix
-              ? "The institution's prefix"
-              : "Choose an institution to set the prefix"
-          }
-        >
-          {prefix ?? "Prefix"}
-        </span>
+      <div className="flex items-start gap-2">
+        <Input
+          aria-label={`${label} prefix`}
+          placeholder="Prefix"
+          className="w-24"
+          value={prefix}
+          onChange={(p) => onChange(formatVoucher(p, number))}
+        />
         <InputNumber
           aria-label={label}
           placeholder="Number"
           className="w-36"
           minValue={0}
-          value={numberOf(value)}
+          value={numberOf(number)}
           formatOptions={{ useGrouping: false }}
-          onChange={(n) => onChange(fromNumber(n))}
+          onChange={(n) => onChange(formatVoucher(prefix, Number.isNaN(n) ? "" : String(n)))}
         />
       </div>
-      <p className="text-xs text-tertiary">
-        {prefix
-          ? `Shown as "${prefix} ${EMPTY_VALUES.has(value) ? "number" : value}". The prefix comes from the institution.`
-          : "The prefix comes from the institution name, below."}
-      </p>
+      {prefix.trim() && (
+        <p className="text-xs text-tertiary">{`Shown as "${prefix.trim()} ${number || "number"}".`}</p>
+      )}
     </div>
   );
 }

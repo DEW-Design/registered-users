@@ -837,7 +837,7 @@ export function FieldNoteMenu({
 }
 
 /**
- * What a field means (field-help.ts), as a help icon after its name, only for a name that does not explain itself.
+ * What a field means (field-help.ts), as a help icon after its name.
  * Hidden until the row is pointed at (the caller passes its row's hover variant in `className`) or the icon is focused,
  * like the row's edit icon; always shown on a touch screen, which has no hover. The same in view and in edit.
  */

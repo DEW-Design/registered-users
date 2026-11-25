@@ -770,6 +770,61 @@ body {
   display: none !important;
 }
 
+/* The position beside a point's pin (app/pages/_shared/map-search/sa-map.tsx, `PointTool` and the point boundaries): a small label in the map's floating-panel edge, 12px medium as the design system's Badge,
+   figures that do not jitter as the pointer moves. No arrow: it is offset from the pin, not pointing at a thing of its own. */
+body .leaflet-tooltip.map-point-readout {
+  padding: 2px 8px;
+  border: 1px solid color-mix(in srgb, var(--color-gray-950) 12%, transparent);
+  border-radius: 8px;
+  background: var(--ui-bg-primary);
+  color: var(--ui-text-primary);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+  font-variant-numeric: tabular-nums;
+  box-shadow: var(--shadow-md);
+  pointer-events: none;
+}
+body .leaflet-tooltip.map-point-readout::before {
+  display: none;
+}
+
+/* The ring on a placed point (sa-map.tsx, `POINT_HALO_ICON`): the brand colour the shapes are drawn in, 40px across whatever the zoom. It lands once, scaling in with ease-out in 300ms, and not at all with reduced motion. */
+body .leaflet-marker-icon.map-point-halo-wrap {
+  border: 0;
+  background: none;
+  pointer-events: none;
+}
+.map-point-halo {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  border: 2px solid var(--color-brand-600);
+  background: color-mix(in srgb, var(--color-brand-600) 18%, transparent);
+}
+/* Pointed at (its entry in the areas list, or its pin): a heavier, wider ring, the way a shape's outline goes from 2px to 4px. It does not land again. */
+.map-point-halo.is-on {
+  inset: -6px;
+  border-width: 4px;
+  background: color-mix(in srgb, var(--color-brand-600) 28%, transparent);
+  animation: none !important;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .map-point-halo {
+    animation: map-point-halo-land 300ms cubic-bezier(0.23, 1, 0.32, 1) 1;
+  }
+}
+@keyframes map-point-halo-land {
+  from {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
 /* Leaflet sets its own text (the scale bar and the attribution) in Helvetica with its stock blue and
    grey, which showed up as a second typeface inside the product's Barlow. Every map now takes the
    surrounding font and the DEW text tokens (CONTRACTS 2.2, 2.1). The `body` prefix wins over

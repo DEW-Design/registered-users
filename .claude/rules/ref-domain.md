@@ -54,6 +54,35 @@ or drifting from it. Sources:
   `lib/registered-user-nav.ts`'s Observations/Projects items, and it's a project-level flag, not a
   per-record toggle - worth keeping in mind if/when that gets real UI.
 
+### Which event may hold which (the business's sheet, 18 Nov 2026)
+
+The business's sheet `Event_allowedchildrenevents.xlsx` is the rule for what an event may hold. It replaced "any event can have any event" (10 Nov 2026) and "a Site only ever sits directly under the project"
+(28 Sept 2026). The table is `ALLOWED_CHILD_EVENTS` in `app/pages/project-detail/record-rules.ts`, the one place it lives: `canContain` (every save, through `addRecord`) and `childOptions` (every Add menu, including the
+header's contextual "This project" list and a record's "Duplicate") both read it, so a menu and a save cannot disagree. Change a row there and nowhere else. Occurrences and observations are not in the sheet and are
+unchanged: under the project or any event; an observation inside an occurrence of its own type, and only one.
+
+| Event | May hold |
+| --- | --- |
+| Site | Site, Visit, Ramble, Transect, Block, Trap, Custom event, Opportune, Point intercept |
+| Visit * | Site, Ramble, Transect, Trap, Custom event, Opportune, Point intercept |
+| Ramble | Site, Visit, Transect, Trap (?), Custom event, Opportune, Point intercept |
+| Transect | Site, Visit, Ramble, Trap (?), Custom event, Opportune, Point intercept |
+| Block | Site, Visit, Ramble, Transect, Trap, Custom event, Opportune, Point intercept |
+| Trap | Site, Visit, Trap, Custom event, Opportune, Point intercept |
+| Custom event | every event type above |
+| Opportune | Visit, Ramble, Transect, Block, Trap, Custom event, Opportune, Point intercept |
+| Point intercept * | Visit, Custom event |
+
+- **`*` = must have a parent event.** A Visit and a Point intercept are never offered directly under the project; every other event type is.
+- **The sheet's words.** "Trap Array" is the app's **Trap** (its frame says "Trap array name"); "Custom" is **Custom event**. The sheet has no **Quadrat**: it follows **Transect** on both sides (the designer's
+  choice, 18 Nov 2026), so it is offered wherever a Transect is and holds what a Transect holds, and one line (`FOLLOWS`) changes that if the business gives it a row.
+- **Open, for the business (0.4).** (1) Two cells carry a "?" (a Trap inside a Ramble and inside a Transect); they are allowed as listed until confirmed. (2) A Site inside another event (a Site in a Visit, in a Block, in
+  another Site) is what the sheet says and is built; it overturns the earlier "a Site is a top-level event" and is worth confirming with the business, since the ingestion sandbox's tree still starts at a Site
+  (`resolveNaturalKeyRelationships`, `config/data-model-schema.ts`) and has not been moved to this table.
+- **A saved event can change type (19 Nov 2026).** "Change type" in an event's "..." menu offers the types that this table allows in the event's place and that may hold the events already inside it (`eventTypeChoices`); it keeps the ID, place, children and every value the new type also has (`retypeEvent`), and names what the new type has no field for before removing it. The header shows the type as "Type" before Parent.
+- **Where a person adds something, they see what it goes under.** A record being added shows the same header as a record being viewed: the kind and ID, its name ("New visit"), and **Parent** with the parent's ID and name
+  (the project's ID and short title for a record directly under the project), in `RecordHeaderMeta` (`isNew`, no date: the date is the field being filled in). This is in the full view and the side panel.
+
 ### Data model ingestion research (`/pages/data-ingestion-stress-test`, `/config/data-model`)
 
 A real, working CSV/JSON/XLS/XLSX ingestion stress-test tool (`/pages/data-ingestion-stress-test`) and

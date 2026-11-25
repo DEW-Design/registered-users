@@ -32,6 +32,7 @@ import { RESTRICTION_TYPE_META } from "@/app/pages/project-registration/step-3-p
 import { emptyContact, emptyProjectManager, isGeoExtentComplete, type ContactPerson, type ProjectDetailsState, type ProjectManager, type RestrictionTypeKey } from "@/app/pages/project-registration/types";
 import { useSampleContent } from "@/app/_prototype-tools/sample-content";
 import { EditDrawer } from "./edit-drawer";
+import { flashSavedCard } from "./flash";
 import { PROJECT_STATUSES, useEditStore, type ProjectState, type ProjectStatus } from "./edit-store";
 import { sampleProjectCard } from "./project-edit-sample";
 
@@ -356,6 +357,7 @@ function CardDrawer({ id, onClose, onOpenNext }: { id: ProjectCardId; onClose: (
     const added = RESTRICTION_TYPE_META.map((m) => m.key).filter((k) => draft.restrictions.enabledTypes.has(k) && !project.restrictions.enabledTypes.has(k) && !isSectionValid(k, draft));
     onClose();
     if (added.length > 0) onOpenNext(added[0]);
+    else flashSavedCard(`card-${id}`);
   };
 
   return (
@@ -465,6 +467,7 @@ export function InlineCardEditor({
     const added = RESTRICTION_TYPE_META.map((m) => m.key).filter((k) => draft.restrictions.enabledTypes.has(k) && !project.restrictions.enabledTypes.has(k) && !isSectionValid(k, draft));
     onClose();
     if (added.length > 0) onOpenNext(added[0]);
+    else flashSavedCard(`card-${id}`);
   };
 
   // The card's own corner is 12px with a 1px border, so the bar's is 11px (concentric, CONTRACTS 2.13).

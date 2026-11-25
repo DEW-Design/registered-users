@@ -16,12 +16,13 @@ import type { SAMapMarker } from "@/app/pages/_shared/map-search/sa-map";
 import type { DrawLayerHandle, DrawLayerState } from "@/components/custom/draw-map/draw-layer";
 import { MapZoomButtons } from "@/app/pages/_shared/map-search/map-zoom-buttons";
 import type { Map as LeafletMap } from "leaflet";
-import { ArrowNarrowLeft, ArrowNarrowRight, Circle, Download01, Feather, File07, FileDownload01, FileLock01, Folder, Map01, Map02, MarkerPin02, Pentagon, Plus, Printer, RefreshCcw01, SearchLg, Upload01, UserPlus01, XClose, Table as TableIcon } from "@untitledui/icons";
+import { ArrowNarrowLeft, ArrowNarrowRight, Circle, Download01, Feather, File07, FileDownload01, FileLock01, Folder, Map01, Map02, Pentagon, Plus, Printer, RefreshCcw01, SearchLg, Target04, Upload01, UserPlus01, XClose, Table as TableIcon } from "@untitledui/icons";
 import { Button } from "@/components/base/buttons/button";
 import { Dropdown } from "@/components/base/dropdown/dropdown";
 import { Badge } from "@/components/base/badges/badges";
 import { Input } from "@/components/base/input/input";
 import { InputNumber } from "@/components/base/input/input-number";
+import { CoordinateFields } from "@/app/pages/_shared/coordinate-fields";
 import { InputFile } from "@/components/base/input/input-file";
 import { MultiSelect } from "@/components/base/select/multi-select";
 import { PageBanner } from "@/app/pages/_shared/page-banner";
@@ -32,7 +33,7 @@ import { SignUpPromptModal } from "@/app/pages/_shared/guest-action-gate";
 import { PrimaryRail } from "@/app/pages/_shared/primary-rail";
 import { sectionIcons } from "@/app/pages/_shared/nav-icons";
 import { AppHeader } from "@/app/pages/_shared/app-header";
-import { SA_NATIONAL_PARKS, WHOLE_STATE_SOURCE, isPointInAnyBoundary, isRecordInAnyBoundary, blockCentre, generalisedBlock, wholeStateBoundary, type Boundary } from "@/app/pages/_shared/map-search/geo";
+import { SA_NATIONAL_PARKS, WHOLE_STATE_SOURCE, boundaryName, isPointBoundary, isPointInAnyBoundary, isRecordInAnyBoundary, blockCentre, generalisedBlock, wholeStateBoundary, type Boundary } from "@/app/pages/_shared/map-search/geo";
 import { parseShapefileUpload, type ShapefileLayer } from "@/app/pages/_shared/map-search/shapefile";
 import {
   searchEvents,
@@ -330,10 +331,6 @@ function ObservationsSearch({ variant }: { variant: ExploreVariant }) {
   const [lat, setLat] = useState<number | null>(null);
   const [lon, setLon] = useState<number | null>(null);
   const [coordRadius, setCoordRadius] = useState(25);
-  // Bumped after every "Add point" - forces the (uncontrolled) Latitude/Longitude fields to remount
-  // and clear, so the next point can be entered without the previous one lingering. The radius
-  // field is left alone so it carries over for the next point.
-  const [coordResetKey, setCoordResetKey] = useState(0);
 
   const [selectedParkIds, setSelectedParkIds] = useState<Selection>(() => restored?.selectedParkIds ?? new Set());
   const [parkRadius, setParkRadius] = useState(restored?.parkRadius ?? 15);
@@ -365,30 +362,26 @@ function ObservationsSearch({ variant }: { variant: ExploreVariant }) {
     document.addEventListener("pointerdown", onPointerDown);
     return () => document.removeEventListener("pointerdown", onPointerDown);
   }, [addingMethod]);
-  // The areas are layers: each can be hidden, renamed and resized on its own. Names are given when
-  // an area is added ("Circle 1"), so removing one never renumbers the others.
+  // The areas are layers, each named when it is added (`boundaryName`: what it is and where), so removing one never renames the others.
   const [layerNames, setLayerNames] = useState<Record<string, string>>(() => restored?.layerNames ?? {});
   const [hoveredLayerId, setHoveredLayerId] = useState<string | null>(null);
   const [fitRequest, setFitRequest] = useState<{ key: number; boundaries: Boundary[] } | undefined>();
+  // Kept for the saved search (its store still carries the old numbering of areas named "Circle 1"); nothing numbers an area now.
   const layerCounters = useRef<Record<string, number>>(restored ? { ...restored.layerCounters } : {});
-  const nextLayerName = (prefix: string) => {
-    layerCounters.current[prefix] = (layerCounters.current[prefix] ?? 0) + 1;
-    return `${prefix} ${layerCounters.current[prefix]}`;
-  };
 
   const addManualBoundary = (boundary: Boundary, name?: string) => {
-    setLayerNames((prev) => ({ ...prev, [boundary.id]: name ?? nextLayerName(boundary.kind === "circle" ? "Circle" : "Polygon") }));
+    // An area is named for what it is (where a point is, how big a circle is and where, how many points a polygon has), not a number: the chip is what tells a person what they have selected (designer, 17 Nov 2026: "Provide context as what is selected").
+    setLayerNames((prev) => ({ ...prev, [boundary.id]: name ?? boundaryName(boundary) }));
     setManualBoundaries((prev) => [...prev, boundary]);
     setAddingMethod((current) => (current === "draw" ? null : current));
   };
 
   const applyCoordinates = () => {
     if (lat == null || lon == null) return;
-    addManualBoundary({ id: `coord-${Date.now()}`, kind: "circle", center: [lat, lon], radiusKm: coordRadius }, nextLayerName("Point"));
+    addManualBoundary({ id: `coord-${Date.now()}`, kind: "circle", center: [lat, lon], radiusKm: coordRadius });
     setAddingMethod(null);
     setLat(null);
     setLon(null);
-    setCoordResetKey((k) => k + 1);
   };
 
   const parkBoundaries = useMemo<Boundary[]>(() => {
@@ -495,8 +488,8 @@ function ObservationsSearch({ variant }: { variant: ExploreVariant }) {
       const isRegion = b.source === WHOLE_STATE_SOURCE;
       out.push({
         id: b.id,
-        name: layerNames[b.id] ?? (isRegion ? "All of South Australia" : b.kind === "circle" ? "Circle" : "Polygon"),
-        kind: b.id.startsWith("coord-") ? "point" : b.kind === "circle" ? "circle" : "polygon",
+        name: layerNames[b.id] ?? (isRegion ? "All of South Australia" : boundaryName(b)),
+        kind: isPointBoundary(b) ? "point" : b.kind === "circle" ? "circle" : "polygon",
         boundaries: [b],
       });
     }
@@ -769,18 +762,17 @@ function ObservationsSearch({ variant }: { variant: ExploreVariant }) {
   );
 
   // The three add-area forms are one pattern: the choice and the radius in one row (the choice grows, the radius is a fixed 7rem), small fields (36px, 14px, the size of the search field below and of the toolbar's
-  // controls, not the medium form size that made an open form outweigh the card around it), a label above each so the row lines up. The panel's title (14/600) is the form's one heading.
+  // controls, not the medium form size that made an open form outweigh the card around it), a label above each so the row lines up. The coordinates form is the one exception: its radio and fields (`CoordinateFields`) come first, then the radius beside Add point. The panel's title (14/600) is the form's one heading.
   const radiusClass = "w-28 shrink-0";
   const coordinatesBody = (
     <>
-      <div className="grid grid-cols-[1fr_1fr_7rem] items-start gap-3">
-        <InputNumber key={`lat-${coordResetKey}`} size="sm" label="Latitude" placeholder="-34.93" step={0.01} minValue={-38} maxValue={-25} onChange={setLat} />
-        <InputNumber key={`lon-${coordResetKey}`} size="sm" label="Longitude" placeholder="138.60" step={0.01} minValue={129} maxValue={141} onChange={setLon} />
-        <InputNumber size="sm" label="Radius (km)" defaultValue={25} minValue={5} maxValue={300} step={5} onChange={setCoordRadius} />
+      <CoordinateFields size="sm" lat={lat} lon={lon} onChange={(la, lo) => { setLat(la); setLon(lo); }} />
+      <div className="flex items-end gap-3">
+        <InputNumber size="sm" label="Radius (km)" defaultValue={25} minValue={5} maxValue={300} step={5} onChange={setCoordRadius} className={radiusClass} />
+        <Button color="secondary" size="sm" iconLeading={Plus} isDisabled={lat == null || lon == null} onPress={applyCoordinates}>
+          Add point
+        </Button>
       </div>
-      <Button color="secondary" size="sm" iconLeading={Plus} isDisabled={lat == null || lon == null} onPress={applyCoordinates}>
-        Add point
-      </Button>
     </>
   );
 
@@ -1122,7 +1114,8 @@ function ObservationsSearch({ variant }: { variant: ExploreVariant }) {
           <Dropdown.Item id="circle" label="Add a circle" icon={Circle} />
           <Dropdown.Item id="polygon" label="Add a polygon" icon={Pentagon} />
           <Dropdown.Separator />
-          <Dropdown.Item id="coordinates" label="Enter coordinates" icon={MarkerPin02} />
+          {/* Target04 is the coordinates icon everywhere else (the Coordinates tab of the extent picker and the DLA map); MarkerPin02 is a point, and Mark a point now takes it. */}
+          <Dropdown.Item id="coordinates" label="Enter coordinates" icon={Target04} />
           <Dropdown.Item id="location" label="Choose national parks" icon={Map02} />
           <Dropdown.Item id="shapefile" label="Upload a shapefile" icon={Upload01} />
         </Dropdown.Menu>
@@ -1236,7 +1229,7 @@ function ObservationsSearch({ variant }: { variant: ExploreVariant }) {
         boundaries={mapBoundaries}
         onBoundaryAdd={addManualBoundary}
         activeDrawTool={activeDrawTool}
-        onDrawToolChange={setActiveDrawTool}
+        onDrawToolChange={(tool) => setActiveDrawTool(tool === "point" ? null : tool)}
         drawRef={drawRef}
         onDrawState={setDrawState}
         fitPaddingTopLeft={padTopLeft}

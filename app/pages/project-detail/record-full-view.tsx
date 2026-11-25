@@ -37,13 +37,14 @@ import { SpeciesPhoto } from "@/app/pages/_shared/map-search/species-photo";
 import { cx } from "@/utils/cx";
 import { useSampleContent } from "@/app/_prototype-tools/sample-content";
 import { useEditStore } from "./edit-store";
-import { fromDraft, localId, missingFor, toDraft, type Draft } from "./record-form";
+import { fromDraft, localId, missingFor, takeSectionIntoDraft, toDraft, type Draft } from "./record-form";
+import { InheritedBody, InheritedMarker, UseParentButton } from "./inherited-section";
 import { sampleRecord, type RecordSample } from "./record-sample";
 import { RecordIcon, recordIcon } from "./record-inspector";
 import { RecordHeaderMeta } from "./record-header-meta";
 import { typeLabel } from "@/app/pages/_shared/record-shapes";
 import { RecordQuickActions } from "./record-quick-actions";
-import { type ChildOption } from "./record-rules";
+import { inheritableSections, inheritanceSource, resolveInherited, withInherits, type ChildOption } from "./record-rules";
 import {
   formatDate,
   type MetaRow,
@@ -86,6 +87,7 @@ import { kindShape } from "@/app/pages/_shared/record-shapes";
 import { RecordMap } from "./record-map";
 import { hasDateField } from "./field-schema";
 import { flashElement } from "./flash";
+import { changedFieldKeys, publishSavedChanges, useShowSavedChanges } from "./record-changes";
 
 function SideCard({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -268,6 +270,8 @@ interface Session {
   draft: Draft;
   notes: Record<string, FieldNotes>;
   hidden: Set<string>;
+  /** The sections that are the parent event's, not entered here (`SurveyRecord.inherits`): shown shaded, with an Override. */
+  inheriting: Set<string>;
   dirty: boolean;
   attempted: boolean;
 }
@@ -283,6 +287,7 @@ export function RecordFullView({
   onCreated,
   onDiscardNew,
   variant = "full",
+  foldedInEdit,
 }: {
   /** "panel": the same record and edit, laid out to fit the details panel beside the list (one column, no right-hand
    *  column, no full-screen control), so Edit happens where it was started (designer, 23 Oct 2026). */
@@ -300,11 +305,13 @@ export function RecordFullView({
   onCreated?: (record: SurveyRecord) => void;
   /** Cancelling a new record. */
   onDiscardNew?: () => void;
+  /** Cards that start folded while the record is edited (record-rules.ts `occurrenceStart`). A folded card opens and closes like a card being read, and keeps what it holds. */
+  foldedInEdit?: string[];
 }) {
   const store = useEditStore();
   const panel = variant === "panel";
   const notes = useFieldNotes();
-  const savedHidden = useHiddenFields(record.id);
+  const savedHidden = useHiddenFields(record.id, record);
   // A section whose fields are all empty is left out of the view (it still shows in edit mode).
   const hasContent = (section: MetaSection) =>
     sectionHasContent(section, (k) => hasNotes((notes[record.id] ?? {})[k]));
@@ -330,6 +337,8 @@ export function RecordFullView({
       draft: toDraft(record, store.artefactsFor(record.id)),
       notes: { ...(notes[record.id] ?? {}) },
       hidden,
+      // A record that takes sections from its parent event starts with those inherited; pressing the edit icon of one is choosing to override it.
+      inheriting: new Set((record.inherits ?? []).filter((id) => id !== target.sectionId)),
       dirty: !!added,
       attempted: false,
     };
@@ -381,8 +390,11 @@ export function RecordFullView({
     };
   }, [panel]);
   // Cards are accordions too: all open to start; a card in edit mode always stays open.
-  const [closedCards, setClosedCards] = useState<Set<string>>(new Set());
+  const [closedCards, setClosedCards] = useState<Set<string>>(() => new Set(foldedInEdit ?? []));
   const editing = session !== null;
+
+  // After a Save: open the cards the change is in, then scroll to the first changed field and hold the highlight on each.
+  useShowSavedChanges(record.id, rootRef, (cards) => setClosedCards((c) => new Set([...c].filter((id) => !cards.includes(id)))), !editing);
 
   useEffect(() => {
     onEditingChange?.(editing);
@@ -446,6 +458,19 @@ export function RecordFullView({
     }, 60);
   };
   const missing = session ? missingFor(session.draft) : [];
+  // Where an inheriting record's sections come from, named as a person names it ("Transect TR00501"), and which of its sections it can take at all.
+  const inheritable = record.inherits !== undefined ? inheritableSections(record, record.sections, store.recordById) : [];
+  const sourceName = (sectionId: string) => {
+    const src = inheritanceSource(sectionId, record, store.recordById);
+    return src ? `${src.type} ${src.code}` : "";
+  };
+  const override = (sectionId: string) =>
+    setSession((s) => (s ? { ...s, inheriting: new Set([...s.inheriting].filter((id) => id !== sectionId)), dirty: true } : s));
+  const takeFromParent = (sectionId: string) =>
+    setSession((s) => {
+      const src = inheritanceSource(sectionId, record, store.recordById);
+      return s && src ? { ...s, draft: takeSectionIntoDraft(s.draft, src, sectionId), inheriting: new Set([...s.inheriting, sectionId]), dirty: true } : s;
+    });
 
   const save = () => {
     if (!session) return;
@@ -456,15 +481,25 @@ export function RecordFullView({
         ?.scrollIntoView({ block: "start", behavior: "smooth" });
       return;
     }
-    const next = fromDraft(session.draft, store.records);
+    // What is stored: the sections still inherited are left empty and named in `inherits`; the event holds them.
+    const entered = fromDraft(session.draft, store.records);
+    const next = record.inherits !== undefined ? withInherits(entered, [...session.inheriting]) : entered;
+    // What the person will read, for the highlight and the hidden concepts.
+    const shown = resolveInherited(next, store.recordById);
     if (isNew) store.addRecord(next);
     else store.saveRecord(next);
+    if (!isNew) {
+      const keys = changedFieldKeys(record, shown);
+      publishSavedChanges(record.id, keys);
+    }
     fieldNotesActions.setRecordNotes(record.id, session.notes);
     // Only a choice to hide a field with a value is kept: an empty field is left out anyway.
-    const empty = emptyFieldKeys(next);
+    const empty = emptyFieldKeys(shown);
     setHiddenFields(
       record.id,
       new Set([...session.hidden].filter((k) => !empty.has(k))),
+      shown,
+      session.hidden,
     );
     const title = allEditing
       ? next.name
@@ -572,8 +607,12 @@ export function RecordFullView({
             <div className="flex min-w-0 flex-col gap-1">
               {/* The kind's shape at the size the tree draws it, not a large tile (designer, 23 Oct 2026). */}
               <p className="flex items-center gap-1 text-xs font-semibold tracking-wide text-quaternary uppercase">
-                <RecordIcon record={record} className="size-4" />
-                {typeLabel(record)}
+                <RecordIcon record={record} className="size-4 shrink-0" />
+                {/* In the side panel the ID follows the type, as it does when the record is only viewed (there is no summary card to hold it). */}
+                <span>
+                  {typeLabel(record)}
+                  {panel && <span className="font-normal normal-case tracking-normal">, {record.code}</span>}
+                </span>
               </p>
               <h1 className={cx("font-semibold text-balance text-primary", panel ? "text-xl" : "text-2xl")}>
                 {isNew
@@ -585,11 +624,9 @@ export function RecordFullView({
                   {record.scientificName}
                 </p>
               )}
-              {!isNew && (
-                <div className="pt-1">
-                  <RecordHeaderMeta record={record} />
-                </div>
-              )}
+              <div className="pt-1">
+                <RecordHeaderMeta record={record} isNew={isNew} />
+              </div>
             </div>
           </div>
 
@@ -654,7 +691,12 @@ export function RecordFullView({
                 : sectionHidden || !hasContent(section)
             )
               return null;
-            const isOpen = isEditing || !closedCards.has(section.id);
+            // The values are the parent event's, not entered here: while editing, until Override; when read, whatever the record holds.
+            const inherited = isEditing && session ? session.inheriting.has(section.id) : !!record.inherits?.includes(section.id);
+            const canUseParent = isEditing && inheritable.includes(section.id) && !inherited;
+            // A card in edit mode is open, except one the caller folded and one that is inherited: those open and close like a card being read.
+            const folded = isEditing && (!!foldedInEdit?.includes(section.id) || inherited);
+            const isOpen = (isEditing && !folded) || !closedCards.has(section.id);
             const toggle = () =>
               setClosedCards((c) => {
                 const next = new Set(c);
@@ -669,7 +711,7 @@ export function RecordFullView({
                 aria-label={section.title}
                 className={cx(
                   "group/section flex scroll-mt-20 flex-col gap-3 rounded-xl border bg-primary p-5 transition-shadow",
-                  isEditing
+                  isEditing && !inherited
                     ? "border-[var(--color-brand-500)] ring-4 ring-[var(--color-brand-50)]"
                     : "border-secondary",
                 )}
@@ -679,11 +721,12 @@ export function RecordFullView({
                     <button
                       type="button"
                       aria-expanded={isOpen}
-                      disabled={isEditing}
+                      disabled={isEditing && !folded}
                       onClick={toggle}
-                      className="-my-1 -ml-1 flex min-w-0 flex-1 cursor-pointer items-center rounded-md px-1 py-1 text-left outline-focus-ring focus-visible:outline-2 disabled:cursor-default"
+                      className="-my-1 -ml-1 flex min-w-0 flex-1 cursor-pointer flex-wrap items-center gap-x-3 rounded-md px-1 py-1 text-left outline-focus-ring focus-visible:outline-2 disabled:cursor-default"
                     >
                       <SectionTitle record={record} section={section} />
+                      {inherited && <InheritedMarker from={sourceName(section.id)} />}
                     </button>
                     {sectionHidden && (
                       <span className="inline-flex items-center gap-1 text-xs font-normal text-tertiary">
@@ -694,7 +737,9 @@ export function RecordFullView({
                   </h2>
                   <div className="flex shrink-0 items-center gap-1">
                     {isEditing && session ? (
+                      inherited ? null : (
                       <>
+                        {canUseParent && <UseParentButton from={sourceName(section.id)} onPress={() => takeFromParent(section.id)} />}
                         <SectionFieldsMenu
                           section={section}
                           hidden={session.hidden}
@@ -706,6 +751,7 @@ export function RecordFullView({
                           onPress={() => removeSection(section.id)}
                         />
                       </>
+                      )
                     ) : (
                       store.canEdit && (
                         <SectionEditIcon
@@ -714,7 +760,7 @@ export function RecordFullView({
                         />
                       )
                     )}
-                    {!isEditing && (
+                    {(!isEditing || folded) && (
                       <button
                         type="button"
                         tabIndex={-1}
@@ -750,6 +796,14 @@ export function RecordFullView({
                           />
                         </div>
                       )}
+                    {inherited ? (
+                      <InheritedBody
+                        record={record}
+                        section={session.draft.record.sections.find((x) => x.id === section.id) ?? section}
+                        hidden={session.hidden}
+                        onOverride={() => override(section.id)}
+                      />
+                    ) : (
                     <CardEditor
                       key={sampleKey}
                       section={
@@ -770,6 +824,7 @@ export function RecordFullView({
                         focusField: session.focusField,
                       }}
                     />
+                    )}
                   </>
                 ) : (
                   <SectionFields

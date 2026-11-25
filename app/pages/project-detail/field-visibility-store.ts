@@ -21,10 +21,12 @@ import { LANDSCAPE_SCORE_LABEL } from "./landscape";
 interface VisibilityState {
   /** recordId -> hidden field keys (`${sectionId}:${label}`). */
   hidden: Record<string, string[]>;
+  /** recordId -> the concepts a kind of record starts without (`startsWithout`) that this record was deliberately given. */
+  shown: Record<string, string[]>;
 }
 
 const useVisibilityStore = create<VisibilityState>()(
-  persist(() => ({ hidden: {} }), {
+  persist(() => ({ hidden: {}, shown: {} }), {
     name: "biodata-project-field-visibility",
     storage: createJSONStorage(browserStorage),
     skipHydration: true,
@@ -42,6 +44,21 @@ export function sectionRemovable(section: MetaSection) {
 export const ALWAYS_SHOWN = /^(?!Legacy\b).*(^|\s)ID$/;
 /** Fields a record needs (its name, start date, species): always shown and edited, never hidden. */
 export const REQUIRED_FIELD = /( name|^Start date|^NSX code & species)$/;
+
+/**
+ * What a kind of record starts out with (designer, 18 Nov 2026). A Transect's location is its sample site dimensions, not the
+ * IBRA region and subregion, so it opens with the dimensions on the form (an empty concept is otherwise left out until it is
+ * added) and the IBRA concepts off. It holds for every Transect, the ones already saved too; a person's own choice, ticking
+ * the IBRA concepts or unticking the dimensions, stays.
+ */
+const KIND_DEFAULTS: Record<string, { startsWithout: string[]; startsWith: string[] }> = {
+  Transect: {
+    startsWithout: ["location:IBRA region", "location:IBRA subregion"],
+    startsWith: ["location:Sample site dimensions"],
+  },
+};
+const defaultsFor = (record: Pick<SurveyRecord, "kind" | "type"> | undefined) =>
+  record?.kind === "event" ? KIND_DEFAULTS[record.type] : undefined;
 
 export interface FieldEntry {
   key: string;
@@ -81,10 +98,12 @@ export function sectionFieldEntries(section: MetaSection): FieldEntry[] {
  */
 export function emptyFieldKeys(record: SurveyRecord): Set<string> {
   const out = new Set<string>();
+  const startsWith = new Set(defaultsFor(record)?.startsWith);
   for (const s of record.sections) {
     for (const r of s.rows ?? []) {
       if (r.type === "measurements" || r.label === "Custom properties")
         continue;
+      if (startsWith.has(`${s.id}:${r.label}`)) continue;
       if (!rowHasValue(r, s.rows)) out.add(`${s.id}:${r.label}`);
     }
     if (s.overstorey) {
@@ -131,17 +150,36 @@ export function recordFieldEntries(record: SurveyRecord) {
   }));
 }
 
-export function useHiddenFields(recordId: string | undefined): Set<string> {
+/** The record's hidden concepts: what it was saved with, and what its kind starts without unless this record was given it. */
+export function useHiddenFields(recordId: string | undefined, record?: Pick<SurveyRecord, "kind" | "type">): Set<string> {
   useRehydrate(useVisibilityStore);
   const list = useVisibilityStore((s) =>
     recordId ? s.hidden[recordId] : undefined,
   );
-  return new Set(list ?? []);
+  const given = useVisibilityStore((s) =>
+    recordId ? s.shown?.[recordId] : undefined,
+  );
+  const out = new Set(list ?? []);
+  for (const k of defaultsFor(record)?.startsWithout ?? []) if (!given?.includes(k)) out.add(k);
+  return out;
 }
 
-export function setHiddenFields(recordId: string, keys: Iterable<string>) {
+/**
+ * Saves a record's hidden concepts. `decided` is what the person chose on the form before the empty ones were dropped from `keys`
+ * (an empty concept is left out anyway), so a concept its kind starts without that they ticked is remembered as given.
+ */
+export function setHiddenFields(
+  recordId: string,
+  keys: Iterable<string>,
+  record?: Pick<SurveyRecord, "kind" | "type">,
+  decided?: Set<string>,
+) {
+  const kept = [...keys];
+  const choice = decided ?? new Set(kept);
+  const given = (defaultsFor(record)?.startsWithout ?? []).filter((k) => !choice.has(k));
   useVisibilityStore.setState((s) => ({
-    hidden: { ...s.hidden, [recordId]: [...keys] },
+    hidden: { ...s.hidden, [recordId]: kept },
+    shown: { ...s.shown, [recordId]: given },
   }));
 }
 

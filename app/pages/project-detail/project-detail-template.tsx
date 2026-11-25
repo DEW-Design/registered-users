@@ -443,6 +443,22 @@ function ProjectDetail({ basePath, notice }: ProjectDetailTemplateProps) {
 
                   {notice && <div className="px-6 pt-4">{notice}</div>}
 
+                  {/* A Completed project still takes datasets (the designer, 20 Nov 2026: "Project completed, but open for dataset uploads"): said once, under the card, to a role that can upload (4.6 item 3, 3.15). */}
+                  {project.status === "Completed" && canEdit && (
+                    <div className="px-6 pt-4">
+                      <AlertFullWidth
+                        contained
+                        inline
+                        color="gray"
+                        actionType="link"
+                        title="Project completed,"
+                        description="but still open for dataset uploads"
+                        confirmLabel="Upload dataset"
+                        onConfirm={() => router.push(uploadHref)}
+                      />
+                    </div>
+                  )}
+
                   <ContentTabs
                     selectedKey={detailTab}
                     onSelectionChange={(key) => setDetailTab(key as DetailTab)}
@@ -482,7 +498,7 @@ function ProjectDetail({ basePath, notice }: ProjectDetailTemplateProps) {
                     <TabPanel id="project" className="pt-6">
                       {/* One sheet, as the designer's frame (30 Oct 2026): the Overview open, "Data collection and methodology" and "Privacy and restrictions" closed under their headings, each opening in place.
                           The header already shows the status and the dates, so the details card does not repeat them (4.3). */}
-                      <ProjectTab ref={overviewRef} onEditingChange={setCardEditing} layout="v3" sheet repeatHeaderFacts={false} disclosure />
+                      <ProjectTab ref={overviewRef} onEditingChange={setCardEditing} layout="v3" sheet repeatHeaderFacts={false} disclosure summary />
                     </TabPanel>
 
                     <TabPanel id="records" className="flex flex-col gap-4 pt-4">

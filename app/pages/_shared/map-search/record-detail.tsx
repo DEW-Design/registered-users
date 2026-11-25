@@ -242,13 +242,28 @@ function RestrictedLocationDetails({ blockKm }: { blockKm: number }) {
  *  coordinate table (the same format everywhere: Projects, Events, Occurrences, Observations),
  *  then the remaining location fields. A restricted (Level 2) record shows a block and no
  *  coordinates instead (`restrictedKm`). */
+/** The coordinates on the left and the map on the right (the designer, 20 Nov 2026: "coordinates on the left and map on the right", as the project page's record panel has them); where the
+ *  section is narrow the map goes above, as it did. */
+function LocationDetailsAndMap({ details, map }: { details: ReactNode; map: ReactNode }) {
+  return (
+    <div className="@container">
+      <div className="grid gap-4 @3xl:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]">
+        <div className="min-w-0">{details}</div>
+        <div className="order-first min-w-0 @3xl:order-last">{map}</div>
+      </div>
+    </div>
+  );
+}
+
 function LocationInformationSection({ lat, lon, restrictedKm, group }: { lat: number; lon: number; restrictedKm?: number | null; group?: SpeciesGroup }) {
   if (restrictedKm) {
     const block = generalisedBlock(lat, lon, restrictedKm);
     return (
       <div className="flex flex-col gap-4">
-        <RestrictedLocationMapPreview block={block} blockKm={restrictedKm} color={group ? LIFE_FORM_COLOR[lifeFormOf(group)] : undefined} />
-        <Field label="Location Details" value={<RestrictedLocationDetails blockKm={restrictedKm} />} />
+        <LocationDetailsAndMap
+          details={<Field label="Location Details" value={<RestrictedLocationDetails blockKm={restrictedKm} />} />}
+          map={<RestrictedLocationMapPreview block={block} blockKm={restrictedKm} color={group ? LIFE_FORM_COLOR[lifeFormOf(group)] : undefined} />}
+        />
         <PlaceholderFields
           labels={["IBRA Region", "IBRA Sub Region", "Location Method", "Datum", "Reliability", "Sample Site Dimensions", "Location Comment"]}
         />
@@ -257,8 +272,7 @@ function LocationInformationSection({ lat, lon, restrictedKm, group }: { lat: nu
   }
   return (
     <div className="flex flex-col gap-4">
-      <LocationMapPreview lat={lat} lon={lon} />
-      <Field label="Location Details" value={<LocationDetailsTable lat={lat} lon={lon} />} />
+      <LocationDetailsAndMap details={<Field label="Location Details" value={<LocationDetailsTable lat={lat} lon={lon} />} />} map={<LocationMapPreview lat={lat} lon={lon} />} />
       <PlaceholderFields
         labels={["IBRA Region", "IBRA Sub Region", "Location Method", "Datum", "Reliability", "Sample Site Dimensions", "Location Comment"]}
       />

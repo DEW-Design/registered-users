@@ -18,7 +18,7 @@ import { Input } from "@/components/base/input/input";
 import { Select } from "@/components/base/select/select";
 import { TextArea } from "@/components/base/textarea/textarea";
 import { InputDatePicker } from "@/components/custom/date-picker/input-date-picker";
-import { EMPTY, SELECTS, localId, type Draft } from "./record-form";
+import { EMPTY, SELECTS, localId, speciesOf, type Draft } from "./record-form";
 import {
   boundaryCentre,
   derivedFrom,
@@ -50,7 +50,6 @@ import {
   type AllowedArea,
 } from "./field-controls";
 import {
-  INSTITUTION_PREFIX,
   MEASUREMENT_TYPES,
   MEASUREMENT_UNITS,
   MULTI_OPTIONS,
@@ -238,7 +237,12 @@ export function CardEditor({
             ? {
                 ...s,
                 rows: s.rows?.map((r) =>
-                  r.label === label ? { ...r, value } : r,
+                  r.label === label
+                    ? { ...r, value }
+                    : // A species of another taxonomic type is cleared: the dropdown below only lists the new type's.
+                      label === "Taxonomic type" && r.type === "species" && nsxSpecies(r.value) && nsxSpecies(r.value)?.kingdom !== value
+                      ? { ...r, value: "" }
+                      : r,
                 ),
               }
             : s,
@@ -246,13 +250,13 @@ export function CardEditor({
       },
     });
 
-  // A name is not asked for: left blank, the record is named by its type and a sequence number when it is saved (record-rules.ts `autoName`),
+  // A name is not asked for: left blank, the record is named by its species (an occurrence) or its type and ID when it is saved (record-rules.ts `autoName`),
   // and the field shows that name as its placeholder so the person can see what they will get (business comment, 10 Nov 2026).
   const nameControl = (label: string) => (
     <Input
       aria-label={label}
       value={draft.name}
-      placeholder={autoName(record, store.records)}
+      placeholder={autoName({ ...record, scientificName: speciesOf(draft.record.sections) ?? (draft.scientificName.trim() || record.scientificName) })}
       onChange={(name) => patch({ name })}
     />
   );
@@ -268,47 +272,58 @@ export function CardEditor({
     />
   );
 
+  // Choosing a species sets the occurrence's scientific name and its taxonomic type.
+  const chooseSpecies = (label: string, nsx: string) => {
+    const sp = nsxSpecies(nsx);
+    patch({
+      scientificName: sp?.scientific ?? draft.scientificName,
+      record: {
+        ...record,
+        sections: record.sections.map((s) =>
+          s.id === section.id
+            ? {
+                ...s,
+                rows: s.rows?.map((r) =>
+                  r.label === label
+                    ? { ...r, value: nsx }
+                    : r.label === "Taxonomic type" && sp
+                      ? { ...r, value: sp.kingdom }
+                      : r,
+                ),
+              }
+            : s,
+        ),
+      },
+    });
+  };
+
   const rowControl = (
     row: MetaRow,
   ): { control: ReactNode; required?: boolean; locked?: boolean } => {
-    if (nr && nr.section === section.id && nr.label === row.label)
-      return { control: nameControl(row.label) };
-    if ((row.term && DATE_TERMS.has(row.term)) || row.label === "Established")
-      return { control: dateControl(row.label), required: !startFromParent };
-    if (fieldTypeOf(row) === "species")
+    if (nr && nr.section === section.id && nr.label === row.label) {
+      if (record.kind !== "occurrence") return { control: nameControl(row.label) };
+      // An occurrence is named by its species (designer, 17 Nov 2026): this row is the NSX code and species dropdown, narrowed by the
+      // Taxonomic type above it, so the species row is not drawn (below) and the species is asked for once.
+      const nsxRow = record.sections.flatMap((x) => x.rows ?? []).find((r) => r.type === "species");
+      const taxon = record.sections.flatMap((x) => x.rows ?? []).find((r) => r.label === "Taxonomic type")?.value;
+      if (!nsxRow) return { control: nameControl(row.label) };
       return {
         required: true,
         control: (
-          <SpeciesControl
-            label={row.label}
-            value={row.value}
-            isInvalid={err && !nsxSpecies(row.value)}
-            onChange={(nsx) => {
-              const sp = nsxSpecies(nsx);
-              patch({
-                scientificName: sp?.scientific ?? draft.scientificName,
-                record: {
-                  ...record,
-                  sections: record.sections.map((s) =>
-                    s.id === section.id
-                      ? {
-                          ...s,
-                          rows: s.rows?.map((r) =>
-                            r.label === row.label
-                              ? { ...r, value: nsx }
-                              : r.label === "Taxonomic type" && sp
-                                ? { ...r, value: sp.kingdom }
-                                : r,
-                          ),
-                        }
-                      : s,
-                  ),
-                },
-              });
-            }}
-          />
+          <div id={`edit-field-${key(nsxRow.label)}`} className="scroll-mt-24">
+            <SpeciesControl
+              label={row.label}
+              value={nsxRow.value}
+              taxonomicType={taxon && !EMPTY.has(taxon) ? taxon : undefined}
+              isInvalid={err && !nsxSpecies(nsxRow.value)}
+              onChange={(nsx) => chooseSpecies(nsxRow.label, nsx)}
+            />
+          </div>
         ),
       };
+    }
+    if ((row.term && DATE_TERMS.has(row.term)) || row.label === "Established")
+      return { control: dateControl(row.label), required: !startFromParent };
     // Who recorded it, as a row of Details (an Opportune, a Point intercept): the same control as the Observers section's.
     if (row.term === "recordedBy")
       return {
@@ -489,16 +504,9 @@ export function CardEditor({
         ),
       };
     if (type === "voucher") {
-      const institution =
-        sectionRows.find((r) => r.label === "Institution name")?.value ?? "";
       return {
         control: (
-          <VoucherControl
-            label={row.label}
-            value={row.value}
-            prefix={INSTITUTION_PREFIX[institution]}
-            onChange={set}
-          />
+          <VoucherControl label={row.label} value={row.value} onChange={set} />
         ),
       };
     }
@@ -894,6 +902,8 @@ export function CardEditor({
                   {measurementEditor}
                 </div>
               );
+            // An occurrence's species is chosen in its name row, so the species row is not drawn.
+            if (record.kind === "occurrence" && fieldTypeOf(row) === "species") return null;
             const { control, required, locked } = rowControl(row);
             const k = key(row.label);
             return (

@@ -21,12 +21,13 @@ import { Select } from "@/components/base/select/select";
 import { TextArea } from "@/components/base/textarea/textarea";
 import { InputDatePicker } from "@/components/custom/date-picker/input-date-picker";
 import { toast } from "@/components/application/toast/toast";
+import { CoordinateFields } from "@/app/pages/_shared/coordinate-fields";
 import { FormPage } from "@/app/pages/_shared/form-page";
 import { FormRow } from "@/app/pages/_shared/form-row";
 import { artefactTypeMeta, type ArtefactType } from "@/app/pages/_shared/artefact-lightbox";
 import { EditDrawer } from "./edit-drawer";
 import { useEditStore, type SurveyArtefact } from "./edit-store";
-import { autoName, inheritsStartDate, nameRow } from "./record-rules";
+import { autoName, copySection, inheritsStartDate, nameRow } from "./record-rules";
 import type { ProjectMeta } from "./project-seed";
 import { formatDate, type MetaRow, type MetaSection, type SurveyRecord } from "./survey-data";
 
@@ -107,6 +108,18 @@ export function toDraft(record: SurveyRecord, attachments: SurveyArtefact[]): Dr
   };
 }
 
+/** The draft with one section's values taken from `source` again (Temporal details, Observers or Location information): what "Use the parent event's values" does. */
+export function takeSectionIntoDraft(draft: Draft, source: SurveyRecord, sectionId: string): Draft {
+  const fresh = toDraft(copySection(draft.record, source, sectionId), draft.attachments);
+  return {
+    ...draft,
+    record: fresh.record,
+    ...(sectionId === "temporal" ? { date: fresh.date } : {}),
+    ...(sectionId === "observers" ? { observers: fresh.observers } : {}),
+    ...(sectionId === "location" ? { lat: fresh.lat, lon: fresh.lon, location: fresh.location } : {}),
+  };
+}
+
 /** Rows edited as ordinary fields (not the name, dates, observers or custom list, which have their own controls). */
 export function isPlainRow(record: SurveyRecord, section: MetaSection, row: MetaRow): boolean {
   if (section.id === "observers" || section.id === "custom" || row.term === "recordedBy") return false;
@@ -125,7 +138,9 @@ export function fromDraft(d: Draft, records?: SurveyRecord[]): SurveyRecord {
   const parent = records?.find((r) => r.id === d.record.parentId);
   const iso = d.date ? d.date.toString() : inheritsStartDate(d.record) && parent?.date ? parent.date : d.record.date;
   const nr = nameRow(d.record);
-  const name = d.name.trim() || (records ? autoName(d.record, records) : "");
+  const species = d.record.kind === "occurrence" ? speciesOf(d.record.sections) ?? d.scientificName.trim() : d.record.scientificName;
+  // An occurrence is named by its species (designer, 17 Nov 2026), so a name typed or carried from before is not kept.
+  const name = d.record.kind === "occurrence" && species ? species : d.name.trim() || (records ? autoName({ ...d.record, scientificName: species }) : "");
   const observers = d.observers.map((o) => o.name.trim()).filter(Boolean);
   const sections = d.record.sections.map((s): MetaSection => {
     const measurements = s.measurements ? d.measurements.filter((m) => m.type.trim()).map(({ type, value, unit, method }) => ({ type, value, unit, method })) : undefined;
@@ -179,7 +194,7 @@ export function fromDraft(d: Draft, records?: SurveyRecord[]): SurveyRecord {
 }
 
 /** An occurrence's scientific name, from its "NSX code & species" row. */
-function speciesOf(sections: MetaSection[]): string | undefined {
+export function speciesOf(sections: MetaSection[]): string | undefined {
   const row = sections.flatMap((s) => s.rows ?? []).find((r) => r.type === "species");
   return row ? nsxSpecies(row.value)?.scientific : undefined;
 }
@@ -307,15 +322,15 @@ export function RecordDrawer({
           onPrimary={save}
         >
           <div className="flex flex-col">
-            <FormRow title={record.kind === "occurrence" ? "Species" : "Name"} required description={record.kind === "occurrence" ? "The species as recorded." : "What people will call this record."}>
-              <Input
-                label={record.kind === "occurrence" ? "Occurrence name" : "Name"}
-                isRequired
-                value={draft.name}
-                onChange={(name) => patch({ name })}
-                isInvalid={showErr && !draft.name.trim()}
-                hint={showErr && !draft.name.trim() ? "This field is required" : undefined}
-              />
+            <FormRow title={record.kind === "occurrence" ? "Species" : "Name"} required={record.kind === "occurrence"} description={record.kind === "occurrence" ? "The species as recorded." : "What people will call this record."}>
+              {record.kind !== "occurrence" && (
+                <Input
+                  label="Name"
+                  value={draft.name}
+                  placeholder={autoName({ ...record, scientificName: draft.scientificName.trim() || record.scientificName })}
+                  onChange={(name) => patch({ name })}
+                />
+              )}
               {record.kind === "occurrence" && (
                 <Input
                   label="Scientific name"
@@ -415,10 +430,14 @@ export function RecordDrawer({
                         <Lock01 className="size-3.5 shrink-0" /> Coordinates are generalised for this restricted species and can&apos;t be edited here.
                       </p>
                     ) : (
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <Input label="Latitude" isRequired hint="dwc:decimalLatitude" value={draft.lat} onChange={(lat) => patch({ lat })} />
-                        <Input label="Longitude" isRequired hint="dwc:decimalLongitude" value={draft.lon} onChange={(lon) => patch({ lon })} />
-                      </div>
+                      <CoordinateFields
+                        isRequired
+                        latHint="dwc:decimalLatitude"
+                        lonHint="dwc:decimalLongitude"
+                        lat={draft.lat.trim() === "" ? null : Number(draft.lat)}
+                        lon={draft.lon.trim() === "" ? null : Number(draft.lon)}
+                        onChange={(lat, lon) => patch({ lat: lat == null ? "" : String(lat), lon: lon == null ? "" : String(lon) })}
+                      />
                     ))}
                   {rows.map((row) => {
                     const hint = row.term ? `dwc:${row.term}` : undefined;

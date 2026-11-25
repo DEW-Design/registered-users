@@ -20,7 +20,7 @@
 import type { Artefact } from "@/app/pages/_shared/artefact-lightbox";
 import type { GeoExtentValue } from "@/app/pages/project-registration/types";
 import type { SpeciesGroup } from "@/app/pages/_shared/map-search/search-data";
-import { NSX_SPECIES, ibraFor, type FieldType, type TrapEntry } from "./field-schema";
+import { NSX_SPECIES, formatVoucher, ibraFor, type FieldType, type TrapEntry } from "./field-schema";
 import type { LandscapeInputs } from "./landscape";
 import type { VegetationInputs } from "./site-scores/vegetation-condition";
 import type { ConservationSheet } from "./site-scores/scoresheet";
@@ -129,6 +129,10 @@ export interface SurveyRecord {
   blockKm?: number;
   /** Where the record is, as chosen in the location picker (shapefile, drawn shape, list or coordinates). */
   location?: GeoExtentValue;
+  /** An occurrence added under an event: the section ids (Temporal details, Observers, Location information) whose values are the parent
+   *  event's, read from it when the record is shown and never stored on the occurrence (record-rules.ts `resolveInherited`). Present, even
+   *  empty, once the record has been through that flow; absent on every other record, which holds all its own values. */
+  inherits?: string[];
   sections: MetaSection[];
 }
 
@@ -588,6 +592,8 @@ export interface OccurrenceFields extends CommonFields {
   rego?: string;
   voucher?: {
     type: string;
+    /** Free text, from the institution's numbering ("SAM"). */
+    prefix: string;
     number: string;
     images: string[];
     institution: string;
@@ -619,9 +625,9 @@ export function occurrenceSections(o: OccurrenceFields): MetaSection[] {
         { label: "Occurrence ID", term: "occurrenceID", value: o.code, type: "system" },
         { label: "Legacy sighting #", value: o.legacy, type: "system" },
         { label: "Species seq no.", value: o.seq, type: "system" },
-        { label: "Occurrence name", value: o.name, type: "text" },
         { label: "Description", value: o.description, type: "text" },
         { label: "Taxonomic type", value: o.taxonomicType, type: "select" },
+        { label: "Occurrence name", value: o.name, type: "text" },
         { label: "NSX code & species", term: "scientificName", value: o.nsx, type: "species" },
         { label: "Occurrence status", term: "occurrenceStatus", value: o.status, type: "select" },
         { label: "Occurrence comment", term: "occurrenceRemarks", value: o.comment, type: "textarea" },
@@ -636,7 +642,7 @@ export function occurrenceSections(o: OccurrenceFields): MetaSection[] {
             title: "Voucher",
             rows: [
               { label: "Voucher type", value: v?.type ?? NP, type: "select" as const },
-              { label: "Voucher number", term: "catalogNumber", value: v?.number ?? NP, type: "voucher" as const },
+              { label: "Voucher number", term: "catalogNumber", value: v ? formatVoucher(v.prefix, v.number) : NP, type: "voucher" as const },
               { label: "Voucher images", value: json(v?.images ?? []), type: "images" as const },
               { label: "Institution name", term: "institutionCode", value: v?.institution ?? NP, type: "select" as const },
               { label: "Institution rego #", value: v?.rego ?? o.rego ?? NP, type: "text" as const },
@@ -1046,6 +1052,7 @@ const occurrences: SurveyRecord[] = [
     locationNote: BANDICOOT_NOTE,
     voucher: {
       type: "Hair sample",
+      prefix: "SAM",
       number: "24518",
       images: ["Hair sample tube.jpg", "Label close-up.jpg"],
       institution: "South Australian Museum",

@@ -13,7 +13,7 @@
 
 import { fieldOf, firstField, groupOfRecord, indexOf, measurementOf, nsxOf, peopleOf, recordLabel, recordsOfKind, type ReportProject, type SeedIndex } from "@/app/pages/_shared/reports/report-records";
 import { searchEvents } from "@/app/pages/_shared/map-search/search-data";
-import { INSTITUTION_PREFIX } from "@/app/pages/project-detail/field-options";
+import { parseVoucher } from "@/app/pages/project-detail/field-schema";
 import type { SurveyRecord } from "@/app/pages/project-detail/survey-data";
 
 export type RecordTab = "events" | "occurrences" | "observations";
@@ -156,6 +156,7 @@ export function occurrenceRowsFor({ project, seed }: ReportProject): OccurrenceR
     const determiners = peopleOf(fieldOf(occurrence, "Determiners"));
     const nsx = nsxOf(occurrence);
     const institution = fieldOf(occurrence, "Institution name");
+    const voucher = parseVoucher(fieldOf(occurrence, "Voucher number"));
     return {
       id: `${project.id}:${occurrence.id}`,
       projectId: project.id,
@@ -172,8 +173,8 @@ export function occurrenceRowsFor({ project, seed }: ReportProject): OccurrenceR
       group: groupOfRecord(occurrence, index) ?? "",
       legacy: fieldOf(occurrence, "Legacy sighting #"),
       released: observation ? fieldOf(observation, "Planted/Released") : "",
-      voucherSeries: INSTITUTION_PREFIX[institution] ?? "",
-      voucherNumber: fieldOf(occurrence, "Voucher number").replace(/^[A-Z]+ /, ""),
+      voucherSeries: voucher.prefix,
+      voucherNumber: voucher.number,
       voucherImages: fieldOf(occurrence, "Voucher images"),
       institution,
       rego: fieldOf(occurrence, "Institution rego #"),

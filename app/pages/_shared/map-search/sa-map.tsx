@@ -6,7 +6,7 @@ import "leaflet/dist/leaflet.css";
 import "leaflet-draw/dist/leaflet.draw.css";
 import "leaflet-draw";
 import { Circle, CircleMarker, MapContainer, Marker, Polygon, Rectangle, ScaleControl, Tooltip, TileLayer, useMap, useMapEvents } from "react-leaflet";
-import type { Boundary, GeoBlock } from "./geo";
+import { POINT_ID_PREFIX, formatCoordinates, isPointBoundary, type Boundary, type DrawTool, type GeoBlock } from "./geo";
 import { assetPath } from "@/lib/base-path";
 import { cx } from "@/utils/cx";
 import { MAP_CONTROLS_Z_INDEX } from "@/lib/layers";
@@ -56,6 +56,8 @@ const SA_MAX_BOUNDS: L.LatLngBoundsExpression = [
 // "locked to Australia" with the area nowhere near where it landed. A low floor here just gives the
 // fit its own room to work; `maxBounds` is still what stops the map wandering off South Australia.
 const MIN_ZOOM = 3;
+/** How much map is shown around a point that has no size (a marked point), across, in metres, when the map is taken to it: about a neighbourhood. It is only the view; the point's own radius stays 0. */
+const POINT_VIEW_M = 2000;
 
 // The same brand teal token app/pages/_shared/map-view.tsx uses for its own "this is the
 // highlighted area" state, reused here for the same semantic (the current search boundary) so the
@@ -209,7 +211,7 @@ function FlyToBoundaries({
         const bounds = L.latLngBounds([]);
         for (const boundary of boundaries) {
             if (boundary.kind === "circle") {
-                bounds.extend(L.latLng(boundary.center).toBounds(boundary.radiusKm * 2000));
+                bounds.extend(L.latLng(boundary.center).toBounds(Math.max(boundary.radiusKm * 2000, POINT_VIEW_M)));
             } else {
                 bounds.extend(L.latLngBounds(boundary.points));
             }
@@ -266,7 +268,7 @@ function FlyToRequest({
         if (!request || request.boundaries.length === 0) return;
         const bounds = L.latLngBounds([]);
         for (const boundary of request.boundaries) {
-            if (boundary.kind === "circle") bounds.extend(L.latLng(boundary.center).toBounds(boundary.radiusKm * 2000));
+            if (boundary.kind === "circle") bounds.extend(L.latLng(boundary.center).toBounds(Math.max(boundary.radiusKm * 2000, POINT_VIEW_M)));
             else bounds.extend(L.latLngBounds(boundary.points));
         }
         const size = map.getSize();
@@ -326,8 +328,8 @@ function DrawBridge({
     onDrawToolChange,
     onBoundaryAdd,
 }: {
-    activeDrawTool: "circle" | "polygon" | null;
-    onDrawToolChange: (tool: "circle" | "polygon" | null) => void;
+    activeDrawTool: DrawTool | null;
+    onDrawToolChange: (tool: DrawTool | null) => void;
     onBoundaryAdd: (boundary: Boundary) => void;
 }) {
     const map = useMap();
@@ -356,6 +358,16 @@ function DrawBridge({
         };
     }, [activeDrawTool, map]);
 
+    // Escape closes and cancels whatever tool is on, whichever screen it is on (CONTRACTS 1.9): leaflet-draw stops its own handler on Escape but never says so, so a screen's "Drawing…" button stayed lit.
+    useEffect(() => {
+        if (!activeDrawTool) return;
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === "Escape") onDrawToolChange(null);
+        };
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+    }, [activeDrawTool, onDrawToolChange]);
+
     useEffect(() => {
         const handleCreated = (event: L.LeafletEvent) => {
             const created = event as unknown as L.DrawEvents.Created;
@@ -383,6 +395,97 @@ function DrawBridge({
     return null;
 }
 
+/** The Mark a point tool. leaflet-draw's marker handler only follows the pointer with a bare pin; this shows what a click will commit, before it is committed: the pin and its position to the metre, moving with the pointer,
+ *  so nobody places a point and then finds out where it landed. A point is a place and has no radius. A click places it and the tool ends, as the other two tools do.
+ *  From the keyboard: Tab to the map, the arrow keys move the map under the centre, Enter (or Space) places the point at the centre. Escape is handled by `DrawBridge`. */
+function PointTool({ active, onPlace }: { active: boolean; onPlace: (position: [number, number]) => void }) {
+    const map = useMap();
+    const latest = useRef({ onPlace });
+
+    useEffect(() => {
+        latest.current = { onPlace };
+    });
+
+    useEffect(() => {
+        if (!active) return;
+        const container = map.getContainer();
+        const pin = L.marker(map.getCenter(), { icon: new L.Icon.Default(), interactive: false, keyboard: false, opacity: 0.85, zIndexOffset: 1000 });
+        pin.bindTooltip("", { permanent: true, direction: "right", className: "map-point-readout" });
+        let shown = false;
+        let at: L.LatLng | null = null;
+        let byKeyboard = false;
+
+        const show = (latlng: L.LatLng) => {
+            at = latlng;
+            pin.setLatLng(latlng);
+            pin.setTooltipContent(formatCoordinates([latlng.lat, latlng.lng]));
+            if (!shown) {
+                pin.addTo(map);
+                shown = true;
+            }
+        };
+        const hide = () => {
+            if (!shown) return;
+            pin.remove();
+            shown = false;
+            at = null;
+        };
+        const place = (latlng: L.LatLng) => latest.current.onPlace([Number(latlng.lat.toFixed(5)), Number(latlng.lng.toFixed(5))]);
+
+        const onMove = (e: L.LeafletMouseEvent) => {
+            byKeyboard = false;
+            show(e.latlng);
+        };
+        const onClick = (e: L.LeafletMouseEvent) => {
+            // A press on a map control (zoom) is not a place on the map.
+            const target = e.originalEvent.target;
+            if (target instanceof Element && target.closest("button, .leaflet-control")) return;
+            place(e.latlng);
+        };
+        const onMapMove = () => {
+            if (byKeyboard) show(map.getCenter());
+        };
+        const onFocus = () => {
+            if (at) return;
+            byKeyboard = true;
+            show(map.getCenter());
+        };
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.target !== container) return;
+            if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                place(at ?? map.getCenter());
+            } else if (e.key.startsWith("Arrow") || e.key === "+" || e.key === "-") {
+                byKeyboard = true;
+            }
+        };
+
+        map.on("mousemove", onMove);
+        map.on("mouseout", hide);
+        map.on("click", onClick);
+        map.on("move", onMapMove);
+        container.addEventListener("focus", onFocus);
+        container.addEventListener("keydown", onKeyDown);
+        return () => {
+            map.off("mousemove", onMove);
+            map.off("mouseout", hide);
+            map.off("click", onClick);
+            map.off("move", onMapMove);
+            container.removeEventListener("focus", onFocus);
+            container.removeEventListener("keydown", onKeyDown);
+            hide();
+        };
+    }, [active, map]);
+
+    return null;
+}
+
+/** The ring that sits on a placed point at any zoom: a point's own radius is a speck when the map is fitted to a large area (a 100 m radius inside a project's extent), and a stock pin alone is easy to lose on a busy basemap.
+ *  A fixed 40px, centred on the point, that lands once when the point is placed (it is drawn on the point's first appearance, so it does not replay while the map moves). */
+const POINT_HALO_ICON = L.divIcon({ className: "map-point-halo-wrap", html: '<span class="map-point-halo"></span>', iconSize: [40, 40], iconAnchor: [20, 20] });
+
+const POINT_HALO_ON_ICON = L.divIcon({ className: "map-point-halo-wrap", html: '<span class="map-point-halo is-on"></span>', iconSize: [40, 40], iconAnchor: [20, 20] });
+
 const OUTLINE_STYLE = { color: BOUNDARY_COLOR, weight: 2, dashArray: "6 6", fill: false } as const;
 
 /** The area being pointed at in the areas list is drawn heavier, so a row and its shape read as one. */
@@ -399,8 +502,11 @@ export interface SAMapProps {
     onDrawState?: (state: DrawLayerState) => void;
     boundaries: Boundary[];
     onBoundaryAdd: (boundary: Boundary) => void;
-    activeDrawTool: "circle" | "polygon" | null;
-    onDrawToolChange: (tool: "circle" | "polygon" | null) => void;
+    activeDrawTool: DrawTool | null;
+    onDrawToolChange: (tool: DrawTool | null) => void;
+    /** Keep a point's position written beside its pin, instead of only when pointed at. For a screen that holds one selected place (a project's extent, a record's location), where the point is the answer; Explore holds
+     *  many areas and keeps its map clear. @default false */
+    pointLabels?: boolean;
     /** Extra fit-to-bounds padding at the top-left, for UI floating over the map. */
     fitPaddingTopLeft?: [number, number];
     /** Extra fit-to-bounds padding at the bottom-right, for UI floating over the map's right side
@@ -470,6 +576,7 @@ export default function SAMap({
     onBoundaryAdd,
     activeDrawTool,
     onDrawToolChange,
+    pointLabels = false,
     fitPaddingTopLeft,
     fitPaddingBottomRight,
     zoomPosition = "top-right",
@@ -520,7 +627,20 @@ export default function SAMap({
                 <ScaleControl position="bottomleft" imperial={false} />
                 {showZoomControls && <ZoomControls position={zoomPosition} />}
                 <MapReady onMapReady={onMapReady} />
-                {drawRef ? <DrawLayer handleRef={drawRef} onState={onDrawState ?? noop} onAdd={onBoundaryAdd} /> : <DrawBridge activeDrawTool={activeDrawTool} onDrawToolChange={onDrawToolChange} onBoundaryAdd={onBoundaryAdd} />}
+                {drawRef ? (
+                    <DrawLayer handleRef={drawRef} onState={onDrawState ?? noop} onAdd={onBoundaryAdd} />
+                ) : (
+                    <>
+                        <DrawBridge activeDrawTool={activeDrawTool} onDrawToolChange={onDrawToolChange} onBoundaryAdd={onBoundaryAdd} />
+                        <PointTool
+                            active={activeDrawTool === "point"}
+                            onPlace={(center) => {
+                                onBoundaryAdd({ id: `${POINT_ID_PREFIX}${Date.now()}`, kind: "circle", center, radiusKm: 0 });
+                                onDrawToolChange(null);
+                            }}
+                        />
+                    </>
+                )}
                 <FlyToBoundaries boundaries={outlines.length ? [...boundaries, ...outlines] : boundaries} paddingTopLeft={fitPaddingTopLeft} paddingBottomRight={fitPaddingBottomRight} />
                 <FlyToRequest request={fitRequest} paddingTopLeft={fitPaddingTopLeft} paddingBottomRight={fitPaddingBottomRight} />
                 <PanToRecord request={panRequest} paddingTopLeft={fitPaddingTopLeft} paddingBottomRight={fitPaddingBottomRight} />
@@ -535,8 +655,19 @@ export default function SAMap({
                 {showBoundaries && boundaries.map((boundary) =>
                     boundary.kind === "circle" ? (
                         <Fragment key={boundary.id}>
-                            <Circle center={boundary.center} radius={boundary.radiusKm * 1000} pathOptions={boundaryStyle(boundary.id, highlightedBoundaryIds)} eventHandlers={shapeEvents(boundary.id)} />
-                            <Marker position={boundary.center} />
+                            {/* A point with no radius has no area to draw: its pin, ring and position are the shape. */}
+                            {boundary.radiusKm > 0 && <Circle center={boundary.center} radius={boundary.radiusKm * 1000} pathOptions={boundaryStyle(boundary.id, highlightedBoundaryIds)} eventHandlers={shapeEvents(boundary.id)} />}
+                            {isPointBoundary(boundary) && <Marker position={boundary.center} icon={POINT_HALO_ICON} interactive={false} keyboard={false} zIndexOffset={-500} />}
+                            {/* Pointing at the point's entry in the areas list, or at its pin, draws a heavier ring: a point has no outline to thicken, as a circle or a polygon has. */}
+                            {isPointBoundary(boundary) && highlightedBoundaryIds?.has(boundary.id) && <Marker position={boundary.center} icon={POINT_HALO_ON_ICON} interactive={false} keyboard={false} zIndexOffset={-400} />}
+                            <Marker position={boundary.center} eventHandlers={isPointBoundary(boundary) ? shapeEvents(boundary.id) : undefined}>
+                                {/* A point says where it is, to the metre: when pointed at, or always where the screen holds one selection (`pointLabels`), the same readout the tool showed while it was placed. */}
+                                {isPointBoundary(boundary) && (
+                                    <Tooltip direction="right" permanent={pointLabels} className="map-point-readout">
+                                        {formatCoordinates(boundary.center)}
+                                    </Tooltip>
+                                )}
+                            </Marker>
                         </Fragment>
                     ) : (
                         <Fragment key={boundary.id}>
