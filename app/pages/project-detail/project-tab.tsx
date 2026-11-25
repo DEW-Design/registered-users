@@ -43,7 +43,7 @@ import { boundaryCentre } from "./field-schema";
 import { OwnersSummary, Label, ownersAndPeople } from "./people-summary";
 import { Chip, ExtentBlock, FoldedChapter, MethodologyBlock, Peek, PermitNumbersBlock, RestrictionRow, TaxonBlock } from "./overview-blocks";
 import { contentOf } from "./overview-content";
-import { STEP_TITLES, sectionMeta } from "@/app/pages/project-registration/option-2/sections";
+import { sectionMeta } from "@/app/pages/project-registration/option-2/sections";
 import { CARD_TITLES, InlineCardEditor, ProjectCardDrawer, cardMissing, contactRole, roleLabel, type ProjectCardId } from "./project-edit";
 
 export function formatDay(d: DateValue | null): string {
@@ -119,6 +119,9 @@ export type PeopleStyle = "rows" | "ladder" | "avatar" | "card";
 const PeopleStyleContext = createContext<PeopleStyle>("rows");
 
 /** With the `summary` Overview the cards are named as Add Project's sections are: Data owners (the hero keeps "Published by"), Species restrictions and the rest. */
+/** The three chapters of the Overview, in this edition's own wording (the designer, 25 Nov 2026: the text of `sai-wips` stands over `mohan-wips`). The same as the
+ *  page's sections before the Folded Overview, so the chapters and "On this page" read as the rest of the project page does. */
+const CHAPTER_TITLES = { 1: "Overview", 2: "Data collection and methodology", 3: "Privacy and restrictions" } as const;
 const SUMMARY_TITLES: Partial<Record<ProjectCardId, string>> = {
   owner: "Data owners",
   collection: "Methodology",
@@ -607,9 +610,9 @@ export function ProjectTab({
   );
 
   const toc: TocItem[] = [
-    { id: "overview", label: summary ? STEP_TITLES[1] : "Overview", children: [card("details"), card("owner"), ...(showManagers ? [card("managers")] : [])] },
-    { id: "data-collection", label: summary ? STEP_TITLES[2] : "Data collection and methodology", children: [card("extent"), card("collection")] },
-    { id: "privacy", label: summary ? STEP_TITLES[3] : "Privacy and restrictions", children: enabled.map((m) => card(m.key)) },
+    { id: "overview", label: CHAPTER_TITLES[1], children: [card("details"), card("owner"), ...(showManagers ? [card("managers")] : [])] },
+    { id: "data-collection", label: CHAPTER_TITLES[2], children: [card("extent"), card("collection")] },
+    { id: "privacy", label: CHAPTER_TITLES[3], children: enabled.map((m) => card(m.key)) },
   ];
 
   const removeType = (key: RestrictionTypeKey) => {
@@ -636,7 +639,7 @@ export function ProjectTab({
     <>
       <FoldedChapter
         {...chapter("overview")}
-        title={STEP_TITLES[1]}
+        title={CHAPTER_TITLES[1]}
         note={noteFor(["details", "owner", ...(showManagers ? (["managers"] as ProjectCardId[]) : [])])}
         peek={<span className="line-clamp-2 block max-w-prose text-sm text-primary">{d.abstract || "Not provided"}</span>}
       >
@@ -706,7 +709,7 @@ export function ProjectTab({
 
       <FoldedChapter
         {...chapter("data-collection")}
-        title={STEP_TITLES[2]}
+        title={CHAPTER_TITLES[2]}
         note={noteFor(["extent", "collection"])}
         peek={
           <span className="grid gap-x-8 gap-y-4 sm:grid-cols-3">
@@ -744,7 +747,7 @@ export function ProjectTab({
 
       <FoldedChapter
         {...chapter("privacy")}
-        title={STEP_TITLES[3]}
+        title={CHAPTER_TITLES[3]}
         note={noteFor(enabled.map((m) => m.key))}
         peek={
           oc.hasRestrictions ? (
