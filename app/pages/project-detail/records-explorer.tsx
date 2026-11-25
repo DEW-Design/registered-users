@@ -69,7 +69,6 @@ import { type FilterSection, type FilterSelection, useSelectionFilter } from "@/
 import { AttributeFilterChips } from "@/app/pages/_shared/attribute-filter";
 import { FilterMenu } from "@/app/pages/_shared/filter-menu";
 import { SAMPLING_TYPES, childOptions, createRecord, duplicateRecord, occurrenceStart, type ChildOption } from "./record-rules";
-import { useAddOccurrenceOption } from "@/app/_prototype-tools/add-occurrence-option";
 
 export type KindFilter = "all" | RecordKind;
 
@@ -204,7 +203,6 @@ export function RecordsExplorer({
   const [creating, setCreating] = useState<SurveyRecord | null>(null);
   // Option 2 of adding an occurrence (Prototype tools bar): under an event the new occurrence inherits Temporal details, Observers and Location
   // information from it and opens with those cards folded (`addFolds`); option 1 is as it was. Only an occurrence under an event is affected.
-  const addOccurrenceOption = useAddOccurrenceOption(canEdit);
   const [addFolds, setAddFolds] = useState<string[] | undefined>(undefined);
   // Adding opens the new record full screen, every card in edit mode (the same look as editing),
   // and like edit it returns to where it started: the side panel, or the full view.
@@ -226,7 +224,8 @@ export function RecordsExplorer({
           recordedBy: "Olivia Wyatt",
           records,
         });
-    const inherits = !source && option.kind === "occurrence" && addOccurrenceOption === "2";
+    // Adding an occurrence under an event inherits its Temporal details, Observers and Location (the designer chose this way for the edition, 25 Nov 2026).
+    const inherits = !source && option.kind === "occurrence";
     const start = inherits ? occurrenceStart(blank, recordById) : null;
     const record = start?.record ?? blank;
     setAddFolds(start?.folded.length ? start.folded : undefined);
