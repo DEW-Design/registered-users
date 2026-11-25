@@ -800,3 +800,4 @@ Not imported into every session on purpose: read or grep it when a task needs hi
 - [2026-11-25] Merge of mohan-wips 1c286ee into sai-wips (registered-users): Overview re-fit, renumbering, calls for approval - `2026-11-25-01-merge-of-mohan-wips-1c286ee-into-sai-wips.md`
 - [2026-11-25] Text of sai-wips stands over mohan-wips: the Overview chapter titles - `2026-11-25-02-text-of-sai-wips-stands-over-mohan-wips.md`
 - [2026-11-25] Mohan merge: approval calls answered, inherited adding is the only way - `2026-11-25-03-mohan-merge-approval-calls-answered-inherited-adding-is.md`
+- [2026-11-25] Verification pass on the Mohan merge: tasks 1 and 2 end to end, help coverage, touch and narrow windows - `2026-11-25-04-verification-pass-on-the-mohan-merge-tasks-1.md`
