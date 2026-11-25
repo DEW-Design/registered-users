@@ -9,12 +9,14 @@
 import { useState } from "react";
 import dynamic from "next/dynamic";
 import { Dialog, Modal, ModalOverlay } from "react-aria-components";
-import { Upload01, Map01, List as ListIcon, Target04, Circle, Pentagon, Maximize02, Minimize02, CheckCircle, Trash01 } from "@untitledui/icons";
+import { Upload01, Map01, List as ListIcon, Target04, Maximize02, Minimize02 } from "@untitledui/icons";
 import { Tabs, TabList, Tab, TabPanel } from "@/components/application/tabs/tabs";
 import { InputFile } from "@/components/base/input/input-file";
 import { InputNumber } from "@/components/base/input/input-number";
 import { Select } from "@/components/base/select/select";
-import { SA_NATIONAL_PARKS, boundarySummary, type Boundary } from "@/app/pages/_shared/map-search/geo";
+import { CoordinateFields } from "@/app/pages/_shared/coordinate-fields";
+import { SA_NATIONAL_PARKS, boundarySummary, type Boundary, type DrawTool } from "@/app/pages/_shared/map-search/geo";
+import { DrawStatusLine, DrawToolButtons } from "@/app/pages/_shared/map-search/draw-tool-buttons";
 import { parseShapefileUpload } from "@/app/pages/_shared/map-search/shapefile";
 import { ExpandableMap } from "@/app/pages/_shared/map-search/expandable-map";
 import { findListedLocation, useLocationList } from "@/app/pages/_shared/map-search/location-list";
@@ -35,40 +37,6 @@ export function geoExtentSummary(extent: GeoExtentValue): string {
     return "Not yet defined";
 }
 
-/** What a drawn shape is, in a line: not every vertex (that is `boundarySummary`, for the review), just its kind and its size. */
-export function drawnShapeLine(boundary: Boundary): string {
-    if (boundary.kind === "polygon") return `Polygon, ${boundary.points.length} points`;
-    // A circle of a named place says where ("15 km radius around Coorong National Park"); one drawn by hand has no place, and its centre is on the map.
-    return boundary.label ? boundarySummary(boundary) : `Circle, ${boundary.radiusKm} km radius`;
-}
-
-/**
- * The line above the drawing tools. Until a shape existed the tab read the same as when there was none: the same two buttons, the same line, and
- * only the shape on the map to say it had worked (the designer, 30 Oct 2026: "no done state?"). Before a shape, it says what to do. Once one is drawn
- * it says what was drawn and offers to take it away, as the other three ways of defining the area each show what was chosen (the list's value, the
- * coordinates, the shapefile's name). It is one line either way, as tall as the button, so the tools and the map below do not move when it changes.
- * Drawing again replaces the shape, so the line says nothing about that.
- */
-function DrawStatus({ boundary, onRemove }: { boundary: Boundary | null | undefined; onRemove: () => void }) {
-    return (
-        <div role="status" className="flex min-h-9 items-center justify-between gap-3">
-            {boundary ? (
-                <>
-                    <p className="m-0 flex min-w-0 items-center gap-2 text-sm font-medium text-primary">
-                        <CheckCircle className="size-4 shrink-0 text-fg-success-primary" aria-hidden />
-                        <span className="min-w-0 truncate">{drawnShapeLine(boundary)}</span>
-                    </p>
-                    <Button color="tertiary" size="sm" iconLeading={Trash01} onClick={onRemove}>
-                        Remove
-                    </Button>
-                </>
-            ) : (
-                <p className="m-0 text-sm text-tertiary">Draw a polygon or circle on the map to define this area.</p>
-            )}
-        </div>
-    );
-}
-
 const SAMap = dynamic(() => import("@/app/pages/_shared/map-search/sa-map"), {
     ssr: false,
     loading: () => (
@@ -87,40 +55,6 @@ const METHOD_TABS: { id: GeoMethod; label: string; icon: typeof Upload01 }[] = [
 
 const SHORT_LABELS: Record<GeoMethod, string> = { shapefile: "Shapefile", map: "Draw", list: "List", coordinates: "Coordinates" };
 
-
-/** The Draw polygon/Draw circle toggle pair - shared between the compact inline map and the
- *  full-screen overlay below, so a user can pick either tool from either view without the two
- *  ever presenting different options. */
-function DrawToolButtons({
-    activeDrawTool,
-    onDrawToolChange,
-}: {
-    activeDrawTool: "circle" | "polygon" | null;
-    onDrawToolChange: (tool: "circle" | "polygon" | null) => void;
-}) {
-    return (
-        <div className="flex gap-2">
-            <Button
-                color={activeDrawTool === "polygon" ? "primary" : "secondary"}
-                size="sm"
-                iconLeading={Pentagon}
-                className="flex-1"
-                onClick={() => onDrawToolChange(activeDrawTool === "polygon" ? null : "polygon")}
-            >
-                {activeDrawTool === "polygon" ? "Drawing…" : "Draw polygon"}
-            </Button>
-            <Button
-                color={activeDrawTool === "circle" ? "primary" : "secondary"}
-                size="sm"
-                iconLeading={Circle}
-                className="flex-1"
-                onClick={() => onDrawToolChange(activeDrawTool === "circle" ? null : "circle")}
-            >
-                {activeDrawTool === "circle" ? "Drawing…" : "Draw circle"}
-            </Button>
-        </div>
-    );
-}
 
 /** A real full-screen view of the same map, opened via the expand icon on the compact map - per
  *  direct feedback that the inline map ("a very small window") makes drawing an accurate boundary
@@ -145,8 +79,8 @@ function MapFullscreenOverlay({
     onOpenChange: (isOpen: boolean) => void;
     boundary: Boundary | null | undefined;
     onBoundaryAdd: (boundary: Boundary) => void;
-    activeDrawTool: "circle" | "polygon" | null;
-    onDrawToolChange: (tool: "circle" | "polygon" | null) => void;
+    activeDrawTool: DrawTool | null;
+    onDrawToolChange: (tool: DrawTool | null) => void;
 }) {
     return (
         <ModalOverlay
@@ -185,6 +119,7 @@ function MapFullscreenOverlay({
                             onBoundaryAdd={onBoundaryAdd}
                             activeDrawTool={activeDrawTool}
                             onDrawToolChange={onDrawToolChange}
+                            pointLabels
                             className="size-full"
                         />
                     </div>
@@ -215,7 +150,7 @@ export function GeoExtentPicker({
      *  9 Oct 2026). "fullscreen", the default, keeps this picker's own full screen view for every other caller. */
     expand?: "fullscreen" | "modal";
 }) {
-    const [activeDrawTool, setActiveDrawTool] = useState<"circle" | "polygon" | null>(null);
+    const [activeDrawTool, setActiveDrawTool] = useState<DrawTool | null>(null);
     const [coordRadius, setCoordRadius] = useState(defaultRadiusKm);
     const [shapefileError, setShapefileError] = useState<string | null>(null);
     const [isMapExpanded, setIsMapExpanded] = useState(false);
@@ -258,7 +193,7 @@ export function GeoExtentPicker({
                 </TabPanel>
 
                 <TabPanel id="map" className="flex flex-col gap-3 pt-2">
-                    <DrawStatus boundary={value.method === "map" ? value.boundary : null} onRemove={() => onChange({ ...value, method: "map", boundary: null })} />
+                    <DrawStatusLine boundary={value.method === "map" ? value.boundary : null} activeDrawTool={activeDrawTool} onRemove={() => onChange({ ...value, method: "map", boundary: null })} />
                     <DrawToolButtons activeDrawTool={activeDrawTool} onDrawToolChange={setActiveDrawTool} />
                     {expand === "modal" ? (
                         <ExpandableMap
@@ -272,6 +207,7 @@ export function GeoExtentPicker({
                             }}
                             activeDrawTool={activeDrawTool}
                             onDrawToolChange={setActiveDrawTool}
+                            pointLabels
                             className="aspect-[5/4] w-full"
                         />
                     ) : (
@@ -286,6 +222,7 @@ export function GeoExtentPicker({
                                     }}
                                     activeDrawTool={activeDrawTool}
                                     onDrawToolChange={setActiveDrawTool}
+                                    pointLabels
                                     className="size-full"
                                 />
                                 {/* Positioned top-left, clear of the map's own top-right zoom controls
@@ -341,32 +278,16 @@ export function GeoExtentPicker({
                 </TabPanel>
 
                 <TabPanel id="coordinates" className="flex flex-col gap-3 pt-2">
-                    <div className="grid grid-cols-2 gap-4">
-                        <InputNumber
-                            label="Latitude"
-                            placeholder="-34.93"
-                            step={defaultRadiusKm < 1 ? 0.00001 : 0.01}
-                            minValue={-38}
-                            maxValue={-25}
-                            value={value.boundary?.kind === "circle" ? value.boundary.center[0] : NaN}
-                            onChange={(lat) => {
-                                const [, lon] = value.boundary?.kind === "circle" ? value.boundary.center : [0, 138];
-                                onChange({ ...value, boundary: { id: "coordinates", kind: "circle", center: [lat, lon], radiusKm: coordRadius } });
-                            }}
-                        />
-                        <InputNumber
-                            label="Longitude"
-                            placeholder="138.60"
-                            step={defaultRadiusKm < 1 ? 0.00001 : 0.01}
-                            minValue={129}
-                            maxValue={141}
-                            value={value.boundary?.kind === "circle" ? value.boundary.center[1] : NaN}
-                            onChange={(lon) => {
-                                const [lat] = value.boundary?.kind === "circle" ? value.boundary.center : [-34.93, 0];
-                                onChange({ ...value, boundary: { id: "coordinates", kind: "circle", center: [lat, lon], radiusKm: coordRadius } });
-                            }}
-                        />
-                    </div>
+                    <CoordinateFields
+                        lat={value.boundary?.kind === "circle" ? value.boundary.center[0] : null}
+                        lon={value.boundary?.kind === "circle" ? value.boundary.center[1] : null}
+                        onChange={(lat, lon) =>
+                            onChange({
+                                ...value,
+                                boundary: lat != null && lon != null ? { id: "coordinates", kind: "circle", center: [lat, lon], radiusKm: coordRadius } : null,
+                            })
+                        }
+                    />
                     <InputNumber
                         label="Radius (km)"
                         defaultValue={defaultRadiusKm}

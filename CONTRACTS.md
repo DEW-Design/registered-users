@@ -829,6 +829,7 @@ forward arrow on the right (`iconTrailing`) for a button that moves on. An actio
   | Edit, change | `Edit05` |
   | Rename | `PencilLine` |
   | Duplicate, copy | `Copy01` |
+  | Change a record's type | `SwitchHorizontal02` |
   | Download, export | `Download01` |
   | Upload, replace a file | `Upload01` |
   | Search | `SearchLg` |
@@ -1339,7 +1340,10 @@ behaves the same way, on every card and every page.
      the page, reading "Editing <cards>, unsaved changes", and covers every card in edit mode.
    - MUST NOT draw both on one page, or put a one-card edit's pair in a page footer, where a person has to look for it.
 5. **Leaving:** Cancel or Exit with unsaved changes asks first. Save and Cancel return to the view the edit was
-   started from (a side panel stays a side panel, a full view stays a full view).
+   started from (a side panel stays a side panel, a full view stays a full view). **Save shows what it changed (designer,
+   18 Nov 2026):** the view opens the cards the changed fields are in, scrolls to the first and holds the brand tint on each
+   changed field for about five seconds (`record-changes.ts`, `flashElement` with `hold`); a field now empty, or the map, tints
+   its card instead. A card saved on the project page tints the whole card (`flashSavedCard`). `REVIEW` for new edit screens.
 6. **Visibility, per section:** where a record's concepts can be hidden, each card in edit mode has a quiet "Manage concepts"
    control in its header (with the count shown, e.g. 6/10) that opens a checklist of that section's concepts; and
    under the cards, "Add section" puts back a section the record has that is not on screen (hidden, or empty).

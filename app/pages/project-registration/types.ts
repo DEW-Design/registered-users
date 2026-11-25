@@ -66,6 +66,8 @@ export function emptyProjectManager(id: number): ProjectManager {
 export interface ProjectContact extends ProjectManager {
     /** No longer asked or read: a manager is the Project Manager role (`isManager` in option-2/sections.ts). */
     isManager: boolean;
+    /** Whether this person is still on the project (19 Nov 2026): `false` is Not active; none is Current, so a project saved before it existed reads as it did. Nothing sets it yet. */
+    active?: boolean;
     /** What this person can do on the project (lab `/proto/project-access`, 25 Oct 2026). Optional so stored projects still
      *  read; a Project Manager is always "full", whatever is stored (`accessOf`). */
     access?: ProjectAccessLevel;

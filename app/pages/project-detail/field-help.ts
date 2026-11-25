@@ -2,7 +2,7 @@
 //
 // Every field a record card draws has an entry, except the ones listed below. A field with no entry shows no icon. On 16 Nov 2026
 // the designer first asked for it only on the complex names, then ("apply the help icon logic across all field names (or concept
-// names)") on all of them.
+// names)") on all of them, and on 17 Nov 2026 ("let's actually add that for all fields") for the last ones that had none.
 //
 // Every line is drawn from a source, never written to fill the gap (CONTRACTS 0.3):
 //   - a Darwin Core term the field maps to (survey-data.ts `term`), its definition at dwc.tdwg.org/terms, in plain words;
@@ -14,9 +14,17 @@
 // (field-options.ts), so those lines name the kind of thing the field records and never what a value means.
 // All wording is a draft for a content review.
 //
-// No entry, because nothing in the repo says what the field is: Site grouping, Specific property details, Paddock, Mud map,
-// Photopoint disc number, Event array, Source ID, Species seq no., Institution rego #, Transfer date, Association dominance,
-// Regeneration, Line. They are for the designer to supply.
+// The third group ("Described from the field's own name") is the last of the fields nothing in the repo defines (17 Nov 2026): each
+// line says only what the name says, and none says what a value means. They are for the business to confirm or replace: Site grouping,
+// Specific property details, Mud map, Paddock, Photopoint disc number, Source ID, Event array, Species seq no., Institution rego #,
+// Transfer date.
+//
+// No entry: the table headings inside a field (Code, Status) and the trap effort and spec fields (field-schema.ts), which are not
+// record fields drawn with a name and a value.
+
+import { eventLabels, type SurveyEventType } from "./survey-data";
+
+const EVENT_TYPES: Exclude<SurveyEventType, "Site">[] = ["Visit", "Transect", "Quadrat", "Block", "Ramble", "Trap", "Opportune", "Point intercept", "Custom event"];
 
 export const FIELD_HELP: Record<string, string> = {
   // Location (IBRA; Darwin Core georeferenceProtocol, geodeticDatum, coordinateUncertaintyInMeters, sampleSizeValue)
@@ -82,7 +90,7 @@ export const FIELD_HELP: Record<string, string> = {
   Duration: "How long the event ran, in days, hours and minutes.",
 
   // Occurrence
-  "Occurrence name": "The name this occurrence is known by.",
+  "Occurrence name": "The species recorded, chosen from the NSX list for the taxonomic type. The occurrence is named by it.",
   "Taxonomic type": "The kind of organism recorded, such as fauna or flora.",
   "Voucher type": "What was kept as evidence of the record, such as a specimen or a photograph.",
   "Voucher images": "Photographs of the voucher.",
@@ -153,6 +161,36 @@ export const FIELD_HELP: Record<string, string> = {
   "Strata & desc": "The stratum the record belongs to, upper, mid or ground, as a code with its description.",
   "Macro habitat & desc": "The broad habitat, such as woodland or riparian, as a code with its description.",
   "Micro habitat & desc": "The fine-scale habitat, such as leaf litter or under a rock, as a code with its description.",
+
+  // ── Described from the field's own name (draft, for the business to confirm) ──
+  "Site grouping": "The group this site belongs to.",
+  "Specific property details": "Details of the property the site is on.",
+  "Mud map": "Whether a mud map was drawn for the site.",
+  Paddock: "The paddock the site is in.",
+  "Photopoint disc number": "The number on the disc that marks the photopoint.",
+  "Source ID": "The identifier this record has in the system it came from.",
+  "Event array": "The array this event belongs to.",
+  "Species seq no.": "This species record's sequence number.",
+  "Institution rego #": "The registration number the institution gave the voucher.",
+  "Transfer date": "The date the voucher was transferred.",
+
+  // ── An event's own frame (Opportune, Point intercept): Darwin Core eventRemarks, recordedBy, and the code lists the business has not supplied ──
+  Observers: "The people who recorded this in the field.",
+  "Observation time": "The time of day the observation was made.",
+  "Record status": "The status of the record, from a code list.",
+  "Comment type": "The kind of comment, from a code list.",
+  Comment: "Any other note about the event.",
+
+  // ── Assemblage rows (field-options.ts) ──
+  "Muir code": "The Muir code of the vegetation assemblage.",
+  "Canopy code": "The canopy code of the vegetation assemblage.",
 };
+
+// Each event type names its own name and comment ("Transect name", "Trap array comment", "Event name"; survey-data.ts `eventLabels`).
+for (const type of EVENT_TYPES) {
+  const l = eventLabels(type);
+  FIELD_HELP[l.name] = `The name this ${l.noun.toLowerCase()} is known by.`;
+  FIELD_HELP[l.comment] = `Any other note about the ${l.noun.toLowerCase()}.`;
+}
 
 export const fieldHelp = (label: string): string | undefined => FIELD_HELP[label.trim()];

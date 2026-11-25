@@ -456,6 +456,7 @@ forward arrow on the right (`iconTrailing`) for a button that moves on. An actio
   | Edit, change | `Edit05` |
   | Rename | `PencilLine` |
   | Duplicate, copy | `Copy01` |
+  | Change a record's type | `SwitchHorizontal02` |
   | Download, export | `Download01` |
   | Upload, replace a file | `Upload01` |
   | Search | `SearchLg` |

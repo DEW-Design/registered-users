@@ -1,19 +1,19 @@
 "use client";
 
 import { useState, type FC } from "react";
-import { Circle, List as ListIcon, Map01, MarkerPin02, Pentagon, Plus, Target04, Upload01, XClose } from "@untitledui/icons";
+import { List as ListIcon, Map01, MarkerPin02, Plus, Target04, Upload01, XClose } from "@untitledui/icons";
 import { Button } from "@/components/base/buttons/button";
 import { Input } from "@/components/base/input/input";
 import { InputFile } from "@/components/base/input/input-file";
-import { InputNumber } from "@/components/base/input/input-number";
-import { RadioButton, RadioGroup } from "@/components/base/radio-buttons/radio-buttons";
 import { Select } from "@/components/base/select/select";
 import { Dialog, Modal, ModalFooter, ModalHeader, ModalOverlay } from "@/components/application/modals/modal";
 import { Tab, TabList, TabPanel, Tabs } from "@/components/application/tabs/tabs";
-import type { Boundary } from "@/app/pages/_shared/map-search/geo";
+import type { Boundary, DrawTool } from "@/app/pages/_shared/map-search/geo";
+import { DrawStatusLine, DrawToolButtons } from "@/app/pages/_shared/map-search/draw-tool-buttons";
 import { ExpandableMap } from "@/app/pages/_shared/map-search/expandable-map";
 import { useLocationList } from "@/app/pages/_shared/map-search/location-list";
-import { eastingNorthingToLatLon, parseLocationFile } from "@/app/pages/_shared/dla/dla-geo";
+import { CoordinateFields } from "@/app/pages/_shared/coordinate-fields";
+import { parseLocationFile } from "@/app/pages/_shared/dla/dla-geo";
 import { newLocationId, type DlaLocation, type DlaLocationMethod } from "@/app/pages/_shared/dla/dla-data";
 
 // The wireframe's "Add a Location" popup (Figma YMproGZfrFB5jUqPHPxMhk, node 33:43259), re-fitted
@@ -50,38 +50,11 @@ export function AddLocationModal({ isOpen, onOpenChange, onAdd }: { isOpen: bool
     const [name, setName] = useState("");
 
     const [drawnBoundary, setDrawnBoundary] = useState<Boundary | null>(null);
-    const [activeDrawTool, setActiveDrawTool] = useState<"circle" | "polygon" | null>(null);
-    // The draw buttons, above the map and again in its full-screen bar.
-    const drawButtons = (className?: string) => (
-        <>
-            <Button
-                color={activeDrawTool === "polygon" ? "primary" : "secondary"}
-                size="sm"
-                iconLeading={Pentagon}
-                className={className}
-                onPress={() => setActiveDrawTool(activeDrawTool === "polygon" ? null : "polygon")}
-            >
-                {activeDrawTool === "polygon" ? "Drawing…" : "Draw polygon"}
-            </Button>
-            <Button
-                color={activeDrawTool === "circle" ? "primary" : "secondary"}
-                size="sm"
-                iconLeading={Circle}
-                className={className}
-                onPress={() => setActiveDrawTool(activeDrawTool === "circle" ? null : "circle")}
-            >
-                {activeDrawTool === "circle" ? "Drawing…" : "Draw circle"}
-            </Button>
-        </>
-    );
-
+    const [activeDrawTool, setActiveDrawTool] = useState<DrawTool | null>(null);
     const [selectedParkId, setSelectedParkId] = useState<string | null>(null);
 
-    const [coordSystem, setCoordSystem] = useState<"latlong" | "eastingnorthing">("latlong");
     const [lat, setLat] = useState<number | null>(null);
     const [lon, setLon] = useState<number | null>(null);
-    const [easting, setEasting] = useState<number | null>(null);
-    const [northing, setNorthing] = useState<number | null>(null);
 
     const [shapefileName, setShapefileName] = useState("");
     const [shapefilePoints, setShapefilePoints] = useState<[number, number][] | null>(null);
@@ -97,7 +70,7 @@ export function AddLocationModal({ isOpen, onOpenChange, onAdd }: { isOpen: bool
             : method === "list" && selectedPark?.center
               ? { id: `list-${selectedPark.id}`, kind: "circle", center: selectedPark.center, radiusKm: PARK_RADIUS_KM }
               : method === "coordinates"
-                ? coordinatesBoundary(coordSystem, lat, lon, easting, northing)
+                ? coordinatesBoundary(lat, lon)
                 : method === "shapefile" && shapefilePoints
                   ? { id: "shapefile", kind: "polygon", points: shapefilePoints }
                   : null;
@@ -111,11 +84,8 @@ export function AddLocationModal({ isOpen, onOpenChange, onAdd }: { isOpen: bool
         setDrawnBoundary(null);
         setActiveDrawTool(null);
         setSelectedParkId(null);
-        setCoordSystem("latlong");
         setLat(null);
         setLon(null);
-        setEasting(null);
-        setNorthing(null);
         setShapefileName("");
         setShapefilePoints(null);
         setShapefileError("");
@@ -183,12 +153,13 @@ export function AddLocationModal({ isOpen, onOpenChange, onAdd }: { isOpen: bool
 
                             <TabPanel id="map" className="flex flex-col gap-4">
                                 <Input label="Specify a Location Name" isRequired value={name} onChange={setName} />
-                                <div className="flex gap-2">{drawButtons("flex-1")}</div>
+                                <DrawToolButtons activeDrawTool={activeDrawTool} onDrawToolChange={setActiveDrawTool} />
+                                <DrawStatusLine boundary={drawnBoundary} activeDrawTool={activeDrawTool} onRemove={() => setDrawnBoundary(null)} />
                                 <ExpandableMap
                                     title={name.trim() || "Draw a location"}
                                     presentation="takeover"
                                     overModal
-                                    toolbar={<div className="flex gap-2">{drawButtons()}</div>}
+                                    toolbar={<DrawToolButtons activeDrawTool={activeDrawTool} onDrawToolChange={setActiveDrawTool} />}
                                     boundaries={drawnBoundary ? [drawnBoundary] : []}
                                     onBoundaryAdd={(b) => {
                                         setDrawnBoundary(b);
@@ -196,13 +167,9 @@ export function AddLocationModal({ isOpen, onOpenChange, onAdd }: { isOpen: bool
                                     }}
                                     activeDrawTool={activeDrawTool}
                                     onDrawToolChange={setActiveDrawTool}
+                                    pointLabels
                                     className="h-72"
                                 />
-                                {drawnBoundary && (
-                                    <Button color="link-gray" size="sm" className="self-start" onPress={() => setDrawnBoundary(null)}>
-                                        Clear shape
-                                    </Button>
-                                )}
                             </TabPanel>
 
                             <TabPanel id="list" className="flex flex-col gap-4">
@@ -220,21 +187,14 @@ export function AddLocationModal({ isOpen, onOpenChange, onAdd }: { isOpen: bool
 
                             <TabPanel id="coordinates" className="flex flex-col gap-4">
                                 <Input label="Specify a Location Name" isRequired value={name} onChange={setName} />
-                                <RadioGroup size="sm" orientation="horizontal" value={coordSystem} onChange={(v) => setCoordSystem(v as typeof coordSystem)} aria-label="Coordinate system">
-                                    <RadioButton value="eastingnorthing" label="Easting & Northing" />
-                                    <RadioButton value="latlong" label="Latitude & Longitude" />
-                                </RadioGroup>
-                                {coordSystem === "eastingnorthing" ? (
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <InputNumber label="Easting" placeholder="270000" onChange={setEasting} />
-                                        <InputNumber label="Northing" placeholder="6130000" onChange={setNorthing} />
-                                    </div>
-                                ) : (
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <InputNumber label="Latitude" placeholder="-34.93" step={0.01} minValue={-38} maxValue={-25} onChange={setLat} />
-                                        <InputNumber label="Longitude" placeholder="138.60" step={0.01} minValue={129} maxValue={141} onChange={setLon} />
-                                    </div>
-                                )}
+                                <CoordinateFields
+                                    lat={lat}
+                                    lon={lon}
+                                    onChange={(la, lo) => {
+                                        setLat(la);
+                                        setLon(lo);
+                                    }}
+                                />
                             </TabPanel>
                         </Tabs>
 
@@ -253,11 +213,7 @@ export function AddLocationModal({ isOpen, onOpenChange, onAdd }: { isOpen: bool
     );
 }
 
-function coordinatesBoundary(system: "latlong" | "eastingnorthing", lat: number | null, lon: number | null, easting: number | null, northing: number | null): Boundary | null {
-    if (system === "latlong") {
-        if (lat == null || lon == null) return null;
-        return { id: "coords", kind: "circle", center: [lat, lon], radiusKm: POINT_RADIUS_KM };
-    }
-    if (easting == null || northing == null) return null;
-    return { id: "coords", kind: "circle", center: eastingNorthingToLatLon(easting, northing), radiusKm: POINT_RADIUS_KM };
+function coordinatesBoundary(lat: number | null, lon: number | null): Boundary | null {
+    if (lat == null || lon == null) return null;
+    return { id: "coords", kind: "circle", center: [lat, lon], radiusKm: POINT_RADIUS_KM };
 }

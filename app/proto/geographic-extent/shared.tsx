@@ -49,7 +49,7 @@ export function AreaMap({
           onToolChange(null);
         }}
         activeDrawTool={tool}
-        onDrawToolChange={onToolChange}
+        onDrawToolChange={(t) => onToolChange(t === "point" ? null : (t as DrawTool))}
         highlightedBoundaryIds={highlighted}
         onBoundaryHover={onAreaHover}
         className="size-full"

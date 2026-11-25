@@ -17,6 +17,53 @@ export type Boundary = { id: string; source?: string } & (
     | { kind: "polygon"; points: [number, number][]; label?: string }
 );
 
+/** The three things a person can draw on a map. A marked point is a place and nothing more: it is stored as a circle of radius 0 (a pin, with no area), so every screen that reads a `Boundary` already handles it, and
+ *  `isPointBoundary` tells it apart. A coordinate entered in a form (Explore's "Enter coordinates") is also a point, and it is given a radius. */
+export type DrawTool = "circle" | "polygon" | "point";
+
+/** Ids of boundaries made by the Mark a point tool start with this, so a point can be told from a circle drawn by hand (Explore's entered coordinates use `coord-`, and are points too). */
+export const POINT_ID_PREFIX = "point-";
+
+export function isPointBoundary(boundary: Boundary): boolean {
+    return boundary.kind === "circle" && (boundary.id.startsWith(POINT_ID_PREFIX) || boundary.id.startsWith("coord-"));
+}
+
+/** A radius as a person reads it: metres under a kilometre, otherwise kilometres. */
+export function formatRadius(radiusKm: number): string {
+    return radiusKm < 1 ? `${Math.round(radiusKm * 1000)} m` : `${radiusKm} km`;
+}
+
+/** A position to the metre (5 decimal places of a degree is about 1 m): "-34.92850, 138.60070". Fixed width, so a readout that follows the pointer does not jitter. */
+export function formatCoordinates([lat, lon]: [number, number]): string {
+    return `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+}
+
+/** What each drawing tool is called and what it asks of the person. One source for every screen that offers the tools (the buttons, Explore's menu, the line or bar that says what to do), so the same tool is
+ *  never worded two ways. */
+export const DRAW_TOOLS: Record<DrawTool, { button: string; busy: string; menu: string; title: string; hint: string }> = {
+    polygon: {
+        button: "Draw polygon",
+        busy: "Drawing…",
+        menu: "Draw a polygon",
+        title: "Drawing a polygon",
+        hint: "Click to place each point, then double-click to finish.",
+    },
+    circle: {
+        button: "Draw circle",
+        busy: "Drawing…",
+        menu: "Draw a circle",
+        title: "Drawing a circle",
+        hint: "Click and drag on the map to set the centre and radius.",
+    },
+    point: {
+        button: "Mark a point",
+        busy: "Marking…",
+        menu: "Mark a point",
+        title: "Marking a point",
+        hint: "Click the map to place it.",
+    },
+};
+
 export interface NationalPark {
     id: string;
     name: string;
@@ -120,9 +167,28 @@ export function wholeStateBoundary(): Boundary {
     return { id: "whole-state", source: WHOLE_STATE_SOURCE, kind: "circle", center: [-32, 135], radiusKm: 1000, label: "All of South Australia" };
 }
 
+/** The middle of a polygon, as the average of its corners: enough to say where it is (the map's pin for an uploaded shapefile polygon is placed the same way). */
+export function polygonCentre(points: [number, number][]): [number, number] {
+    const sum = points.reduce<[number, number]>(([lat, lon], [pLat, pLon]) => [lat + pLat, lon + pLon], [0, 0]);
+    return [sum[0] / points.length, sum[1] / points.length];
+}
+
+/** What a search area is called in the list of areas, from what it is, so a person reads what is selected and not a number: a marked point by where it is, an entered coordinate by where and how far, a circle by its size and centre,
+ *  a polygon by how many points it has. The same words the drawing screens use for what was drawn. */
+export function boundaryName(boundary: Boundary): string {
+    if (boundary.kind === "polygon") return `Polygon, ${boundary.points.length} points (centre ${formatCoordinates(polygonCentre(boundary.points))})`;
+    if (isPointBoundary(boundary)) {
+        const at = `Point at ${formatCoordinates(boundary.center)}`;
+        return boundary.radiusKm > 0 ? `${at} (${formatRadius(boundary.radiusKm)} radius)` : at;
+    }
+    return `Circle, ${formatRadius(boundary.radiusKm)} radius at ${formatCoordinates(boundary.center)}`;
+}
+
 export function boundarySummary(boundary: Boundary): string {
     if (boundary.source === WHOLE_STATE_SOURCE) return "All of South Australia";
     if (boundary.kind === "circle") {
+        // A point someone marked reads as a point, to the metre, with the radius as its qualifier (2.3); an entered coordinate keeps its older wording.
+        if (boundary.id.startsWith(POINT_ID_PREFIX)) return `Point at ${formatCoordinates(boundary.center)}`;
         const place = boundary.label ?? formatPoint(boundary.center);
         return `${boundary.radiusKm} km radius around ${place}`;
     }

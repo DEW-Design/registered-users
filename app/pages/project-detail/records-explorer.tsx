@@ -68,7 +68,8 @@ import { useFlagCounts } from "./review-view";
 import { type FilterSection, type FilterSelection, useSelectionFilter } from "@/app/pages/_shared/list-filter";
 import { AttributeFilterChips } from "@/app/pages/_shared/attribute-filter";
 import { FilterMenu } from "@/app/pages/_shared/filter-menu";
-import { SAMPLING_TYPES, childOptions, createRecord, duplicateRecord, type ChildOption } from "./record-rules";
+import { SAMPLING_TYPES, childOptions, createRecord, duplicateRecord, occurrenceStart, type ChildOption } from "./record-rules";
+import { useAddOccurrenceOption } from "@/app/_prototype-tools/add-occurrence-option";
 
 export type KindFilter = "all" | RecordKind;
 
@@ -201,6 +202,10 @@ export function RecordsExplorer({
     wasEditing.current = editing;
   };
   const [creating, setCreating] = useState<SurveyRecord | null>(null);
+  // Option 2 of adding an occurrence (Prototype tools bar): under an event the new occurrence inherits Temporal details, Observers and Location
+  // information from it and opens with those cards folded (`addFolds`); option 1 is as it was. Only an occurrence under an event is affected.
+  const addOccurrenceOption = useAddOccurrenceOption(canEdit);
+  const [addFolds, setAddFolds] = useState<string[] | undefined>(undefined);
   // Adding opens the new record full screen, every card in edit mode (the same look as editing),
   // and like edit it returns to where it started: the side panel, or the full view.
   const startAdd = (
@@ -210,7 +215,7 @@ export function RecordsExplorer({
   ) => {
     // A record's "Duplicate" starts from a copy of that record (`copyOf` sets `duplicateOf`); any other option starts blank.
     const source = option.duplicateOf ? records.find((r) => r.id === option.duplicateOf) : undefined;
-    const record = source
+    const blank = source
       ? duplicateRecord({ source, parent, recordedBy: "Olivia Wyatt", records })
       : createRecord({
           kind: option.kind,
@@ -221,6 +226,10 @@ export function RecordsExplorer({
           recordedBy: "Olivia Wyatt",
           records,
         });
+    const inherits = !source && option.kind === "occurrence" && addOccurrenceOption === "2";
+    const start = inherits ? occurrenceStart(blank, recordById) : null;
+    const record = start?.record ?? blank;
+    setAddFolds(start?.folded.length ? start.folded : undefined);
     if (origin === "panel") {
       setPanelEdit({ for: selectedId, creating: record });
       bringToTop();
@@ -440,6 +449,7 @@ export function RecordsExplorer({
         key={creating.id}
         record={creating}
         isNew
+        foldedInEdit={addFolds}
         onSelect={() => {}}
         onAdd={() => {}}
         onExit={closeFullscreen}
@@ -788,6 +798,7 @@ export function RecordsExplorer({
                 variant="panel"
                 record={panelEdit.creating ?? selected!}
                 isNew={!!panelEdit.creating}
+                foldedInEdit={panelEdit.creating ? addFolds : undefined}
                 initialEdit={panelEdit.target}
                 onSelect={onSelect}
                 onAdd={(parent, o) => startAdd(parent, o, "panel")}

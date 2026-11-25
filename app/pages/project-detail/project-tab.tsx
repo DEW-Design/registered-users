@@ -31,7 +31,8 @@ import { ExpandableMap } from "@/app/pages/_shared/map-search/expandable-map";
 import { collectionMethodLabels, EMBARGO_TYPE_OPTIONS, PROJECT_METADATA_CONCEPTS, REGISTRATION_SPECIES, SPECIES_CONCEPTS } from "@/app/pages/project-registration/data";
 import { conceptLabel, conceptValueLabel } from "@/app/pages/project-registration/concept-rows";
 import { usePermitNumbers } from "@/app/pages/_shared/dataset-upload/permit-numbers";
-import { drawnShapeLine, geoExtentSummary } from "@/app/pages/project-registration/geo-extent-picker";
+import { drawnShapeLine } from "@/app/pages/_shared/map-search/draw-tool-buttons";
+import { geoExtentSummary } from "@/app/pages/project-registration/geo-extent-picker";
 import { OFFERED_RESTRICTION_TYPES, RESTRICTION_TYPE_META } from "@/app/pages/project-registration/step-3-privacy-restrictions";
 import { allRecordsOf, culturalOf, isGeoExtentComplete, ownerName, ownersOf, type RestrictionTypeKey } from "@/app/pages/project-registration/types";
 import { expectationLabel } from "@/app/pages/project-registration/restriction-fields";
@@ -39,6 +40,10 @@ import { cx } from "@/utils/cx";
 import { useFeatureAccess } from "@/lib/use-feature-access";
 import { useEditStore } from "./edit-store";
 import { boundaryCentre } from "./field-schema";
+import { OwnersSummary, Label, ownersAndPeople } from "./people-summary";
+import { Chip, ExtentBlock, FoldedChapter, MethodologyBlock, Peek, PermitNumbersBlock, RestrictionRow, TaxonBlock } from "./overview-blocks";
+import { contentOf } from "./overview-content";
+import { STEP_TITLES, sectionMeta } from "@/app/pages/project-registration/option-2/sections";
 import { CARD_TITLES, InlineCardEditor, ProjectCardDrawer, cardMissing, contactRole, roleLabel, type ProjectCardId } from "./project-edit";
 
 export function formatDay(d: DateValue | null): string {
@@ -112,6 +117,14 @@ function Rows({ rows }: { rows: { label: string; value?: ReactNode; empty?: bool
  *  the others are the options of `/proto/project-people`. Opt-in on `ProjectTab`, so the product page is unchanged until one is chosen. */
 export type PeopleStyle = "rows" | "ladder" | "avatar" | "card";
 const PeopleStyleContext = createContext<PeopleStyle>("rows");
+
+/** With the `summary` Overview the cards are named as Add Project's sections are: Data owners (the hero keeps "Published by"), Species restrictions and the rest. */
+const SUMMARY_TITLES: Partial<Record<ProjectCardId, string>> = {
+  owner: "Data owners",
+  collection: "Methodology",
+  ...Object.fromEntries((["embargo", "species", "cultural", "locations", "all", "metadata", "other"] as const).map((k) => [k, sectionMeta(k, 2).title])),
+};
+const TitleContext = createContext<Partial<Record<ProjectCardId, string>>>({});
 
 const initialsOf = (name: string) =>
   name
@@ -244,13 +257,15 @@ function CardIcon({ label, icon, onPress, always }: { label: string; icon: typeo
   );
 }
 
-function Card({ card, description, onEdit, onRemove, className, bare = false, children }: { card: ProjectCardId; description?: string; onEdit: (id: ProjectCardId) => void; onRemove?: () => void; /** Where the card sits in a grid it is placed in (a row span). */ className?: string; /** No border, fill or padding of its own, while it is not being edited: what is inside it (a person, as a card) carries them. Its title and its actions stay. */ bare?: boolean; children: ReactNode }) {
+function Card({ card, description, onEdit, onRemove, className, bare = false, hideTitle = false, children }: { card: ProjectCardId; description?: string; onEdit: (id: ProjectCardId) => void; onRemove?: () => void; /** Where the card sits in a grid it is placed in (a row span). */ className?: string; /** No border, fill or padding of its own, while it is not being edited: what is inside it (a person, as a card) carries them. Its title and its actions stay. */ bare?: boolean; /** The block names itself (a label inside it): the title is kept for a screen reader and the actions sit at the card's top right, until the card is edited. */ hideTitle?: boolean; children: ReactNode }) {
   const { canEdit, project } = useEditStore();
   const layout = useContext(LayoutContext);
   const inline = useContext(InlineEditContext);
-  const title = CARD_TITLES[card];
+  const titles = useContext(TitleContext);
+  const title = titles[card] ?? CARD_TITLES[card];
   const needs = cardMissing(card, project).length > 0;
   const isEditing = layout === "v3" && inline.editing === card;
+  const hidden = hideTitle && layout === "v3" && !isEditing;
   const anyEditing = layout === "v3" && inline.editing !== null;
   const stripped = bare && !isEditing;
   // Where the editing card puts its Cancel and Save changes: the foot of the card itself, pinned to the bottom of the window while the card runs past it.
@@ -260,7 +275,7 @@ function Card({ card, description, onEdit, onRemove, className, bare = false, ch
       id={`card-${card}`}
       aria-label={title}
       className={cx(
-        "group/card flex scroll-mt-4 flex-col gap-4",
+        "group/card relative flex scroll-mt-4 flex-col gap-4",
         stripped ? "gap-3" : "rounded-xl border bg-primary p-5",
         // A card in a two-up row takes the whole row while it is edited, so its form has room.
         isEditing ? "col-span-full border-[var(--color-brand-500)] ring-4 ring-[var(--color-brand-50)]" : stripped ? "border-transparent" : needs ? "border-warning-300" : "border-secondary",
@@ -268,16 +283,21 @@ function Card({ card, description, onEdit, onRemove, className, bare = false, ch
         className,
       )}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex flex-col gap-0.5">
-          <h3 className="flex items-center gap-2 text-sm font-semibold text-primary">
+      <div className={cx("flex items-start justify-between gap-3", hidden && "absolute top-0 right-0 z-10")}>
+        <div className={cx("flex flex-col gap-0.5", hidden && "flex-row items-center")}>
+          <h3 className={cx("flex items-center gap-2 text-sm font-semibold text-primary", hidden && "sr-only")}>
             {title}
-            {needs && (
+            {needs && !hidden && (
               <Badge size="sm" color="warning">
                 Details needed
               </Badge>
             )}
           </h3>
+          {hidden && needs && (
+            <Badge size="sm" color="warning">
+              Details needed
+            </Badge>
+          )}
           {description && <p className="text-sm text-balance text-tertiary">{description}</p>}
         </div>
         {canEdit && layout === "v3" && !anyEditing && (
@@ -491,6 +511,7 @@ export function ProjectTab({
   sheetTop,
   disclosure = false,
   peopleStyle = "rows",
+  summary = false,
 }: {
   ref?: Ref<ProjectTabHandle>;
   /** Told when a card goes into or out of edit mode, so the page does not offer a second edit beside it (one card at a time, CONTRACTS 4.8). */
@@ -514,6 +535,9 @@ export function ProjectTab({
   /** How a person on the Published by and Project managers cards is drawn (`/proto/project-people`): "rows" is as it was; "ladder" makes the name the one semibold line; "avatar" is the design system's person
    *  (an avatar, a name, one supporting line); "card" is that, each person in a card of their own with the section's cards dissolved. @default "rows" */
   peopleStyle?: PeopleStyle;
+  /** The Overview as the designer chose it (19 Nov 2026, `/proto/project-overview`): the full title and the abstract as prose, and the data owners as a line each (a count of who is current, who to contact) with
+   *  the people in a dialog. There is no Project managers card for a project whose owners are a list (a manager is a person whose role is Project Manager); a project saved before that keeps it. Needs `layout="v3"`. @default false */
+  summary?: boolean;
 }) {
   const { project, meta, saveProject, canEdit } = useEditStore();
   const [editing, setEditingState] = useState<ProjectCardId | null>(null);
@@ -532,8 +556,8 @@ export function ProjectTab({
   };
   const [removing, setRemoving] = useState<RestrictionTypeKey | null>(null);
   const { details: d, collection: c, restrictions: r } = project;
-  const [openSections, setOpenSections] = useState<Set<Key>>(new Set());
-  const [mountedSections, setMountedSections] = useState<Set<Key>>(new Set());
+  const [openSections, setOpenSections] = useState<Set<Key>>(new Set(summary ? ["overview"] : []));
+  const [mountedSections, setMountedSections] = useState<Set<Key>>(new Set(summary ? ["overview"] : []));
   const changeOpenSections = (keys: Set<Key>) => {
     setOpenSections(keys);
     setMountedSections((prev) => new Set([...prev, ...keys]));
@@ -547,10 +571,11 @@ export function ProjectTab({
   // A permit number is on a dataset; the project shows its datasets' numbers, rolled up.
   const permitNumbers = usePermitNumbers(meta.id);
   const enabled = r.hasRestrictions ? RESTRICTION_TYPE_META.filter((m) => r.enabledTypes.has(m.key)) : [];
-  const card = (id: ProjectCardId): TocItem => ({ id: `card-${id}`, label: CARD_TITLES[id] });
+  const card = (id: ProjectCardId): TocItem => ({ id: `card-${id}`, label: (summary ? SUMMARY_TITLES[id] : undefined) ?? CARD_TITLES[id] });
 
   // Progressive disclosure: which closed section holds an element ("On this page" id), and opening it. A card that is being edited, or that "On this page" points at, is never left inside a closed section.
-  const sectionOf = (id: string): "data-collection" | "privacy" | null => {
+  const sectionOf = (id: string): "overview" | "data-collection" | "privacy" | null => {
+    if (summary && (id === "overview" || id === "card-details" || id === "card-owner" || id === "card-managers")) return "overview";
     if (id === "data-collection" || id === "card-extent" || id === "card-collection") return "data-collection";
     if (id === "privacy" || id === "card-add-restriction" || enabled.some((m) => id === `card-${m.key}`)) return "privacy";
     return null;
@@ -570,6 +595,9 @@ export function ProjectTab({
   const hasContact = seesPeople && d.dataOwnerContacts.some(written);
   const owners = d.dataOwners ? ownersOf(d) : [];
   const hasManager = d.projectManagers.some(written);
+  const { owners: ownerList, people } = ownersAndPeople(d);
+  // A project saved before owners were a list keeps its managers as a list of their own, and this card is the only place that edits it.
+  const showManagers = seesPeople && (!summary || !d.dataOwners);
   const overviewStacked = editing === "details" || editing === "owner" || editing === "managers";
   const needsDetails = (ids: ProjectCardId[]) => ids.some((x) => cardMissing(x, project).length > 0);
   const detailsNeeded = (
@@ -579,9 +607,9 @@ export function ProjectTab({
   );
 
   const toc: TocItem[] = [
-    { id: "overview", label: "Overview", children: [card("details"), card("owner"), ...(seesPeople ? [card("managers")] : [])] },
-    { id: "data-collection", label: "Data collection and methodology", children: [card("extent"), card("collection")] },
-    { id: "privacy", label: "Privacy and restrictions", children: enabled.map((m) => card(m.key)) },
+    { id: "overview", label: summary ? STEP_TITLES[1] : "Overview", children: [card("details"), card("owner"), ...(showManagers ? [card("managers")] : [])] },
+    { id: "data-collection", label: summary ? STEP_TITLES[2] : "Data collection and methodology", children: [card("extent"), card("collection")] },
+    { id: "privacy", label: summary ? STEP_TITLES[3] : "Privacy and restrictions", children: enabled.map((m) => card(m.key)) },
   ];
 
   const removeType = (key: RestrictionTypeKey) => {
@@ -591,11 +619,176 @@ export function ProjectTab({
     toast.success(`${CARD_TITLES[key]} removed`, { description: "Changes are kept for this session only. This preview has no backend." });
   };
 
+
+  // ── The summary Overview (the designer, 19 Nov 2026, the Folded option of /proto/project-overview): Add Project's three chapters, each saying its answer while closed and opening to the whole. Every block
+  // keeps its card, so the hover edit icon and the inline editor are the page's own; the card's title is for a screen reader and the block names itself. ──
+  const oc = contentOf(project, permitNumbers);
+  const toggleChapter = (key: string) => {
+    const next = new Set(openSections);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    changeOpenSections(next);
+  };
+  const chapter = (key: string) => ({ id: key, open: openSections.has(key), mounted: mountedSections.has(key), onToggle: () => toggleChapter(key) });
+  const noteFor = (ids: ProjectCardId[]) => (needsDetails(ids) ? detailsNeeded : undefined);
+  const methodPeek = [oc.methodKind, oc.methodologies.length > 1 ? `${oc.methodologies.length} methodologies` : oc.methodologies.length === 1 ? oc.methodologies[0].name : ""].filter(Boolean).join(", ");
+  const summaryView = (
+    <>
+      <FoldedChapter
+        {...chapter("overview")}
+        title={STEP_TITLES[1]}
+        note={noteFor(["details", "owner", ...(showManagers ? (["managers"] as ProjectCardId[]) : [])])}
+        peek={<span className="line-clamp-2 block max-w-prose text-sm text-primary">{d.abstract || "Not provided"}</span>}
+      >
+        <div className="flex flex-col gap-8">
+          <Card card="details" onEdit={setEditing} bare hideTitle>
+            <div className="flex min-w-0 flex-col gap-6">
+              {!d.sameAsShortTitle && d.fullTitle && (
+                <div className="flex flex-col gap-2">
+                  <Label>Full title</Label>
+                  <p className="text-sm font-medium text-primary">{d.fullTitle}</p>
+                </div>
+              )}
+              <div className="flex flex-col gap-2">
+                <Label>Abstract</Label>
+                {d.abstract ? <p className="max-w-prose text-sm text-pretty text-primary">{d.abstract}</p> : <p className="text-sm text-quaternary">Not provided</p>}
+              </div>
+            </div>
+          </Card>
+          <Card card="owner" onEdit={setEditing} bare hideTitle>
+            <OwnersSummary
+              owners={ownerList}
+              people={people}
+              seesPeople={seesPeople}
+              reserveEdit={canEdit && layout === "v3"}
+              empty={
+                <ListEmptyState
+                  compact
+                  icon={User01}
+                  title="No contact named"
+                  description={canEdit ? "Add the person to contact about this project's data." : "No one has been named to contact about this project's data."}
+                  action={canEdit ? { label: "Add contact", icon: Plus, onPress: () => setEditing("owner") } : undefined}
+                />
+              }
+            />
+          </Card>
+              {showManagers && (
+                <Card card="managers" onEdit={setEditing} bare>
+                  {hasManager ? (
+                    <ul className="flex flex-col gap-2">
+                      {d.projectManagers.filter(written).map((m) => (
+                        <li key={m.id} className="flex flex-wrap items-baseline justify-between gap-x-4 text-sm">
+                          <span>
+                            <span className="font-medium text-primary">{`${m.firstName} ${m.lastName}`.trim()}</span>
+                            {roleLabel(m.role, m.roleOther) && <span className="text-tertiary">{`, ${roleLabel(m.role, m.roleOther)}`}</span>}
+                          </span>
+                          {m.email && (
+                            <a href={`mailto:${m.email}`} className="text-tertiary outline-focus-ring hover:text-primary hover:underline focus-visible:outline-2 focus-visible:outline-offset-2">
+                              {m.email}
+                            </a>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <ListEmptyState
+                      compact
+                      icon={Users01}
+                      title="No project managers yet"
+                      description={canEdit ? "Name who manages this project. Project managers can change its access and restrictions." : "No project manager has been named yet."}
+                      action={canEdit ? { label: "Add project manager", icon: Plus, onPress: () => setEditing("managers") } : undefined}
+                    />
+                  )}
+                </Card>
+              )}
+        </div>
+      </FoldedChapter>
+
+      <FoldedChapter
+        {...chapter("data-collection")}
+        title={STEP_TITLES[2]}
+        note={noteFor(["extent", "collection"])}
+        peek={
+          <span className="grid gap-x-8 gap-y-4 sm:grid-cols-3">
+            <Peek label="Geographic extent">{oc.hasExtent ? oc.extentText : "Not provided"}</Peek>
+            <Peek label="Targeted taxon">{oc.taxa.join(", ") || "Not provided"}</Peek>
+            <Peek label="Methodology">{methodPeek || "Not provided"}</Peek>
+          </span>
+        }
+      >
+        <div className="grid gap-8 lg:grid-cols-2 lg:items-start">
+          <Card card="extent" onEdit={setEditing} bare hideTitle>
+            {hasExtent ? (
+              <ExtentBlock c={oc} />
+            ) : (
+              <ListEmptyState
+                compact
+                icon={MarkerPin04}
+                title="No geographic extent yet"
+                description={canEdit ? "Draw or choose the area this project's data collection covers." : "The area this project's data collection covers has not been defined yet."}
+                action={canEdit ? { label: "Add geographic extent", icon: Plus, onPress: () => setEditing("extent") } : undefined}
+              />
+            )}
+          </Card>
+          <div className="flex min-w-0 flex-col gap-8">
+            <Card card="collection" onEdit={setEditing} bare hideTitle>
+              <div className="flex min-w-0 flex-col gap-6">
+                <TaxonBlock c={oc} />
+                <MethodologyBlock c={oc} />
+                <PermitNumbersBlock c={oc} />
+              </div>
+            </Card>
+          </div>
+        </div>
+      </FoldedChapter>
+
+      <FoldedChapter
+        {...chapter("privacy")}
+        title={STEP_TITLES[3]}
+        note={noteFor(enabled.map((m) => m.key))}
+        peek={
+          oc.hasRestrictions ? (
+            <span className="flex flex-wrap items-center gap-1.5">
+              {oc.restrictions.map((x) => (
+                <Chip key={x.key}>{x.title}</Chip>
+              ))}
+            </span>
+          ) : (
+            <span className="text-sm text-primary">No restrictions, openly available to every BioData SA user.</span>
+          )
+        }
+      >
+        {layout === "v3" && editing === "add-restriction" && <Card card="add-restriction" onEdit={setEditing}>{null}</Card>}
+        {canEdit && hasRestrictionToAdd(r) && !(layout === "v3" && editing !== null) && (
+          <div className="flex justify-end">
+            <Button color="secondary" size="sm" iconLeading={Plus} onClick={() => setEditing("add-restriction")}>
+              Add restriction
+            </Button>
+          </div>
+        )}
+        {oc.hasRestrictions ? (
+          <ul className="flex flex-col gap-3">
+            {oc.restrictions.map((x) => (
+              <li key={x.key}>
+                <Card card={x.key} onEdit={setEditing} onRemove={() => setRemoving(x.key)} bare hideTitle>
+                  <RestrictionRow item={x} reserve={canEdit && layout === "v3"} />
+                </Card>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          editing !== "add-restriction" && <p className="text-sm text-primary">No restrictions, openly available to every BioData SA user.</p>
+        )}
+      </FoldedChapter>
+    </>
+  );
+
   return (
     <>
     <div className="flex gap-10">
       <LayoutContext.Provider value={layout}>
       <PeopleStyleContext.Provider value={peopleStyle}>
+      <TitleContext.Provider value={summary ? SUMMARY_TITLES : {}}>
       <InlineEditContext.Provider value={{ editing, setEditing, open: openCard, focusLabel }}>
       <div className={cx("flex min-w-0 flex-1 flex-col", sheet ? "gap-8" : "gap-10", layout === "default" && "max-w-4xl")}>
         {lead}
@@ -604,6 +797,8 @@ export function ProjectTab({
         {/* `overflow-clip` rounds the sheet's corners without making it a scroll container, so a card's Cancel and Save changes still pin to the bottom of the window (`overflow-hidden` would stop them). */}
         <div className={sheet ? "flex flex-col overflow-clip rounded-xl border border-secondary bg-primary" : "contents"}>
         {sheet && sheetTop}
+        {summary ? summaryView : (
+        <>
         <Section id="overview" title="Overview" description="What the project is and who runs it." bare={!overviewHeading} alwaysOpen>
           {/* Two columns from a wide window (the designer, 30 Oct 2026): the project's own details on the left, who published it and who manages it
               stacked on the right, the left card as tall as the two beside it. Narrower, the three stack in that order. While one of the three is
@@ -861,11 +1056,14 @@ export function ProjectTab({
             </Card>
           ))}
         </Section>
+        </>
+        )}
         </div>
         </DisclosureContext.Provider>
         </SheetContext.Provider>
       </div>
       </InlineEditContext.Provider>
+      </TitleContext.Provider>
       </PeopleStyleContext.Provider>
       </LayoutContext.Provider>
 

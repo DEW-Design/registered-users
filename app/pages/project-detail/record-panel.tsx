@@ -40,7 +40,9 @@ import { RecordMap } from "./record-map";
 import { RecordHeaderMeta } from "./record-header-meta";
 import { SiteScoresSection } from "./site-scores-section";
 import { flashElement } from "./flash";
-import { type ChildOption } from "./record-rules";
+import { useShowSavedChanges } from "./record-changes";
+import { inheritanceSource, type ChildOption } from "./record-rules";
+import { InheritedMarker } from "./inherited-section";
 import {
   type MetaSection,
   type RecordKind,
@@ -95,7 +97,7 @@ export function SectionFields({
 }) {
   const { canEdit, saveRecord } = useEditStore();
   const notes = useFieldNotes();
-  const saved = useHiddenFields(record.id);
+  const saved = useHiddenFields(record.id, record);
   const hidden = hiddenOverride ?? saved;
   const forRecord = notes[record.id] ?? {};
   const onEdit =
@@ -695,8 +697,13 @@ export function RecordPanel({
 }) {
   const store = useEditStore();
   const del = useDeleteRecord(record, onSelect);
-  const hidden = useHiddenFields(record?.id);
+  const hidden = useHiddenFields(record?.id, record);
   const notesAll = useFieldNotes();
+  // Where an inherited section's values come from ("Transect TR00501"), for the marker in its title.
+  const inheritedFrom = (sectionId: string) => {
+    const src = record ? inheritanceSource(sectionId, record, store.recordById) : undefined;
+    return src ? `${src.type} ${src.code}` : "";
+  };
   // The first section starts open, so a record shows its details without a click (designer, 23 Oct 2026).
   const [openSections, setOpenSections] = useState<Set<ReactKey>>(() => {
     const notes = record ? (notesAll[record.id] ?? {}) : {};
@@ -728,6 +735,9 @@ export function RecordPanel({
     }, 350);
     return () => clearTimeout(t);
   }, [focusField, record]);
+
+  // After a Save (the panel's editor hands back to this view): open the sections the change is in, scroll to it and hold the highlight.
+  useShowSavedChanges(record?.id, rootRef, (cards) => setOpenSections((o) => new Set([...o, ...cards])));
 
   if (!record) {
     return (
@@ -858,7 +868,12 @@ export function RecordPanel({
             onOpenKeysChange={(keys) => setOpenSections(new Set(keys))}
             items={shownSections.map((section) => ({
               id: section.id,
-              title: <SectionTitle record={record} section={section} />,
+              title: (
+                <span className="inline-flex flex-wrap items-center gap-x-3">
+                  <SectionTitle record={record} section={section} />
+                  {record.inherits?.includes(section.id) && <InheritedMarker from={inheritedFrom(section.id)} />}
+                </span>
+              ),
               content: (
                 <SectionFields
                   record={record}

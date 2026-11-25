@@ -24,7 +24,8 @@ import type { UserRole } from "@/lib/user-role";
 import type { FormState } from "@/app/pages/project-registration/option-2/sections";
 import type { ProjectMeta, ProjectSeed } from "./project-seed";
 import type { SurveyRecord } from "./survey-data";
-import { canContain } from "./record-rules";
+import { canContain, eventTypeChoices, resolveInherited, retypeEvent } from "./record-rules";
+import { fieldNotesActions } from "./field-notes-store";
 
 export type ProjectStatus = "Draft" | "Under review" | "Active" | "Completed";
 export const PROJECT_STATUSES: ProjectStatus[] = ["Draft", "Under review", "Active", "Completed"];
@@ -48,6 +49,8 @@ interface Store {
   subtreeOf: (id: string) => SurveyRecord[];
   saveRecord: (record: SurveyRecord) => void;
   addRecord: (record: SurveyRecord) => void;
+  /** Changes a saved event to another type (record-rules.ts `retypeEvent`), if the rules allow it there: the record as it is now, or null when they do not. */
+  changeEventType: (id: string, type: string) => SurveyRecord | null;
   deleteRecord: (id: string) => void;
   artefacts: SurveyArtefact[];
   artefactsFor: (recordId: string) => SurveyArtefact[];
@@ -99,7 +102,14 @@ export function EditStoreProvider({ canEdit, role, seed, children }: { canEdit: 
       useAddedRecords.setState((st) => ({ byProject: { ...st.byProject, [seed.meta.id]: update(st.byProject[seed.meta.id] ?? []) } })),
     [seed.meta.id],
   );
-  const records = useMemo(() => [...seedRecords, ...reachable(seedRecords, addedHere)], [seedRecords, addedHere]);
+  // A record that inherits sections from its parent event is read with them filled in, once, here, so every screen shows the event's current values
+  // and the record never stores them (record-rules.ts `resolveInherited`). A record that inherits nothing is returned as it is.
+  const records = useMemo(() => {
+    const raw = [...seedRecords, ...reachable(seedRecords, addedHere)];
+    if (!raw.some((r) => r.inherits?.length)) return raw;
+    const rawById = new Map(raw.map((r) => [r.id, r]));
+    return raw.map((r) => resolveInherited(r, (id) => (id ? rawById.get(id) : undefined)));
+  }, [seedRecords, addedHere]);
   const [artefacts, setArtefacts] = useState<SurveyArtefact[]>(seed.artefacts);
 
   const byId = useMemo(() => new Map(records.map((r) => [r.id, r])), [records]);
@@ -167,6 +177,17 @@ export function EditStoreProvider({ canEdit, role, seed, children }: { canEdit: 
         if (record.parentId && !parent) return;
         if (!canContain(parent, record.kind, record.type)) return;
         setAdded((list) => [...list.filter((r) => r.id !== record.id), record]);
+      },
+      changeEventType: (id, type) => {
+        const record = byId.get(id);
+        if (!record) return null;
+        const parent = byId.get(record.parentId ?? "") ?? null;
+        if (!eventTypeChoices(record, parent, records.filter((r) => r.parentId === id)).includes(type)) return null;
+        const { record: next, rekeyed } = retypeEvent(record, type, records);
+        setSeedRecords((rs) => rs.map((r) => (r.id === id ? next : r)));
+        setAdded((list) => list.map((r) => (r.id === id ? next : r)));
+        fieldNotesActions.rekeyRecordNotes(id, rekeyed);
+        return next;
       },
       deleteRecord,
       artefacts,

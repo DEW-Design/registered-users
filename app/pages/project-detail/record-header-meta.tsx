@@ -12,14 +12,23 @@ import { useEditStore } from "./edit-store";
 import { hasDateField } from "./field-schema";
 import { formatDate, formatTime, startTimeOf, type SurveyRecord } from "./survey-data";
 
-export function RecordHeaderMeta({ record }: { record: SurveyRecord }) {
+// A record being added shows the same line (`isNew`), so a person knows what it will be added under (designer, 18 Nov 2026), without
+// its date: the date is the field they are about to fill in.
+export function RecordHeaderMeta({ record, isNew = false }: { record: SurveyRecord; isNew?: boolean }) {
   const store = useEditStore();
   const parent = store.recordById(record.parentId);
   const parentText = parent ? `${parent.code} - ${parent.name}` : `${store.meta.code} - ${store.project.details.shortTitle}`;
   const time = startTimeOf(record);
-  const dated = hasDateField(record) && !!record.date;
+  const dated = !isNew && hasDateField(record) && !!record.date;
   return (
     <dl className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
+      {/* An event's type, as a fact in its own right: it sets the fields the record has, and a saved event can change it (record-quick-actions.tsx). */}
+      {record.kind === "event" && (
+        <div className="flex gap-1.5">
+          <dt className="shrink-0 text-tertiary">Type</dt>
+          <dd className="text-primary">{record.type}</dd>
+        </div>
+      )}
       <div className="flex min-w-0 gap-1.5">
         <dt className="shrink-0 text-tertiary">Parent</dt>
         <dd className="min-w-0 text-balance text-primary">{parentText}</dd>

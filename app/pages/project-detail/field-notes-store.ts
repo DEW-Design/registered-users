@@ -594,6 +594,16 @@ export const fieldNotesActions = {
   setFieldNotes(recordId: string, key: string, next: FieldNotes) {
     update(recordId, key, () => next);
   },
+  /** Moves a record's notes to new field keys (`section:label`) when the fields they are on are renamed or move card, as when an event changes type: nothing is left on a key the record no longer has. */
+  rekeyRecordNotes(recordId: string, keys: Record<string, string>) {
+    useNotesStore.setState((s) => {
+      const fields = s.notes[recordId];
+      if (!fields) return s;
+      const next: Record<string, FieldNotes> = {};
+      for (const [key, n] of Object.entries(fields)) next[keys[key] ?? key] = n;
+      return { notes: { ...s.notes, [recordId]: next } };
+    });
+  },
   /** Replaces every note on a record at once: how an edit session's notes are saved. */
   setRecordNotes(recordId: string, fields: Record<string, FieldNotes>) {
     useNotesStore.setState((s) => ({

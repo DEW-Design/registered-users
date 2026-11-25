@@ -721,6 +721,8 @@ Not imported into every session on purpose: read or grep it when a task needs hi
 - [2026-11-17] Project name counter reads n/60 characters - `2026-11-17-09-project-name-counter-reads-n-60-characters.md`
 - [2026-11-17] No officer has to be a Project Manager to be a data owner - `2026-11-17-10-no-officer-has-to-be-a-project-manager.md`
 - [2026-11-17] Geographic extent exploration at proto, four ways to capture a project's area - `2026-11-17-11-geographic-extent-exploration-at-proto-four-ways-to.md`
+- [2026-11-17] Names are optional, an occurrence defaults to its species, help icon on every field - `2026-11-17-12-names-are-optional-an-occurrence-defaults-to-its.md`
+- [2026-11-17] Mark a point: a third drawing tool on every map you draw on - `2026-11-17-13-mark-a-point-a-third-drawing-tool-on.md`
 - [2026-11-18] Map drawing flow exploration at proto, where the coordinates live - `2026-11-18-01-map-drawing-flow-exploration-at-proto-where-the.md`
 - [2026-11-18] Making a drawn point exact at proto, typed values, nudging, zoom and edge points - `2026-11-18-02-making-a-drawn-point-exact-at-proto-typed.md`
 - [2026-11-18] Expand and draw exploration at proto, the form holds a summary and the drawing has the window - `2026-11-18-03-expand-and-draw-exploration-at-proto-the-form.md`
@@ -744,6 +746,9 @@ Not imported into every session on purpose: read or grep it when a task needs hi
 - [2026-11-18] Tried the real progress steps for the step label, reverted to the text label - `2026-11-18-21-tried-the-real-progress-steps-for-the-step.md`
 - [2026-11-18] Design system run-through of this session's lab work, and the action count on the review step - `2026-11-18-22-design-system-run-through-of-this-session-s.md`
 - [2026-11-18] Map first geographic extent rolled into Add Project - `2026-11-18-23-map-first-geographic-extent-rolled-into-add-project.md`
+- [2026-11-18] Event allowed children from the business sheet, and the parent shown when adding - `2026-11-18-24-event-allowed-children-from-the-business-sheet-and.md`
+- [2026-11-18] Transect starts with sample site dimensions and no IBRA, dimensions field fixed, a Save shows what it changed - `2026-11-18-25-transect-starts-with-sample-site-dimensions-and-no.md`
+- [2026-11-18] Adding an occurrence folds the cards the parent event answers (lab) - `2026-11-18-26-adding-an-occurrence-folds-the-cards-the-parent.md`
 - [2026-11-19] Species tab hidden on the project detail page - `2026-11-19-01-species-tab-hidden-on-the-project-detail-page.md`
 - [2026-11-19] Data collection methodology: taxon, multi-select methods, permits and DOI move to the dataset upload - `2026-11-19-02-data-collection-methodology-taxon-multi-select-methods-permi.md`
 - [2026-11-19] Dataset upload recommends the templates of the methodologies the project accepts, in a table - `2026-11-19-03-dataset-upload-recommends-the-templates-of-the-methodologies.md`
@@ -757,6 +762,15 @@ Not imported into every session on purpose: read or grep it when a task needs hi
 - [2026-11-19] Explore draws areas with the project's drawing tools: add a circle, add a polygon, corners to drag - `2026-11-19-11-explore-draws-areas-with-the-project-s-drawing.md`
 - [2026-11-19] Explore: no review step, zoom bottom-right, view switch bottom-left, Apply for a Data Licence - `2026-11-19-12-explore-no-review-step-zoom-bottom-right-view.md`
 - [2026-11-19] The map slides instead of flying: no zoom-out arc - `2026-11-19-13-the-map-slides-instead-of-flying-no-zoom.md`
+- [2026-11-19] Adding an occurrence on the project page has an option 2 inherited - `2026-11-19-14-adding-an-occurrence-on-the-project-page-has.md`
+- [2026-11-19] Voucher prefix is free text and Population occurrences have a Voucher section - `2026-11-19-15-voucher-prefix-is-free-text-and-population-occurrences.md`
+- [2026-11-19] An event's type can be changed after it is saved, and its type is shown as a fact in the header - `2026-11-19-16-an-event-s-type-can-be-changed-after.md`
+- [2026-11-19] Project Overview rethought in a lab: people made lighter, officers marked current or not active - `2026-11-19-17-project-overview-rethought-in-a-lab-people-made.md`
+- [2026-11-19] Project Overview redesigned as a reflection of Add Project, three whole-page options in a lab - `2026-11-19-18-project-overview-redesigned-as-a-reflection-of-add.md`
+- [2026-11-19] Data owners and project officers at scale: four ways in a lab, accordion kept - `2026-11-19-19-data-owners-and-project-officers-at-scale-four.md`
+- [2026-11-19] Overview on the project page: the Folded identification block, data owners as a line each - `2026-11-19-20-overview-on-the-project-page-the-folded-identification.md`
+- [2026-11-19] Overview on the project page replaced by the Folded design, whole sections pressable, owner rows carry... - `2026-11-19-21-overview-on-the-project-page-replaced-by-the.md`
+- [2026-11-19] Easting and northing beside latitude and longitude wherever coordinates are entered - `2026-11-19-22-easting-and-northing-beside-latitude-and-longitude-wherever.md`
 - [2026-11-20] Explore list heading reads Species occurrence records - `2026-11-20-01-explore-list-heading-reads-species-occurrence-records.md`
 - [2026-11-20] Explore's map key and dot colours are flora and fauna - `2026-11-20-02-explore-s-map-key-and-dot-colours-are.md`
 - [2026-11-20] Explore banner: Some locations are restricted, with the policy link, and Apply for a data licence - `2026-11-20-03-explore-banner-some-locations-are-restricted-with-the.md`
@@ -783,3 +797,4 @@ Not imported into every session on purpose: read or grep it when a task needs hi
 - [2026-11-20] Attachments can sit on the project, carry their details, and the viewer stops cutting its lists - `2026-11-20-24-attachments-can-sit-on-the-project-carry-their.md`
 - [2026-11-20] Upload attachments copy cleaned up: hints say only a default - `2026-11-20-25-upload-attachments-copy-cleaned-up-hints-say-only.md`
 - [2026-11-20] URI and DOI tooltip drops its second clause - `2026-11-20-26-uri-and-doi-tooltip-drops-its-second-clause.md`
+- [2026-11-25] Merge of mohan-wips 1c286ee into sai-wips (registered-users): Overview re-fit, renumbering, calls for approval - `2026-11-25-01-merge-of-mohan-wips-1c286ee-into-sai-wips.md`

@@ -214,12 +214,6 @@ export const MEASUREMENT_TYPES = [
 ];
 export const MEASUREMENT_UNITS = ["g", "kg", "mm", "cm", "m", "No unit"];
 
-/** Voucher numbers are shown with the institution's prefix: "SAM 24518". */
-export const INSTITUTION_PREFIX: Record<string, string> = {
-  "South Australian Museum": "SAM",
-  "State Herbarium of South Australia": "AD",
-};
-
 /** Canopy type (my proposal: Figma names the field but gives no control). */
 export const CANOPY_TYPES = ["Tree", "Mallee", "Tall shrub", "Shrub", "Grass", "Sedge"];
 

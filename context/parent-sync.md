@@ -7,10 +7,11 @@ Every change made in this repo (the user testing edition) that the prototype rep
 - Rows are not deleted. A change that is dropped is marked `dropped` with the reason.
 - **Edition only** marks a change that belongs to this repo alone (one role, no tools bar) and should not go to the parent. It is still listed, so nobody has to ask.
 
-Base: this repo was cut from `sai-wips` at `eac2785` (17 Nov 2026).
+Base: this repo was cut from `sai-wips` at `eac2785` (17 Nov 2026). `mohan-wips` 1c286ee (a commit on top of eac2785) was merged in on 25 Nov 2026.
 
 | Date | Change | Files | Decision | Ported |
 | --- | --- | --- | --- | --- |
+| 2026-11-25 | Merged `mohan-wips` 1c286ee from the parent. Changes made here while merging that the parent does not have: the Overview (Folded design) re-fitted to Targeted taxon, the multi-select methodology and read-only permit numbers (no Focus areas, Permits card or URI/DOI); the labs' copies of it; `allowedChildEvents` over our nesting rule; inherited adding (Option 2) as the default with no tools bar. Edition only: the default Option 2 | `app/pages/project-detail/overview-content.ts`, `overview-blocks.tsx`, `project-tab.tsx`, `people-summary.tsx`, `record-rules.ts`, `app/_prototype-tools/add-occurrence-option.ts`, `app/proto/project-overview/*` | `2026-11-25-01-merge-of-mohan-wips-1c286ee-into-sai-wips.md` | no |
 | 2026-11-20 | Explore: the Map only / Map and table switch is a pair of icon-only toggles beside the search field in the card (not a pill in the map's corner); `Tab` gets an opt-in `iconOnly` | `app/pages/observations/observations-search.tsx`, `components/application/tabs/tabs.tsx` | `2026-11-20-09-explore-s-map-and-map-and-table-switch.md` | no |
 | 2026-11-20 | Explore results with nothing found use the shared compact empty state (icon, heading, line) instead of a bare sentence | `app/pages/observations/observations-search.tsx` | `2026-11-20-08-explore-s-empty-results-use-the-product-s.md` | no |
 | 2026-11-20 | Explore: a keyword search with no area no longer draws the 1,000 km whole-state circle and pin (business request); it still filters | `app/pages/observations/observations-search.tsx` | `2026-11-20-07-a-species-search-no-longer-draws-a-circle.md` | no |

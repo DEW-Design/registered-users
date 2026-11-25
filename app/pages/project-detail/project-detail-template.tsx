@@ -482,7 +482,7 @@ function ProjectDetail({ basePath, notice }: ProjectDetailTemplateProps) {
                     <TabPanel id="project" className="pt-6">
                       {/* One sheet, as the designer's frame (30 Oct 2026): the Overview open, "Data collection and methodology" and "Privacy and restrictions" closed under their headings, each opening in place.
                           The header already shows the status and the dates, so the details card does not repeat them (4.3). */}
-                      <ProjectTab ref={overviewRef} onEditingChange={setCardEditing} layout="v3" sheet repeatHeaderFacts={false} disclosure />
+                      <ProjectTab ref={overviewRef} onEditingChange={setCardEditing} layout="v3" sheet repeatHeaderFacts={false} disclosure summary />
                     </TabPanel>
 
                     <TabPanel id="records" className="flex flex-col gap-4 pt-4">

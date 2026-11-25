@@ -7,13 +7,14 @@
 // occurrence or observation of the types allowed there (record-rules.ts), an attachment or a web link. A file or
 // link belongs to one of the record's fields (field-notes-store.ts), so adding one asks which field it documents.
 // Edit edits the record. The "..." holds Duplicate (a copy of this record, beside it; designer, 16 Nov 2026: a control on
-// the record, where it was rows in the Add menu), then, under a divider, Delete, kept out of reach of a stray click. Each action is here once:
+// the record, where it was rows in the Add menu) and, on an event, Change type (designer, 19 Nov 2026: an event's type can be changed after it
+// is saved, to one its place allows), then, under a divider, Delete, kept out of reach of a stray click. Each action is here once:
 // the header above keeps only the path and full screen (designer, 25 Oct 2026: no two controls for one action, and
 // icon-only "+" and pencil were not clear, so both are labelled).
 
 import { useMemo, useState } from "react";
 import { Autocomplete, Input as AriaInput, SearchField, SubmenuTrigger } from "react-aria-components";
-import { ChevronDown, Copy01, DotsVertical, Edit05, LayoutAlt04, Link01, Paperclip, Plus, SearchLg, Trash01, Upload01 } from "@untitledui/icons";
+import { ChevronDown, Copy01, DotsVertical, Edit05, LayoutAlt04, Link01, Paperclip, Plus, SearchLg, SwitchHorizontal02, Trash01, Upload01 } from "@untitledui/icons";
 import { Button } from "@/components/base/buttons/button";
 import { Dropdown } from "@/components/base/dropdown/dropdown";
 import { Input } from "@/components/base/input/input";
@@ -25,7 +26,8 @@ import { useUserRole } from "@/lib/use-user-role";
 import { useSampleContent } from "@/app/_prototype-tools/sample-content";
 import { sampleFile } from "@/app/_prototype-tools/sample-files";
 import { useEditStore } from "./edit-store";
-import { childOptions, copyOf, type ChildOption } from "./record-rules";
+import { ChangeTypeModal } from "./change-type-modal";
+import { childOptions, copyOf, eventTypeChoices, type ChildOption } from "./record-rules";
 import { KIND_PLURAL } from "./record-inspector";
 import { useCurrentUserName } from "./field-notes";
 import { fieldNotesActions, kindForFile, reviewForNewFile } from "./field-notes-store";
@@ -62,10 +64,13 @@ export function RecordQuickActions({
 }) {
   const store = useEditStore();
   const [attach, setAttach] = useState<null | "file" | "link">(null);
+  const [retype, setRetype] = useState(false);
   if (!store.canEdit) return null;
   const options = childOptions(record, store.childrenOf(record?.id ?? null));
   // Duplicate: only where this record can have a copy beside it (the project is not one, nor an observation that is its occurrence's only one).
   const copy = record && onDuplicate ? copyOf(record, store.records, store.childrenOf) : null;
+  // Change type: only on an event with another type its place allows, so it is left out rather than drawn dead (2.12, 3.15).
+  const canRetype = !!record && eventTypeChoices(record, store.recordById(record.parentId) ?? null, store.childrenOf(record.id)).length > 0;
   return (
     <div className="flex items-center gap-2">
       <AddMenu
@@ -81,7 +86,7 @@ export function RecordQuickActions({
           Edit
         </Button>
       )}
-      {(copy || onDelete) && (
+      {(copy || canRetype || onDelete) && (
         <Dropdown.Root>
           <Tooltip title="More actions">
             <TooltipTrigger aria-label="More actions" className={squareButton}>
@@ -93,16 +98,19 @@ export function RecordQuickActions({
               aria-label="More actions"
               onAction={(key) => {
                 if (key === "duplicate" && copy) onDuplicate?.(copy.parent, copy.option);
+                if (key === "retype") setRetype(true);
                 if (key === "delete") onDelete?.();
               }}
             >
               {copy ? <Dropdown.Item id="duplicate" label="Duplicate" icon={Copy01} /> : null}
-              {copy && onDelete ? <Dropdown.Separator /> : null}
+              {canRetype ? <Dropdown.Item id="retype" label="Change type" icon={SwitchHorizontal02} /> : null}
+              {(copy || canRetype) && onDelete ? <Dropdown.Separator /> : null}
               {onDelete ? <Dropdown.Item id="delete" label="Delete record" icon={Trash01} destructive /> : null}
             </Dropdown.Menu>
           </Dropdown.Popover>
         </Dropdown.Root>
       )}
+      {record && retype && <ChangeTypeModal record={record} onClose={() => setRetype(false)} />}
       {record && attach && (
         <AttachModal record={record} mode={attach} onClose={() => setAttach(null)} />
       )}

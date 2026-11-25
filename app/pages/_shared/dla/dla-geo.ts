@@ -1,21 +1,7 @@
-import proj4 from "proj4";
 import shp from "shpjs";
 
-// Real geometry helpers for the "Add a Location" modal's Coordinates and Upload Shapefile
-// methods - kept separate from dla-data.ts so the record model has no dependency on proj4/shpjs.
-
-// GDA94 / MGA Zone 54 (EPSG:28354) - the one UTM zone this tool assumes for Easting/Northing
-// input. Real South Australian coordinates actually span zones 52-54; a production tool would
-// derive the zone from the entered easting or let the user pick one. Fixing on Zone 54 (it covers
-// Adelaide and most of the state's populated south-east, where every seeded location in this build
-// sits) is an honest, documented simplification - the same "approximate, not full GIS" convention
-// already used by SA_NATIONAL_PARKS' centroid coordinates in map-search/geo.ts.
-const MGA_ZONE_54 = "+proj=utm +zone=54 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs";
-
-export function eastingNorthingToLatLon(easting: number, northing: number): [number, number] {
-    const [lon, lat] = proj4(MGA_ZONE_54, proj4.WGS84, [easting, northing]);
-    return [lat, lon];
-}
+// Real geometry helpers for the "Add a Location" modal's Upload Shapefile
+// method (easting and northing are converted in `_shared/mga.ts`) - kept separate from dla-data.ts so the record model has no dependency on proj4/shpjs.
 
 function ringToLatLon(ring: number[][]): [number, number][] {
     // GeoJSON coordinates are [lon, lat] - flipped here to match this tool's own [lat, lon] convention.

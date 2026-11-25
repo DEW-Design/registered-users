@@ -133,8 +133,9 @@ function answer(row: MetaRow, ctx: { key: string; start: CalendarDate }): string
     }
     case "unitNumber":
     case "number":
-    case "voucher":
       return NUMBERS[label] ?? "2";
+    case "voucher":
+      return `SAM ${NUMBERS[label] ?? "1"}`;
     case "dimensions":
       return "20 × 20 m";
     case "yesno":

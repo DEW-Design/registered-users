@@ -3,6 +3,27 @@
 
 const RUNS = [
   {
+    slug: "occurrence-add",
+    title: "Adding an occurrence under an event",
+    status: "Exploring",
+    note: "Occurrence details open, the rest folded; Temporal details, Observers and Location inherited from the parent event (read from it, not stored). From mohan-wips.",
+    decision: null as string | null,
+  },
+  {
+    slug: "project-owners",
+    title: "Data owners and project officers at scale",
+    status: "Exploring",
+    note: "A project with several owners and many officers: accordions of owners, a table of owners, and the officer cards. From mohan-wips.",
+    decision: null as string | null,
+  },
+  {
+    slug: "project-overview",
+    title: "Project overview as a reflection of Add Project",
+    status: "Exploring",
+    note: "The Overview rethought as a reflection of Add Project, on the project the flow itself creates from its sample answers. From mohan-wips.",
+    decision: null as string | null,
+  },
+  {
     slug: "geographic-extent",
     title: "Geographic extent in Add Project",
     status: "Exploring",
