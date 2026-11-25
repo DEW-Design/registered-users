@@ -63,7 +63,9 @@ function ScopeNav() {
   return (
     <div className="flex flex-col gap-1">
       <AgreementScopeNav heading="Requests" basePath="/pages/dla" defaultScope={canReview ? "all" : "mine"} myLabel="My requests" allLabel="All requests" allIcon={sectionIcons[DLA_SECTION_LABEL]} showAll={canAll} />
+      {/* Create report is hidden here (the designer, 20 Nov 2026: "Create a report: hide from view. For DLA, for Projects."); `showCreateReport` brings it back. */}
       <ActionsGroup
+        showCreateReport={false}
         onExportCsv={() =>
           downloadCsv(
             "data-licencing-agreements.csv",

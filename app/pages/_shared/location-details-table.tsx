@@ -8,15 +8,13 @@ import { cx } from "@/utils/cx";
 //
 // Honest values only:
 //   - Entered Value: what the record was actually captured as. Every record in this build stores
-//     a latitude/longitude, so Latitude/Longitude show it and Zone/Easting/Northing are "-" (they
-//     weren't entered).
+//     a latitude/longitude, so Latitude/Longitude show it and Zone/Easting/Northing are empty (they
+//     weren't entered; no dash, 20 Nov 2026).
 //   - GDA2020 Equivalent: the record's coordinates are treated as GDA2020 (the datum this build's
 //     own detail pages already state), so Latitude/Longitude carry over unchanged and Zone/
 //     Easting/Northing are the real MGA2020 grid position computed from them (`toMga2020`, a
 //     standard Transverse Mercator projection on the GRS80 ellipsoid) - derived, not invented.
-//   - No coordinates at all (e.g. a mock record with no lat/lon): every cell is "-".
-
-const DASH = "-";
+//   - No coordinates at all (e.g. a mock record with no lat/lon): every cell is empty.
 
 /** Latitude/longitude (GDA2020) -> MGA2020 zone/easting/northing. Transverse Mercator on GRS80,
  *  k0 = 0.9996, 500 km false easting, 10,000 km false northing (southern hemisphere). */
@@ -48,18 +46,35 @@ export function toMga2020(lat: number, lon: number): { zone: number; easting: nu
     return { zone, easting, northing };
 }
 
-const metres = (n: number) => `${n.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m`;
-const degrees = (n: number) => n.toFixed(6);
+// A value and the unit after it, in a slot of the same width on every row, so the decimal points line up down the column whatever the unit is.
+interface Cell {
+    value: string;
+    unit?: string;
+}
+const metres = (n: number): Cell => ({ value: n.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 }), unit: "m" });
+const degrees = (n: number): Cell => ({ value: n.toFixed(6) });
+// Nothing was entered (or there are no coordinates): the cell is empty, never a dash (2.3, 2.12); a screen reader is told.
+const NONE: Cell = { value: "" };
+
+function Value({ cell }: { cell: Cell }) {
+    if (!cell.value) return <span className="sr-only">Not entered</span>;
+    return (
+        <span className="inline-flex items-baseline justify-end gap-1">
+            <span>{cell.value}</span>
+            <span className="w-3 text-left text-xs text-quaternary">{cell.unit}</span>
+        </span>
+    );
+}
 
 export function LocationDetailsTable({ lat, lon }: { lat?: number; lon?: number }) {
     const has = lat !== undefined && lon !== undefined;
     const mga = has ? toMga2020(lat, lon) : null;
-    const rows: { coordinate: string; entered: string; gda2020: string }[] = [
-        { coordinate: "Zone", entered: DASH, gda2020: mga ? String(mga.zone) : DASH },
-        { coordinate: "Easting", entered: DASH, gda2020: mga ? metres(mga.easting) : DASH },
-        { coordinate: "Northing", entered: DASH, gda2020: mga ? metres(mga.northing) : DASH },
-        { coordinate: "Latitude", entered: has ? degrees(lat) : DASH, gda2020: has ? degrees(lat) : DASH },
-        { coordinate: "Longitude", entered: has ? degrees(lon) : DASH, gda2020: has ? degrees(lon) : DASH },
+    const rows: { coordinate: string; entered: Cell; gda2020: Cell }[] = [
+        { coordinate: "Zone", entered: NONE, gda2020: mga ? { value: String(mga.zone) } : NONE },
+        { coordinate: "Easting", entered: NONE, gda2020: mga ? metres(mga.easting) : NONE },
+        { coordinate: "Northing", entered: NONE, gda2020: mga ? metres(mga.northing) : NONE },
+        { coordinate: "Latitude", entered: has ? degrees(lat) : NONE, gda2020: has ? degrees(lat) : NONE },
+        { coordinate: "Longitude", entered: has ? degrees(lon) : NONE, gda2020: has ? degrees(lon) : NONE },
     ];
 
     return (
@@ -81,9 +96,14 @@ export function LocationDetailsTable({ lat, lon }: { lat?: number; lon?: number 
                 <tbody className="[&>tr+tr>td]:border-t [&>tr+tr>td]:border-[var(--ui-border-secondary)] [&>tr:first-child>td]:border-t [&>tr:first-child>td]:border-[var(--ui-border-secondary)]">
                     {rows.map((r) => (
                         <tr key={r.coordinate}>
-                            <td className="px-4 py-3 font-medium whitespace-nowrap text-primary">{r.coordinate}</td>
-                            <td className="px-4 py-3 text-right whitespace-nowrap text-tertiary tabular-nums">{r.entered}</td>
-                            <td className="px-4 py-3 text-right whitespace-nowrap text-tertiary tabular-nums">{r.gda2020}</td>
+                            {/* The names recede and the numbers lead: the table is read for its values. */}
+                            <td className="px-4 py-2 whitespace-nowrap text-tertiary">{r.coordinate}</td>
+                            <td className="px-4 py-2 text-right whitespace-nowrap text-primary tabular-nums">
+                                <Value cell={r.entered} />
+                            </td>
+                            <td className="px-4 py-2 text-right whitespace-nowrap text-primary tabular-nums">
+                                <Value cell={r.gda2020} />
+                            </td>
                         </tr>
                     ))}
                 </tbody>

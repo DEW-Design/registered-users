@@ -797,7 +797,12 @@ Not imported into every session on purpose: read or grep it when a task needs hi
 - [2026-11-20] Attachments can sit on the project, carry their details, and the viewer stops cutting its lists - `2026-11-20-24-attachments-can-sit-on-the-project-carry-their.md`
 - [2026-11-20] Upload attachments copy cleaned up: hints say only a default - `2026-11-20-25-upload-attachments-copy-cleaned-up-hints-say-only.md`
 - [2026-11-20] URI and DOI tooltip drops its second clause - `2026-11-20-26-uri-and-doi-tooltip-drops-its-second-clause.md`
+- [2026-11-20] Location information shows coordinates on the left and the map on the right - `2026-11-20-27-location-information-shows-coordinates-on-the-left-and.md`
+- [2026-11-20] Coordinate table: values lead, no dashes, units aligned, rows tighter - `2026-11-20-28-coordinate-table-values-lead-no-dashes-units-aligned.md`
+- [2026-11-20] Create report is hidden on the DLA and Projects lists - `2026-11-20-29-create-report-is-hidden-on-the-dla-and.md`
+- [2026-11-21] A completed project says it is still open for dataset uploads; correction on role checks - `2026-11-21-01-a-completed-project-says-it-is-still-open.md`
 - [2026-11-25] Merge of mohan-wips 1c286ee into sai-wips (registered-users): Overview re-fit, renumbering, calls for approval - `2026-11-25-01-merge-of-mohan-wips-1c286ee-into-sai-wips.md`
 - [2026-11-25] Text of sai-wips stands over mohan-wips: the Overview chapter titles - `2026-11-25-02-text-of-sai-wips-stands-over-mohan-wips.md`
 - [2026-11-25] Mohan merge: approval calls answered, inherited adding is the only way - `2026-11-25-03-mohan-merge-approval-calls-answered-inherited-adding-is.md`
 - [2026-11-25] Verification pass on the Mohan merge: tasks 1 and 2 end to end, help coverage, touch and narrow windows - `2026-11-25-04-verification-pass-on-the-mohan-merge-tasks-1.md`
+- [2026-11-25] Four changes of 20 and 21 Nov brought onto sai-wips - `2026-11-25-05-four-changes-of-20-and-21-nov-brought.md`

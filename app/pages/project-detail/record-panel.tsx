@@ -148,41 +148,46 @@ export function SectionFields({
   return (
     <div className="flex flex-col gap-3">
       {section.withMap && (
-        <>
-          {showMap && (
-            <RecordMap record={record} lat={lat} lon={lon} className="h-40" />
-          )}
-          {/* In the expanded view the map sits in the side column; the card shows what was entered. */}
-          {/* The table belongs to Location details, so the row's divider sits under the table. */}
-          <div className="flex flex-col gap-2 border-b border-secondary pb-3">
-            <FieldRow
-              recordId={record.id}
-              fieldKey={`${section.id}:Location details`}
-              label="Location details"
-              value={
-                record.locationNote
-                  ? "Generalised for a restricted species"
-                  : locationSummary(
-                      record.location ?? {
-                        method: "coordinates",
-                        boundary: {
-                          id: "pt",
-                          kind: "circle",
-                          center: [record.lat, record.lon],
-                          radiusKm: 0.1,
+        // Coordinates on the left and the map on the right, as the expanded record has them (the map in its side column; the designer, 20 Nov 2026: "Location info needs
+        // to have coordinates on the left and map on the right. Inconsistency logged."). Where the panel is narrow the map goes above, as it did. The table belongs to
+        // Location details, so the row's divider sits under both columns.
+        <div className="@container">
+          <div className={cx("grid gap-3 border-b border-secondary pb-3", showMap && "@3xl:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]")}>
+            <div className="flex flex-col gap-2">
+              <FieldRow
+                recordId={record.id}
+                fieldKey={`${section.id}:Location details`}
+                label="Location details"
+                value={
+                  record.locationNote
+                    ? "Generalised for a restricted species"
+                    : locationSummary(
+                        record.location ?? {
+                          method: "coordinates",
+                          boundary: {
+                            id: "pt",
+                            kind: "circle",
+                            center: [record.lat, record.lon],
+                            radiusKm: 0.1,
+                          },
                         },
-                      },
-                    )
-              }
-              notes={forRecord[`${section.id}:Location details`]}
-              onEdit={onEdit}
-              labelWidth={labelWidth}
-              divider={false}
-            />
-            {/* A restricted record shows no coordinates, rounded or not: only its block on the map. */}
-            {!record.locationNote && <LocationDetailsTable lat={lat} lon={lon} />}
+                      )
+                }
+                notes={forRecord[`${section.id}:Location details`]}
+                onEdit={onEdit}
+                labelWidth={labelWidth}
+                divider={false}
+              />
+              {/* A restricted record shows no coordinates, rounded or not: only its block on the map. */}
+              {!record.locationNote && <LocationDetailsTable lat={lat} lon={lon} />}
+            </div>
+            {showMap && (
+              <div className="order-first @3xl:order-last">
+                <RecordMap record={record} lat={lat} lon={lon} className="h-40 @3xl:h-full @3xl:min-h-40" />
+              </div>
+            )}
           </div>
-        </>
+        </div>
       )}
       <div className="flex flex-col">
         {section.siteScores ? (

@@ -15,6 +15,9 @@ import { useUserRole } from "@/lib/use-user-role";
 // included, while Explore's export was already gated. Create report is left out for guests (it needs
 // an account) unless `sameForEveryone` is set: then a guest sees it too and it opens the sign-up
 // invite, so the column reads the same for every persona (project-detail Option 3).
+/** Create report is not offered in the Projects column 2 for now (the designer, 20 Nov 2026). */
+const SHOW_CREATE_REPORT = false;
+
 export function ProjectActions({ withTopRule = true, sameForEveryone = false }: { withTopRule?: boolean; sameForEveryone?: boolean }) {
   const role = useUserRole();
   const isGuest = role === "public-user";
@@ -22,8 +25,9 @@ export function ProjectActions({ withTopRule = true, sameForEveryone = false }: 
 
   return (
     <>
+      {/* Create report is hidden here (the designer, 20 Nov 2026: "Create a report: hide from view. For DLA, for Projects."). `showCreateReport` brings it back, with the guest rule above. */}
       <ActionsGroup
-        showCreateReport={!isGuest || sameForEveryone}
+        showCreateReport={SHOW_CREATE_REPORT && (!isGuest || sameForEveryone)}
         onCreateReport={isGuest ? () => setGate("report") : undefined}
         withTopRule={withTopRule}
         onExportCsv={() =>

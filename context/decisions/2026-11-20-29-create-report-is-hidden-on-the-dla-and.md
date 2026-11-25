@@ -1,0 +1,5 @@
+# 2026-11-20 - Create report is hidden on the DLA and Projects lists
+
+- **Nov 20 2026: "Create report" is not shown in column 2 of the DLA list or the Projects list.** The designer: "Create a report: hide from view. For DLA, for Projects." Hidden, not deleted: `ActionsGroup`'s `showCreateReport` is set to false in `dla/dla-shell.tsx`, and in `project-actions.tsx` a `SHOW_CREATE_REPORT` constant (false) gates it ahead of the guest rule, so each is one switch to bring back. Export CSV stays in both.
+  - **Not changed (not named).** The DSA and Nominations lists keep their Create report; the project page's own "..." menu keeps its Create report item; the Reports section's "Create a report" is the report area's own. Whether any of those should go too is for the designer.
+  - **Verified live** (registered user, BioData Admin, public user): /pages/dla and /pages/project-list show Export CSV and no Create report; /pages/nominations still shows it. Zero console errors on those pages. `tsc`, `eslint`, `check:contracts` clean. Not committed.
